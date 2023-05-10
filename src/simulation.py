@@ -120,6 +120,14 @@ class simulation_class():
 
         self.potential_vector[self.N_electrodes:] = np.dot(self.inv_capacitance_matrix, self.charge_vector)
 
+    def update_potentials(self):
+
+        np1 = self.adv_index_rows[self.jump]
+        np2 = self.adv_index_cols[self.jump]
+
+        self.potential_vector[self.N_electrodes:] += (self.inv_capacitance_matrix[:,np2]*self.ele_charge
+                                                      - self.inv_capacitance_matrix[:,np1]*self.ele_charge)
+
     def calc_tunnel_rates(self):
         """
         For potentials at given advanced indices calculate free energy and tunnel rate matrix
@@ -197,17 +205,21 @@ class simulation_class():
         # If Electrode is involved
         if ((np1 - self.N_electrodes) < 0):
             self.charge_vector[np2-self.N_electrodes] += self.ele_charge
+            self.potential_vector[self.N_electrodes:] += self.ele_charge*self.inv_capacitance_matrix[:,np2]
         elif ((np2 - self.N_electrodes) < 0):
             self.charge_vector[np1-self.N_electrodes] -= self.ele_charge
+            self.potential_vector[self.N_electrodes:] -= self.ele_charge*self.inv_capacitance_matrix[:,np1]
         else:
             self.charge_vector[np1-self.N_electrodes] -= self.ele_charge
             self.charge_vector[np2-self.N_electrodes] += self.ele_charge
+            self.potential_vector[self.N_electrodes:] += self.ele_charge*(self.inv_capacitance_matrix[:,np2] - self.inv_capacitance_matrix[:,np1])
         
         # Update Time and last Jump
         self.time   = self.time - np.log(random_number2)/k_tot
         self.jump   = jump
 
         # k_tot       = np.sum(self.tunnel_rates)
+        # event       = random_number1 * k_tot
         # min_val     = 0.0
         # max_val     = 0.0
         
@@ -217,12 +229,8 @@ class simulation_class():
         #     self.jump   = -1
         #     return
         
-        # self.kmc_cum_sum = np.cumsum(self.tunnel_rates)
+        # # self.kmc_cum_sum = np.cumsum(self.tunnel_rates)
 
-        
-
-         
-                
         # for jump, t_rate in enumerate(self.tunnel_rates):
 
         #     if (t_rate != 0.0):
@@ -246,7 +254,9 @@ class simulation_class():
 
         #         min_val = max_val
         
-        
+        # Update Time and last Jump
+        # self.time   = self.time - np.log(random_number2)/k_tot
+        # self.jump   = jump
     
     def select_co_event(self, random_number1 : float, random_number2 : float):
         """
@@ -338,15 +348,18 @@ class simulation_class():
 
         mean_potentials_1   = np.zeros(N_particles)
         mean_potentials_2   = np.zeros(N_particles)
+        self.calc_potentials()
 
         while(no_equilibrium or (self.total_jumps < min_jumps)):
 
             if (self.jump == -1):
                 break
-
+            
+            mean_potentials_1   +=  self.potential_vector[self.N_electrodes:]/max_steps
+            
             random_number1  = np.random.rand()
             random_number2  = np.random.rand()
-            self.calc_potentials()
+            # self.calc_potentials()
             
             if self.cotunneling == False:
                 if not(self.zero_T):
@@ -364,7 +377,6 @@ class simulation_class():
                 self.select_co_event(random_number1, random_number2)
 
             counter             += 1
-            mean_potentials_1   +=  self.potential_vector[self.N_electrodes:]/max_steps
 
             if (counter % max_steps == 0):
 
@@ -400,6 +412,7 @@ class simulation_class():
         self.jump_diff_mean             = 0.0
         self.jump_diff_mean2            = 0.0
         self.jump_diff_std              = 0.0
+        self.calc_potentials()
 
         while(self.rel_error > error_th):
 
@@ -411,7 +424,7 @@ class simulation_class():
             random_number1  = np.random.rand()
             random_number2  = np.random.rand()
 
-            self.calc_potentials()
+            # self.calc_potentials()
 
             if self.cotunneling == False:
                 if not(self.zero_T):
@@ -482,7 +495,7 @@ class simulation_class():
             random_number2  = np.random.rand()
             last_time       = self.time
 
-            self.calc_potentials()
+            # self.calc_potentials()
 
             if not(self.zero_T):
                 self.calc_tunnel_rates()
@@ -655,15 +668,15 @@ class simulation:
                                         temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
                                         co_adv_index3, N_electrodes, N_particles)
 
-            t1 = time.process_time()
+            # t1 = time.process_time()
             simulation.reach_equilibrium()
             eq_jumps = simulation.total_jumps
-            print(f"Equi costs {(time.process_time()-t1)}")
+            # print(f"Equi costs {(time.process_time()-t1)}")
 
-            t1 = time.process_time()
+            # t1 = time.process_time()
             simulation.kmc_simulation(target_electrode, error_th, max_jumps)
             jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = simulation.return_target_values()
-            print(f"KMC costs {(time.process_time()-t1)}")
+            # print(f"KMC costs {(time.process_time()-t1)}")
             
             self.output_values.append(np.array([eq_jumps, total_jumps, jump_diff_mean, jump_diff_std]))
             self.microstates.append(mean_state)
@@ -672,7 +685,7 @@ class simulation:
 
             if ((i+1) % save_th == 0):
                 
-                t1 = time.process_time()
+                # t1 = time.process_time()
                 save_target_currents(np.array(self.output_values), self.voltages[j:(i+1),:], self.path1)
                 save_mean_microstate(self.microstates, self.path2)
                 save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
@@ -683,7 +696,7 @@ class simulation:
                 self.average_jumps   = []
                 self.average_cojumps = []
                 j               = i+1
-                print(f"Saving costs {(time.process_time()-t1)}")
+                # print(f"Saving costs {(time.process_time()-t1)}")
 
     def run_var_voltages(self, target_electrode : int, time_steps : np.array, T_val=0.28, save_th=10):
 

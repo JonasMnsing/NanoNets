@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
         times = []
 
-        for N in range(3,11):
+        for N in range(3,10):
             
             # Topology values
             topology_parameter          = {}
@@ -29,12 +29,12 @@ if __name__ == '__main__':
 
             # Simulation Values
             sim_dic                 = {}
-            sim_dic['error_th']     = 0.005
-            sim_dic['max_jumps']    = 200000000
+            sim_dic['error_th']     = 0.05
+            sim_dic['max_jumps']    = 10000000
 
             # Misc
             target_electrode    = len(topology_parameter["e_pos"]) - 1
-            folder              = "/home/jonas/phd/NanoNets/test_runs/evan/"
+            folder              = "/home/jonas/phd/NanoNets/test_runs/test3/"
             thread_rows         = rows[thread]
 
             t1 = time.process_time_ns()

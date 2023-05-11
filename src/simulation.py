@@ -120,13 +120,18 @@ class simulation_class():
 
         self.potential_vector[self.N_electrodes:] = np.dot(self.inv_capacitance_matrix, self.charge_vector)
 
-    def update_potentials(self):
+    def update_potentials(self, np1, np2):
 
-        np1 = self.adv_index_rows[self.jump]
-        np2 = self.adv_index_cols[self.jump]
-
-        self.potential_vector[self.N_electrodes:] += (self.inv_capacitance_matrix[:,np2]*self.ele_charge
-                                                      - self.inv_capacitance_matrix[:,np1]*self.ele_charge)
+        if ((np1 - self.N_electrodes) < 0):
+            self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] + self.inv_capacitance_matrix[:,np2]*self.ele_charge
+        elif ((np2 - self.N_electrodes) < 0):
+            self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] - self.inv_capacitance_matrix[:,np1]*self.ele_charge
+        elif ((np1 - self.N_electrodes) < 0 and ((np2 - self.N_electrodes) < 0)):
+            self.potential_vector[self.N_electrodes:] = np.dot(self.inv_capacitance_matrix, self.charge_vector)
+        else:
+            self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] + (self.inv_capacitance_matrix[:,np2]
+                                                        - self.inv_capacitance_matrix[:,np1])*self.ele_charge
+            
 
     def calc_tunnel_rates(self):
         """
@@ -205,58 +210,18 @@ class simulation_class():
         # If Electrode is involved
         if ((np1 - self.N_electrodes) < 0):
             self.charge_vector[np2-self.N_electrodes] += self.ele_charge
-            self.potential_vector[self.N_electrodes:] += self.ele_charge*self.inv_capacitance_matrix[:,np2]
+            self.potential_vector[self.N_electrodes:] += self.ele_charge*self.inv_capacitance_matrix[:,np2-self.N_electrodes]
         elif ((np2 - self.N_electrodes) < 0):
             self.charge_vector[np1-self.N_electrodes] -= self.ele_charge
-            self.potential_vector[self.N_electrodes:] -= self.ele_charge*self.inv_capacitance_matrix[:,np1]
+            self.potential_vector[self.N_electrodes:] -= self.ele_charge*self.inv_capacitance_matrix[:,np1-self.N_electrodes]
         else:
             self.charge_vector[np1-self.N_electrodes] -= self.ele_charge
             self.charge_vector[np2-self.N_electrodes] += self.ele_charge
-            self.potential_vector[self.N_electrodes:] += self.ele_charge*(self.inv_capacitance_matrix[:,np2] - self.inv_capacitance_matrix[:,np1])
+            self.potential_vector[self.N_electrodes:] += self.ele_charge*(self.inv_capacitance_matrix[:,np2-self.N_electrodes] - self.inv_capacitance_matrix[:,np1-self.N_electrodes])
         
         # Update Time and last Jump
         self.time   = self.time - np.log(random_number2)/k_tot
         self.jump   = jump
-
-        # k_tot       = np.sum(self.tunnel_rates)
-        # event       = random_number1 * k_tot
-        # min_val     = 0.0
-        # max_val     = 0.0
-        
-        # if (k_tot == 0.0):
-            
-        #     self.time   = 1.0
-        #     self.jump   = -1
-        #     return
-        
-        # # self.kmc_cum_sum = np.cumsum(self.tunnel_rates)
-
-        # for jump, t_rate in enumerate(self.tunnel_rates):
-
-        #     if (t_rate != 0.0):
-
-        #         max_val = min_val + t_rate
-
-        #         if ((event > min_val) and (event <= max_val)):
-
-        #             np1 = self.adv_index_rows[jump]
-        #             np2 = self.adv_index_cols[jump]
-
-        #             if ((np1 - self.N_electrodes) < 0):
-        #                 self.charge_vector[np2-self.N_electrodes] += self.ele_charge
-        #             elif ((np2 - self.N_electrodes) < 0):
-        #                 self.charge_vector[np1-self.N_electrodes] -= self.ele_charge
-        #             else:
-        #                 self.charge_vector[np1-self.N_electrodes] -= self.ele_charge
-        #                 self.charge_vector[np2-self.N_electrodes] += self.ele_charge
-                    
-        #             break
-
-        #         min_val = max_val
-        
-        # Update Time and last Jump
-        # self.time   = self.time - np.log(random_number2)/k_tot
-        # self.jump   = jump
     
     def select_co_event(self, random_number1 : float, random_number2 : float):
         """
@@ -348,8 +313,8 @@ class simulation_class():
 
         mean_potentials_1   = np.zeros(N_particles)
         mean_potentials_2   = np.zeros(N_particles)
-        self.calc_potentials()
 
+        self.calc_potentials()
         while(no_equilibrium or (self.total_jumps < min_jumps)):
 
             if (self.jump == -1):
@@ -359,8 +324,7 @@ class simulation_class():
             
             random_number1  = np.random.rand()
             random_number2  = np.random.rand()
-            # self.calc_potentials()
-            
+
             if self.cotunneling == False:
                 if not(self.zero_T):
                     self.calc_tunnel_rates()
@@ -375,7 +339,7 @@ class simulation_class():
                     self.calc_tunnel_rates_zero_T()
                     self.calc_cotunnel_rates_zero_T()
                 self.select_co_event(random_number1, random_number2)
-
+            
             counter             += 1
 
             if (counter % max_steps == 0):
@@ -412,8 +376,8 @@ class simulation_class():
         self.jump_diff_mean             = 0.0
         self.jump_diff_mean2            = 0.0
         self.jump_diff_std              = 0.0
+        np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]     
         self.calc_potentials()
-
         while(self.rel_error > error_th):
 
             if ((self.total_jumps == max_jumps) or (self.jump == -1)):
@@ -423,8 +387,6 @@ class simulation_class():
             # KMC Part
             random_number1  = np.random.rand()
             random_number2  = np.random.rand()
-
-            # self.calc_potentials()
 
             if self.cotunneling == False:
                 if not(self.zero_T):
@@ -515,7 +477,7 @@ class simulation_class():
             # If jump towards target electrode
             if (np2 == target_electrode):
                 self.counter_output_jumps_pos += 1
-                        
+            
             # Statistics
             self.total_jumps    +=  1
         
@@ -526,7 +488,7 @@ class simulation_class():
             self.jump_diff_mean = 0
 
     def return_target_values(self):
-
+        
         return self.jump_diff_mean, self.jump_diff_std, self.charge_mean/self.total_jumps, self.jump_storage, self.jump_storage_co, self.total_jumps
 
 ###################################################################################################
@@ -668,15 +630,11 @@ class simulation:
                                         temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
                                         co_adv_index3, N_electrodes, N_particles)
 
-            # t1 = time.process_time()
             simulation.reach_equilibrium()
             eq_jumps = simulation.total_jumps
-            # print(f"Equi costs {(time.process_time()-t1)}")
 
-            # t1 = time.process_time()
             simulation.kmc_simulation(target_electrode, error_th, max_jumps)
             jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = simulation.return_target_values()
-            # print(f"KMC costs {(time.process_time()-t1)}")
             
             self.output_values.append(np.array([eq_jumps, total_jumps, jump_diff_mean, jump_diff_std]))
             self.microstates.append(mean_state)
@@ -685,7 +643,6 @@ class simulation:
 
             if ((i+1) % save_th == 0):
                 
-                # t1 = time.process_time()
                 save_target_currents(np.array(self.output_values), self.voltages[j:(i+1),:], self.path1)
                 save_mean_microstate(self.microstates, self.path2)
                 save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
@@ -696,7 +653,6 @@ class simulation:
                 self.average_jumps   = []
                 self.average_cojumps = []
                 j               = i+1
-                # print(f"Saving costs {(time.process_time()-t1)}")
 
     def run_var_voltages(self, target_electrode : int, time_steps : np.array, T_val=0.28, save_th=10):
 
@@ -986,45 +942,25 @@ class simulation:
 if __name__ == '__main__':
 
     # Voltage Sweep
-    N_voltages          = 8000
-    N_processes         = 10
-    v_rand              = np.repeat(np.random.uniform(low=-0.05, high=0.05, size=int(N_voltages/4)), 4)
-    v_gates             = np.repeat(np.random.uniform(low=-0.1, high=0.1, size=int(N_voltages/4)), 4)
-    i1                  = np.tile([0.0,0.0,0.01,0.01],int(N_voltages/4))
-    i2                  = np.tile([0.0,0.01,0.0,0.01],int(N_voltages/4))
-    index               = [i for i in range(N_voltages)]
-    rows                = [index[i::N_processes] for i in range(N_processes)]
+    N_voltages          = 4
+    voltages            = pd.DataFrame(np.zeros((N_voltages,5)))
+    voltages.iloc[:,0]  = np.repeat(np.random.uniform(low=-0.05, high=0.05, size=int(N_voltages/4)), 4)
+    voltages.iloc[:,1]  = np.tile([0.0,0.0,0.01,0.01],int(N_voltages/4)) 
+    voltages.iloc[:,2]  = np.tile([0.0,0.01,0.0,0.01],int(N_voltages/4))
+    voltages.iloc[:,-1] = np.repeat(np.random.uniform(low=-0.1, high=0.1, size=int(N_voltages/4)), 4)
+    print(voltages)
 
-    def parallel_code(thread, rows, v_rand, v_gates, i1, i2, N_voltages):
-
-        topology_parameter          = {}
-        topology_parameter["Nx"]    = 5
-        topology_parameter["Ny"]    = 5
-        topology_parameter["Nz"]    = 1
-        topology_parameter["e_pos"] = [[0,0,0],[4,0,0],[0,4,0],[4,4,0]]
+    folder                      = ""
+    topology_parameter          = {}
+    topology_parameter["Nx"]    = 3
+    topology_parameter["Ny"]    = 3
+    topology_parameter["Nz"]    = 1
+    topology_parameter["e_pos"] = [[0,0,0],[2,0,0],[0,2,0],[2,2,0]]
+    target_electrode            = len(topology_parameter['e_pos'])-1
         
+    sim_dic                 = {}
+    sim_dic['error_th']     = 0.05
+    sim_dic['max_jumps']    = 5000000
 
-        sim_dic                 = {}
-        sim_dic['error_th']     = 0.05
-        sim_dic['max_jumps']    = 5000000
-
-        target_electrode    = len(topology_parameter["e_pos"]) - 1
-        folder              = ""
-        thread_rows         = rows[thread]
-        voltages            = pd.DataFrame(np.zeros((N_voltages,5)))
-        voltages.iloc[:,0]  = v_rand
-        voltages.iloc[:,1]  = i1 
-        voltages.iloc[:,2]  = i2
-        voltages.iloc[:,-1] = v_gates
-
-        for i in [2,1]:
-
-            cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
-                                save_th=10, add_to_path=f'zT_order_{i}', tunnel_order=i, T_val=0, sim_dic=sim_dic)
-    
-    # parallel_code(0, rows, v_rand, v_gates, i1, i2, N_voltages)
-
-    for i in range(N_processes):
-
-        process = multiprocessing.Process(target=parallel_code, args=(i,rows,v_rand,v_gates, i1, i2, N_voltages))
-        process.start()
+    sim_class = simulation("", voltages=voltages.values, topology_parameter=topology_parameter)
+    sim_class.run_const_voltages(3, sim_dic=sim_dic, save_th=1)

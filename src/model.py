@@ -86,7 +86,7 @@ class model_class:
         voltage_values  :   [U_e1,U_e2,...,U_eN]
         """
 
-        self.potential_vector                       = np.ones(self.N_electrodes+self.N_particles)
+        self.potential_vector                       = np.zeros(self.N_electrodes+self.N_particles)
         self.potential_vector[0:self.N_electrodes]  = voltage_values[:-1]
 
     def init_const_capacitance_values(self)->None:

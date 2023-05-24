@@ -96,6 +96,7 @@ class simulation_class():
         self.jump_diff_mean2             = 0.0   # Difference in Jumps towards/from target electrode
         self.jump_diff_std               = 0.0   # Standard Deviation for difference in jumps
         self.rel_error                   = 1.0   # Relative Error for difference in jumps
+        self.jump                        = 0
 
         # Storages
         self.charge_mean        = np.zeros(len(charge_vector))

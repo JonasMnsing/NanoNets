@@ -87,7 +87,7 @@ if __name__ == '__main__':
             sim_dic['max_jumps']    = 100#10000000
 
             simulation.cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
-                                save_th=1, tunnel_order=tunnel_order, T_val=0, sim_dic=sim_dic)
+                                save_th=1, tunnel_order=tunnel_order, T_val=0.28, sim_dic=sim_dic)
     
     for i in range(N_processes):
 

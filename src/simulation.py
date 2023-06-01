@@ -554,15 +554,17 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 
 class simulation:
 
-    def __init__(self, folder : str, voltages : np.array, topology_parameter : dict,
-                 del_n_junctions=0, np_info=None, np_info2=None, add_to_path="") -> None:
+    def __init__(self, voltages : np.array):
 
         self.voltages = voltages
 
+    def init_cubic(self, folder : str, topology_parameter : dict,
+                 del_n_junctions=0, np_info=None, np_info2=None, add_to_path="") -> None:
+
         # Save Paths
-        self.path1 = folder + f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-        self.path2 = folder + f'mean_state_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-        self.path3 = folder + f'net_currents_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
+        self.path1 = folder + f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
+        self.path2 = folder + f'mean_state_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
+        self.path3 = folder + f'net_currents_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
         
         # NP Informations
         if np_info == None:
@@ -580,13 +582,49 @@ class simulation:
         cubic_topology = topology.topology_class()
         cubic_topology.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
         cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"])
-        self.cubic_net = cubic_topology.return_net_topology()
+        self.net_topology = cubic_topology.return_net_topology()
 
         # Electrostatic
-        self.cubic_electrostatic = electrostatic.electrostatic_class(net_topology=self.cubic_net)
+        self.net_electrostatic = electrostatic.electrostatic_class(net_topology=self.net_topology)
         if del_n_junctions != 0:
-            self.cubic_electrostatic.delete_n_junctions(del_n_junctions)
-        self.cubic_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['mean_radius'], np_info['std_radius'], np_info['np_distance'])
+            self.net_electrostatic.delete_n_junctions(del_n_junctions)
+        self.net_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['mean_radius'], np_info['std_radius'], np_info['np_distance'])
+        
+        # Output Lists
+        self.output_values   = []
+        self.microstates     = []
+        self.average_jumps   = []
+        self.average_cojumps = []
+    
+    def init_random(self, folder : str, topology_parameter : dict, np_info=None, np_info2=None, add_to_path="") -> None:
+
+        # Save Paths
+        self.path1 = folder + f'Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
+        self.path2 = folder + f'mean_state_Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
+        self.path3 = folder + f'net_currents_Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
+        
+        # NP Informations
+        if np_info == None:
+            np_info = {
+                "eps_r"         : 2.6,
+                "eps_s"         : 3.9,
+                "mean_radius"   : 10.0,
+                "std_radius"    : 0.0,
+                "np_distance"   : 1.0
+            }
+        if np_info2 == None:
+            np_info2 = np_info
+
+        # Cubic Network Topology
+        random_topology = topology.topology_class()
+        random_topology.random_network(N_particles=topology_parameter["Np"], N_junctions=topology_parameter["Nj"])
+        random_topology.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
+        random_topology.graph_to_net_topology()
+        self.net_topology = random_topology.return_net_topology()
+
+        # Electrostatic
+        self.net_electrostatic = electrostatic.electrostatic_class(net_topology=self.net_topology)
+        self.net_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['mean_radius'], np_info['std_radius'], np_info['np_distance'])
         
         # Output Lists
         self.output_values   = []
@@ -608,23 +646,23 @@ class simulation:
 
         for i, voltage_values in enumerate(self.voltages):
         
-            self.cubic_electrostatic.init_charge_vector(voltage_values=voltage_values)
+            self.net_electrostatic.init_charge_vector(voltage_values=voltage_values)
 
-            inv_capacitance_matrix  = self.cubic_electrostatic.return_inv_capacitance_matrix()
-            charge_vector           = self.cubic_electrostatic.return_charge_vector()
+            inv_capacitance_matrix  = self.net_electrostatic.return_inv_capacitance_matrix()
+            charge_vector           = self.net_electrostatic.return_charge_vector()
 
             # Model
-            cubic_model = model.model_class(net_topology=self.cubic_net, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
-            cubic_model.init_potential_vector(voltage_values=voltage_values)
-            cubic_model.init_const_capacitance_values()
+            net_model = model.model_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
+            net_model.init_potential_vector(voltage_values=voltage_values)
+            net_model.init_const_capacitance_values()
 
             # Return Model Arguments
-            potential_vector                                                                        = cubic_model.return_potential_vector()
-            const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = cubic_model.return_const_capacitance_values()
-            N_electrodes, N_particles                                                               = cubic_model.return_particle_electrode_count()
-            adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = cubic_model.return_advanced_indices()
-            temperatures, temperatures_co                                                           = cubic_model.return_const_temperatures(T=T_val)
-            resistances, resistances_co1, resistances_co2                                           = cubic_model.return_const_resistances()
+            potential_vector                                                                        = net_model.return_potential_vector()
+            const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
+            N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
+            adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
+            temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
+            resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
             
             # Simulation Class
             simulation = simulation_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
@@ -658,23 +696,23 @@ class simulation:
     def run_var_voltages(self, target_electrode : int, time_steps : np.array, T_val=0.28, save_th=10):
 
         # First time step
-        self.cubic_electrostatic.init_charge_vector(voltage_values=self.voltages[0])
-        inv_capacitance_matrix  = self.cubic_electrostatic.return_inv_capacitance_matrix()
-        charge_vector           = self.cubic_electrostatic.return_charge_vector()
+        self.net_electrostatic.init_charge_vector(voltage_values=self.voltages[0])
+        inv_capacitance_matrix  = self.net_electrostatic.return_inv_capacitance_matrix()
+        charge_vector           = self.net_electrostatic.return_charge_vector()
 
         # Model
-        cubic_model = model.model_class(net_topology=self.cubic_net, inv_capacitance_matrix=inv_capacitance_matrix)
-        cubic_model.init_potential_vector(voltage_values=self.voltages[0])
-        cubic_model.init_const_capacitance_values()
+        net_model = model.model_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix)
+        net_model.init_potential_vector(voltage_values=self.voltages[0])
+        net_model.init_const_capacitance_values()
 
         # Return Model Arguments
-        potential_vector                                                                        = cubic_model.return_potential_vector()
-        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = cubic_model.return_const_capacitance_values()
-        N_electrodes, N_particles                                                               = cubic_model.return_particle_electrode_count()
-        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = cubic_model.return_advanced_indices()
-        temperatures, temperatures_co                                                           = cubic_model.return_const_temperatures(T=T_val)
-        resistances, resistances_co1, resistances_co2                                           = cubic_model.return_const_resistances()
-        # resistances, resistances_co1, resistances_co2                                           = cubic_model.return_random_resistances()
+        potential_vector                                                                        = net_model.return_potential_vector()
+        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
+        N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
+        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
+        temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
+        resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
+        # resistances, resistances_co1, resistances_co2                                           = net_model.return_random_resistances()
 
         # Simulation Class
         simulation = simulation_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
@@ -687,14 +725,14 @@ class simulation:
         simulation.counter_output_jumps_neg = 0
         simulation.counter_output_jumps_pos = 0
 
-        offset                      = self.cubic_electrostatic.get_charge_vector_offset(voltage_values=self.voltages[0])
+        offset                      = self.net_electrostatic.get_charge_vector_offset(voltage_values=self.voltages[0])
         simulation.charge_vector    =- offset
         
         j = 0
 
         for i, voltage_values in enumerate(self.voltages[:-1]):
 
-            offset                      = self.cubic_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
+            offset                      = self.net_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
             simulation.charge_vector    += offset
             
             simulation.time = time_steps[i]
@@ -721,7 +759,7 @@ class simulation:
                 average_cojumps = []
                 j               = i+1
             
-            offset                      = self.cubic_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
+            offset                      = self.net_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
             simulation.charge_vector    =- offset
 
 
@@ -791,17 +829,17 @@ class simulation:
 #         charge_vector           = cubic_electrostatic.return_charge_vector()
 
 #         # Model
-#         cubic_model = model.model_class(net_topology=cubic_net, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
-#         cubic_model.init_potential_vector(voltage_values=voltage_values)
-#         cubic_model.init_const_capacitance_values()
+#         net_model = model.model_class(net_topology=cubic_net, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
+#         net_model.init_potential_vector(voltage_values=voltage_values)
+#         net_model.init_const_capacitance_values()
 
 #         # Return Model Arguments
-#         potential_vector                                                                        = cubic_model.return_potential_vector()
-#         const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = cubic_model.return_const_capacitance_values()
-#         N_electrodes, N_particles                                                               = cubic_model.return_particle_electrode_count()
-#         adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = cubic_model.return_advanced_indices()
-#         temperatures, temperatures_co                                                           = cubic_model.return_const_temperatures(T=T_val)
-#         resistances, resistances_co1, resistances_co2                                           = cubic_model.return_const_resistances()
+#         potential_vector                                                                        = net_model.return_potential_vector()
+#         const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
+#         N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
+#         adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
+#         temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
+#         resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
         
 #         # Simulation Class
 #         simulation = simulation_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
@@ -874,18 +912,18 @@ class simulation:
 #     charge_vector           = cubic_electrostatic.return_charge_vector()
 
 #     # Model
-#     cubic_model = model.model_class(net_topology=cubic_net, inv_capacitance_matrix=inv_capacitance_matrix)
-#     cubic_model.init_potential_vector(voltage_values=voltages[0])
-#     cubic_model.init_const_capacitance_values()
+#     net_model = model.model_class(net_topology=cubic_net, inv_capacitance_matrix=inv_capacitance_matrix)
+#     net_model.init_potential_vector(voltage_values=voltages[0])
+#     net_model.init_const_capacitance_values()
 
 #     # Return Model Arguments
-#     potential_vector                                                                        = cubic_model.return_potential_vector()
-#     const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = cubic_model.return_const_capacitance_values()
-#     N_electrodes, N_particles                                                               = cubic_model.return_particle_electrode_count()
-#     adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = cubic_model.return_advanced_indices()
-#     temperatures, temperatures_co                                                           = cubic_model.return_const_temperatures(T=T_val)
-#     resistances, resistances_co1, resistances_co2                                           = cubic_model.return_const_resistances()
-#     # resistances, resistances_co1, resistances_co2                                           = cubic_model.return_random_resistances()
+#     potential_vector                                                                        = net_model.return_potential_vector()
+#     const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
+#     N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
+#     adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
+#     temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
+#     resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
+#     # resistances, resistances_co1, resistances_co2                                           = net_model.return_random_resistances()
 
 #     # Simulation Class
 #     simulation = simulation_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
@@ -943,25 +981,45 @@ class simulation:
 if __name__ == '__main__':
 
     # Voltage Sweep
-    N_voltages          = 4
-    voltages            = pd.DataFrame(np.zeros((N_voltages,5)))
-    voltages.iloc[:,0]  = np.repeat(np.random.uniform(low=-0.05, high=0.05, size=int(N_voltages/4)), 4)
-    voltages.iloc[:,1]  = np.tile([0.0,0.0,0.01,0.01],int(N_voltages/4)) 
-    voltages.iloc[:,2]  = np.tile([0.0,0.01,0.0,0.01],int(N_voltages/4))
-    voltages.iloc[:,-1] = np.repeat(np.random.uniform(low=-0.1, high=0.1, size=int(N_voltages/4)), 4)
+    N_voltages          = 4#80028
+    N_processes         = 4
+    v_rand              = np.repeat(np.random.uniform(low=-0.05, high=0.05, size=((int(N_voltages/4),5))), 4, axis=0)
+    v_gates             = np.repeat(np.random.uniform(low=-0.1, high=0.1, size=int(N_voltages/4)),4)
+    i1                  = np.tile([0.0,0.0,0.01,0.01], int(N_voltages/4))
+    i2                  = np.tile([0.0,0.01,0.0,0.01], int(N_voltages/4))
+    voltages            = pd.DataFrame(np.zeros((N_voltages,9)))
+    voltages.iloc[:,0]  = v_rand[:,0]
+    voltages.iloc[:,2]  = v_rand[:,1]
+    voltages.iloc[:,4]  = v_rand[:,2]
+    voltages.iloc[:,5]  = v_rand[:,3]
+    voltages.iloc[:,6]  = v_rand[:,4]
+    voltages.iloc[:,1]  = i1
+    voltages.iloc[:,3]  = i2
+    voltages.iloc[:,-1] = v_gates
     print(voltages)
 
-    folder                      = ""
-    topology_parameter          = {}
-    topology_parameter["Nx"]    = 3
-    topology_parameter["Ny"]    = 3
-    topology_parameter["Nz"]    = 1
-    topology_parameter["e_pos"] = [[0,0,0],[2,0,0],[0,2,0],[2,2,0]]
-    target_electrode            = len(topology_parameter['e_pos'])-1
+    # folder                      = ""
+    # topology_parameter          = {}
+    # topology_parameter["Nx"]    = 3
+    # topology_parameter["Ny"]    = 3
+    # topology_parameter["Nz"]    = 1
+    # topology_parameter["e_pos"] = [[0,0,0],[2,0,0],[0,2,0],[2,2,0]]
+    # target_electrode            = len(topology_parameter['e_pos'])-1
         
-    sim_dic                 = {}
-    sim_dic['error_th']     = 0.05
-    sim_dic['max_jumps']    = 5000000
+    # sim_dic                 = {}
+    # sim_dic['error_th']     = 0.05
+    # sim_dic['max_jumps']    = 5000000
 
-    sim_class = simulation("", voltages=voltages.values, topology_parameter=topology_parameter)
-    sim_class.run_const_voltages(3, sim_dic=sim_dic, save_th=1)
+    # sim_class = simulation("", voltages=voltages.values, topology_parameter=topology_parameter)
+    # sim_class.run_const_voltages(3, sim_dic=sim_dic, save_th=1)
+
+    folder = ""
+    topology_parameter          = {}
+    topology_parameter["Np"]    = 20
+    topology_parameter["Nj"]    = 4
+    topology_parameter["e_pos"] = [[-1.5,-1.5],[0,-1.5],[1.5,-1.5],[-1.5,0],[-1.5,1.5],[1.5,0],[0,1.5],[1.5,1.5]]
+    target_electrode            = len(topology_parameter['e_pos'])-1
+
+    sim_class = simulation(voltages=voltages.values)
+    sim_class.init_random(folder=folder, topology_parameter=topology_parameter)
+    sim_class.run_const_voltages(target_electrode=target_electrode, save_th=1)

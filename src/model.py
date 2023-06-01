@@ -198,16 +198,45 @@ class model_class:
 
 if __name__ == "__main__":
 
-    N = 3
-    cubic_topology = topology.topology_class()
-    cubic_topology.cubic_network(N_x=N, N_y=N, N_z=1)
-    cubic_topology.set_electrodes_based_on_pos([[0,0,0], [int((N-1)/2),0,0], [N-1,0,0], [0,int((N-1)/2),0], [0,N-1,0], [N-1,int((N-1)/2),0], [int((N-1)/2),(N-1),0], [N-1,N-1,0]])
-    cubic_net = cubic_topology.return_net_topology()
+    # N = 3
+    # cubic_topology = topology.topology_class()
+    # cubic_topology.cubic_network(N_x=N, N_y=N, N_z=1)
+    # cubic_topology.set_electrodes_based_on_pos([[0,0,0], [int((N-1)/2),0,0], [N-1,0,0], [0,int((N-1)/2),0], [0,N-1,0], [N-1,int((N-1)/2),0], [int((N-1)/2),(N-1),0], [N-1,N-1,0]])
+    # cubic_net = cubic_topology.return_net_topology()
 
-    print("Cubic Network Topology:\n", cubic_net)
+    # print("Cubic Network Topology:\n", cubic_net)
 
-    # Electrostatic
-    cubic_electrostatic = electrostatic.electrostatic_class(net_topology=cubic_net)
+    # # Electrostatic
+    # cubic_electrostatic = electrostatic.electrostatic_class(net_topology=cubic_net)
+    # cubic_electrostatic.calc_capacitance_matrix()
+    # cubic_electrostatic.init_charge_vector(voltage_values=np.random.rand(9))
+
+    # # Model
+    # inv_capacitance_matrix  = cubic_electrostatic.return_inv_capacitance_matrix()
+    # charge_vector           = cubic_electrostatic.return_charge_vector()
+
+    # cubic_model = model_class(net_topology=cubic_net, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=1)
+    # adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3 = cubic_model.return_advanced_indices()
+
+    ################
+    # Disordered Net
+    ################
+
+    N_particles     = 20
+    N_junctions     = 4
+    electrode_pos   = [[-1.5,-1.5],[0,-1.5],[1.5,-1.5],[-1.5,0],[-1.5,1.5],[1.5,0],[0,1.5],[1.5,1.5]]
+
+    random_topology = topology.topology_class()
+    random_topology.random_network(N_particles=N_particles, N_junctions=N_junctions)
+    random_topology.add_electrodes_to_random_net(electrode_positions=electrode_pos)
+    random_topology.graph_to_net_topology()
+
+    random_net = random_topology.return_net_topology()
+
+    print("Disordered Network Topology:\n", random_net)
+
+     # Electrostatic
+    cubic_electrostatic = electrostatic.electrostatic_class(net_topology=random_net)
     cubic_electrostatic.calc_capacitance_matrix()
     cubic_electrostatic.init_charge_vector(voltage_values=np.random.rand(9))
 
@@ -215,5 +244,8 @@ if __name__ == "__main__":
     inv_capacitance_matrix  = cubic_electrostatic.return_inv_capacitance_matrix()
     charge_vector           = cubic_electrostatic.return_charge_vector()
 
-    cubic_model = model_class(net_topology=cubic_net, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=1)
+    cubic_model = model_class(net_topology=random_net, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=1)
     adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3 = cubic_model.return_advanced_indices()
+
+    print(adv_index_rows)
+    print(adv_index_cols)

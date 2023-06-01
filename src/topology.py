@@ -1,4 +1,6 @@
 import numpy as np
+import networkx as nx
+import pandas as pd
 from typing import List
 
 class topology_class:
@@ -17,8 +19,9 @@ class topology_class:
         """
         Init a random number generator needed for random network topologies
         """
-
-        self.rng = np.random.default_rng(seed=seed)
+        self.N_particles    = 0
+        self.N_electrodes   = 0
+        self.rng            = np.random.default_rng(seed=seed)
 
     def cubic_network(self, N_x : int, N_y : int, N_z : int) -> None:
         """
@@ -82,156 +85,70 @@ class topology_class:
                 
             n_NN = 0
 
-    def random_network(self, N_particles : int, N_junctions_lower : int, N_junctions_upper : int, p=0.1)->None:
+    def random_network(self, N_particles : int, N_junctions : int):
         """
-        !!!!!!!!!!!!!!!!!DOES NOT WORK PROPERLY!!!!!!!!!!!!!!!!!
-        Init random packed network topology.
-        For each np its number of next neighbors is either sampled from a binomial distribution or uniform distribution
-        N_particles         :   Number of nps
-        N_junctions_lower   :   Lower bound for number of junctions per np
-        N_junctions_upper   :   Upper bound for number of junctions per np
-        p                   :   Probability of success (binomial), if p = 0 use uniform_dist(N_junctions_lower,N_junctions_upper)
+        N_particles     :   Number of nodes in Graph
+        N_junctions     :   Degree of each node
+        Init a random regular graph of nanoparticles
+        Nanoparticles are positioned based on force-directed graph drawing using Fruchterman-Reingold
+        Thus, there topology will represent a local minimum.
+        The resulting graph will not be planar (2D)!!! 
         """
-
-        self.N_particles        = N_particles
-        self.N_junctions_lower  = N_junctions_lower
-        self.N_junctions_upper  = N_junctions_upper
-        self.p                  = p
-
-        if p == 0.0:
-            junction_sample = range(N_junctions_lower,N_junctions_upper+1)
-
-        neighbour_sample = range(0,self.N_particles)
-
-        # FIRST: Sample Number of Junctions for each Nanoparticle
-        #########################################################
-        self.net_topology = np.zeros(shape=(self.N_particles, self.N_junctions_upper + 1))
-        self.net_topology.fill(-200)
-
-        for i_1 in range(0, self.N_particles):
-
-            junction_not_in_range = True
-
-            while (junction_not_in_range):
-                
-                if (p != 0.0):
-                    N_junctions = self.rng.binomial(n=self.N_junctions_upper/p, p=p)
-                else:
-                    N_junctions = self.rng.choice(junction_sample)
-
-                if ((N_junctions >= self.N_junctions_lower) and (N_junctions <= self.N_junctions_upper)):
-                    junction_not_in_range = False
-
-            for i_2 in range(0, N_junctions + 1):
-                
-                self.net_topology[i_1,i_2] = -100
         
-        # SECOND: For each Junction attach a random Nanoparticle
-        ########################################################
-        for p1 in range(0, self.N_particles):
-
-            current_neighbours = []
-
-            for j1 in range(1, self.N_junctions_upper + 1):
-
-                if (self.net_topology[p1,j1] == -100):
-
-                    neighbour_not_found = True
-
-                    while (neighbour_not_found):
-
-                        # Sample a new neighbour
-                        neighbour = self.rng.choice(neighbour_sample)
-                        
-                        current_n_size = len(current_neighbours)
-
-                        if (current_n_size == (self.N_particles - 1)):
-                            
-                            self.random_network(self.N_particles, self.N_junctions_lower, self.N_junctions_upper, self.p)
-
-                        # If new neighbour is already a neighbour or new neighbour equals the current particle i
-                        while ((neighbour in current_neighbours) or (neighbour == p1)):
-
-                            neighbour = self.rng.choice(neighbour_sample)
-                            
-                        # Go to neighbour index and loop through each junction
-                        for j2 in range(1, self.N_junctions_upper + 1):
-
-                            # If there is still a place left for an additional neighbour
-                            if (self.net_topology[neighbour, j2] == -100):
-
-                                # Attach particles
-                                self.net_topology[neighbour, j2] = p1
-                                self.net_topology[p1,j1]         = neighbour
-                                neighbour_not_found              = False
-                                break
-                                
-                        # Add neighbour to neighbour storage
-                        current_neighbours.append(neighbour)
-                        print(current_neighbours)
-                        print(self.net_topology)
+        self.N_particles    = N_particles
+        self.N_junctions    = N_junctions
+        not_connected       = True
         
-        self.net_topology[self.net_topology == -200] = -100
+        while not_connected:
 
-    # def connect_NP_random(N_NP, max_d=0.25, max_connection=4):
+            self.G          = nx.random_regular_graph(N_junctions, self.N_particles)
+            not_connected   = not(nx.is_connected(self.G))
 
-    #     not_connected   = True
-    #     n_try           = 0
+        self.G   = self.G.to_directed()
+        self.pos = nx.kamada_kawai_layout(self.G)
+        self.pos = nx.spring_layout(self.G, pos=self.pos)
 
-    #     while(not_connected):
+    def add_electrodes_to_random_net(self, electrode_positions : list):
 
-    #         pos_e   = np.array([[-0.1,-0.1],
-    #                             [0.5,-0.1],
-    #                             [1.1,-0.1],
-    #                             [-0.1,0.5],
-    #                             [1.1,0.5],
-    #                             [-0.1,1.1],
-    #                             [0.5,1.1],
-    #                             [1.1,1.1]])
+        self.N_electrodes   = len(electrode_positions)
+        rename              = {i:i+self.N_electrodes for i in range(len(self.G.nodes))}
+        self.G              = nx.relabel_nodes(G=self.G, mapping=rename)
+        self.pos            = {k+self.N_electrodes: v for k, v in self.pos.items()}
+
+        node_positions  = pd.DataFrame(self.pos).T.sort_index()
+        used_nodes      = []
+
+        for node, e_pos in enumerate(electrode_positions):
             
-    #         radius  = np.random.uniform(low=0, high=0.5, size=(N_NP,1))
-    #         angle   = np.random.uniform(low=0, high=2, size=(N_NP,1))
-    #         pos_o   = np.concatenate((radius, angle), axis=1)
+            node_positions['d'] = np.sqrt((e_pos[0]-node_positions[0])**2 + (e_pos[1]-node_positions[1])**2)
+            
+            for i in range(len(node_positions)):
 
-    #         pos         = np.zeros(shape=(N_NP,2))
-    #         pos[:,0]    = np.cos(pos_o[:,1]*np.pi)*pos_o[:,0]
-    #         pos[:,1]    = np.sin(pos_o[:,1]*np.pi)*pos_o[:,0]
-    #         pos         = pos + 0.5
-    #         con_m       = np.zeros(shape=(N_NP+8,N_NP+8))
+                connected_node = node_positions.sort_values(by='d').index[i]
+                if connected_node in used_nodes:
+                    continue
+                else:
+                    used_nodes.append(connected_node)
+                    break
+            
+            self.G.add_edge(node,connected_node)
+            self.G.add_edge(connected_node,node)
+            self.pos[node] = e_pos
 
-    #         for i in range(8):
-    #             distance    = np.sqrt((pos_e[i][0]-pos[:,0])**2 + (pos_e[i][1]-pos[:,1])**2)
-    #             j           = np.argmin(distance)+8
-    #             con_m[i,j]  = 1
-    #             con_m[j,i]  = 1
+    def graph_to_net_topology(self):
+    
+        net_topology = np.zeros(shape=(self.N_particles,self.N_junctions+1))
+        net_topology.fill(-100)
 
-    #         for i in range(N_NP):
-    #             n_cons = 0
-    #             for j in range(i,N_NP):
+        for node in range(self.N_electrodes,len(self.G.nodes)):
+            for i, neighbor in enumerate(self.G.neighbors(node)):
+                if neighbor >= self.N_electrodes:
+                    net_topology[node-self.N_electrodes,i+1] = neighbor-self.N_electrodes
+                else:
+                    net_topology[node-self.N_electrodes,0] = neighbor+1
+                    i -= 1
 
-    #                 distance = np.sqrt((pos[i][0]-pos[j][0])**2 + (pos[i][1]-pos[j][1])**2)
-
-    #                 if distance < max_d:
-
-    #                     con_m[i+8,j+8] = 1
-    #                     con_m[j+8,i+8] = 1
-    #                     n_cons += 1
-
-    #                 if n_cons == max_connection:
-    #                     break
-
-    #         np.fill_diagonal(con_m,0)
-    #         pos = np.concatenate((pos_e,pos))
-
-    #         G = nx.DiGraph(con_m)
-    #         not_connected = not(nx.is_strongly_connected(G))
-    #         n_try += 1
-
-    #         if n_try > 10000:
-    #             print("Cannot find a connected Graph!")
-    #             break
-
-    #     return con_m, pos, G
+        self.net_topology = net_topology
 
     def set_electrodes_based_on_pos(self, particle_pos : List[List])->None:
         """
@@ -280,8 +197,11 @@ if __name__ == '__main__':
     print("Cubic Network Topology:\n", cubic_net)
 
     # Disordered Network Topology
-    # random_topology = topology_class()
-    # random_topology.random_network(N_particles=20, N_junctions_lower=1, N_junctions_upper=2, p=0.0)
-    # random_topology = random_topology.return_net_topology()
+    random_topology = topology_class()
+    random_topology.random_network(N_particles=20, N_junctions=4)
+    random_topology.add_electrodes_to_random_net(electrode_positions=[[-1,-1]])
+    random_topology.graph_to_net_topology()
 
-    # print("Disordered Network Topology:\n", random_topology)
+    random_net = random_topology.return_net_topology()
+
+    print("Disordered Network Topology:\n", random_net)

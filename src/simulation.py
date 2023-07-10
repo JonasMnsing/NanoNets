@@ -691,7 +691,7 @@ class simulation:
                 self.microstates     = []
                 self.average_jumps   = []
                 self.average_cojumps = []
-                j               = i+1
+                j                    = i+1
 
     def run_var_voltages(self, target_electrode : int, time_steps : np.array, T_val=0.28, save_th=10):
 
@@ -761,14 +761,6 @@ class simulation:
             
             offset                      = self.net_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
             simulation.charge_vector    =- offset
-
-
-
-
-
-
-
-
 
 # def cubic_net_simulation(target_electrode : int, topology_parameter : dict, voltages : np.array, folder : str,
 #                          save_th=10, add_to_path="", tunnel_order=1, T_val=0.28, sim_dic=None, del_n_junctions=0, 

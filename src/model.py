@@ -1,11 +1,9 @@
-import multiprocessing
 import topology
 import electrostatic
 import tunneling
 import numpy as np
 import pandas as pd
 import os.path
-import time
 from typing import List
 from numba.experimental import jitclass
 from numba import int64, float64, boolean
@@ -53,7 +51,119 @@ spec = [
 ]
 
 @jitclass(spec)
-class simulation_class():
+class model_class():
+    """
+    Numba optimized class to run the KMC procedure
+
+    Attributes
+    ----------
+    N_particles : int
+        Number of nanoparticles
+    N_electrodes : int
+        Number of electrodes
+    N_rates : int
+        Number of tunneling events
+    N_corates : int
+        Number of cotunneling events
+    inv_capacitance_matrix : array
+        Inverse of capacitance matrix
+    cotunneling : bool
+        Cotunneling or next neighbor tunneling
+    co_event_selected : bool
+        bool if cotunneling event was selected
+    zero_T : bool
+        bool if zero temerpature approximation for rates is true
+    adv_index_rows : list
+        Nanoparticles i (origin) in tunneling event i to j
+    adv_index_cols : list
+        Nanoparticles j (target) in tunneling event i to j
+    co_adv_index1 : list
+        Nanoparticles i (origin) in cotunneling event i to j via k
+    co_adv_index2 : list
+        Nanoparticles k in cotunneling event i to j via k
+    co_adv_index3 : list
+        Nanoparticles j (target) in cotunneling event i to j via k
+    potential_vector : array
+        Potential values for electrodes and nanoparticles
+    charge_vector : array
+        Charge values for each nanoparticle 
+    tunnel_rates : array
+        Tunnel rate values
+    co_tunnel_rates : array
+        Cotunnel rate values
+    const_capacitance_values : array
+        Sum of capacitance for free energy calculation
+    const_capacitance_values_co1 : array
+        Sum of capacitance for free energy calculation in cotunneling
+    const_capacitance_values_co2 : array
+        Sum of capacitance for free energy calculation in cotunneling
+    temperatures : array
+        temperature values for each tunnel event
+    temperatures_co : array
+        temperature values for each cotunnel event
+    resistances : array
+        Resistances for each tunneling event i to j
+    resistances_co1 : array
+        Resistances for each cotunneling event i to k
+    resistances_co2 : array
+        Resistances for each cotunneling event k to j
+    counter_output_jumps_pos : int
+        Number of Jumps towards target electrode
+    counter_output_jumps_neg : int
+        Number of Jumps from target electrode
+    total_jumps : int
+        Total number of Jumps / KMC Steps
+    time : float
+        KMC time scale
+    jump_diff_mean : float
+        Difference in Jumps towards/from target electrode
+    jump_diff_mean2 : float
+        Difference in Jumps towards/from target electrode
+    jump_diff_std : float
+        Standard Deviation for difference in jumps
+    rel_error : float
+        Relative Error for difference in jumps
+    jump : int
+        Occured jump/event
+    charge_mean : array
+        Storage for average network charges
+    jump_storage : array
+        Storage for executed tunneling events
+    jump_storage_co : array
+        Storage for executed cotunneling events
+
+    Methods
+    -------
+    calc_potentials()
+        Compute potentials via matrix vector multiplication
+    update_potentials(np1, np2)
+        Update potentials after occured jump
+    calc_tunnel_rates()
+        Compute tunnel rates
+    calc_tunnel_rates_zero_T()
+        Compute tunnel rates in zero T approximation
+    calc_cotunnel_rates()
+        Compute cotunnel rates
+    calc_cotunnel_rates_zero_T()
+        Compute cotunnel rates in zero T approximation
+    calc_rel_error()
+        Calculate relative error and standard deviation by welford one pass
+    select_event(random_number1 : float, random_number2 : float)
+        Select next charge hopping event and update time by kinetic monte carlo apporach.
+        Updates given charge vector based on executed event
+    select_co_event(random_number1 : float, random_number2 : float)
+        Select next charge hopping event and update time by kinetic monte carlo apporach considering cotunneling
+        Updates given charge vector based on executed event
+        NEEDS UPDATE TO NEW POTENTIAL CALCULATION. DOES NOT WORK!!!
+    reach_equilibrium(min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000)
+        Equilibrate the system
+    kmc_simulation(target_electrode : int, error_th = 0.05, max_jumps=10000000)
+        Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
+        Tracks Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
+    kmc_time_simulation
+        Runs KMC until KMC time exceeds a target value
+    return_target_values()
+    """
 
     def __init__(self, charge_vector, potential_vector, inv_capacitance_matrix,
                 const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
@@ -88,14 +198,14 @@ class simulation_class():
         self.N_corates                      = len(self.co_adv_index1)
 
         # Simulation attributes
-        self.counter_output_jumps_pos    = 0     # Number of Jumps towards target electrode
-        self.counter_output_jumps_neg    = 0     # Number of Jumps from target electrode
-        self.total_jumps                 = 0     # Total number of Jumps / KMC Steps
-        self.time                        = 0.0   # KMC time scale
-        self.jump_diff_mean              = 0.0   # Difference in Jumps towards/from target electrode
-        self.jump_diff_mean2             = 0.0   # Difference in Jumps towards/from target electrode
-        self.jump_diff_std               = 0.0   # Standard Deviation for difference in jumps
-        self.rel_error                   = 1.0   # Relative Error for difference in jumps
+        self.counter_output_jumps_pos    = 0      
+        self.counter_output_jumps_neg    = 0      
+        self.total_jumps                 = 0      
+        self.time                        = 0.0    
+        self.jump_diff_mean              = 0.0    
+        self.jump_diff_mean2             = 0.0   
+        self.jump_diff_std               = 0.0
+        self.rel_error                   = 1.0 
         self.jump                        = 0
 
         # Storages
@@ -116,12 +226,22 @@ class simulation_class():
         
     def calc_potentials(self):
         """
-        potential = inv_c_matrix * charge_vector
+        Compute potentials via matrix vector multiplication
         """
 
         self.potential_vector[self.N_electrodes:] = np.dot(self.inv_capacitance_matrix, self.charge_vector)
 
     def update_potentials(self, np1, np2):
+        """
+        Update potentials after occured jump
+
+        Parameters
+        ----------
+        np1 : int
+            Last jump's origin
+        np2 : int
+            Last jump's target
+        """
 
         if ((np1 - self.N_electrodes) < 0):
             self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] + self.inv_capacitance_matrix[:,np2]*self.ele_charge
@@ -133,17 +253,19 @@ class simulation_class():
             self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] + (self.inv_capacitance_matrix[:,np2]
                                                         - self.inv_capacitance_matrix[:,np1])*self.ele_charge
             
-
     def calc_tunnel_rates(self):
         """
-        For potentials at given advanced indices calculate free energy and tunnel rate matrix
+        Compute tunnel rates
         """
 
         free_energy         = self.ele_charge*(self.potential_vector[self.adv_index_cols] - self.potential_vector[self.adv_index_rows]) + self.const_capacitance_values
         self.tunnel_rates   = (free_energy/self.resistances)/(np.exp(free_energy/self.temperatures) - 1.0)
 
     def calc_tunnel_rates_zero_T(self):
-
+        """
+        Compute tunnel rates in zero T approximation
+        """
+                
         free_energy = self.ele_charge*(self.potential_vector[self.adv_index_cols] - self.potential_vector[self.adv_index_rows]) + self.const_capacitance_values
         
         self.tunnel_rates                   = np.zeros(self.N_rates)
@@ -151,7 +273,7 @@ class simulation_class():
         
     def calc_cotunnel_rates(self):
         """
-        For potentials at given advanced indices calculate free energy and tunnel rate matrix
+        Compute cotunnel rates
         """
 
         free_energy1    = self.ele_charge*(self.potential_vector[self.co_adv_index1] - self.potential_vector[self.co_adv_index2]) + self.const_capacitance_values_co1
@@ -164,6 +286,9 @@ class simulation_class():
         self.co_tunnel_rates = factor*val1*val2
     
     def calc_cotunnel_rates_zero_T(self):
+        """
+        Compute cotunnel rates in zero T approximation
+        """
 
         free_energy1    = self.ele_charge*(self.potential_vector[self.co_adv_index1] - self.potential_vector[self.co_adv_index2]) + self.const_capacitance_values_co1
         free_energy2    = self.ele_charge*(self.potential_vector[self.co_adv_index2] - self.potential_vector[self.co_adv_index3]) + self.const_capacitance_values_co2
@@ -177,7 +302,7 @@ class simulation_class():
             
     def calc_rel_error(self):
         """
-        Calculate relative error and standard deviation by means of welford one pass 
+        Calculate relative error and standard deviation by welford one pass 
         """
 
         if (self.jump_diff_mean != 0.0):
@@ -187,9 +312,15 @@ class simulation_class():
     
     def select_event(self, random_number1 : float, random_number2 : float):
         """
-        Select next charge hopping event and update time based on kinetic monte carlo apporach
+        Select next charge hopping event and update time by kinetic monte carlo apporach.
         Updates given charge vector based on executed event
-        Returns charge vector, time and event
+        
+        Parameters
+        ----------
+        random_number1 : float
+            First random number
+        random_number2 : float
+            Second random number
         """
 
         # Get CUMSUM of Tunnel Rates
@@ -226,9 +357,16 @@ class simulation_class():
     
     def select_co_event(self, random_number1 : float, random_number2 : float):
         """
-        Select next charge hopping event and update time based on kinetic monte carlo apporach considering cotunneling
+        Select next charge hopping event and update time by kinetic monte carlo apporach considering cotunneling
         Updates given charge vector based on executed event
-        Returns charge vector, time and event
+        NEEDS UPDATE TO NEW POTENTIAL CALCULATION. DOES NOT WORK!!!
+
+        Parameters
+        ----------
+        random_number1 : float
+            First random number
+        random_number2 : float
+            Second random number
         """
 
         sum_a       = np.sum(self.tunnel_rates)
@@ -304,6 +442,22 @@ class simulation_class():
         self.jump   = jump
 
     def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000):
+        """
+        Equilibrate the system
+
+        Parameters
+        ----------
+        min_jumps : int
+            Minimum amount of jumps in one equilibration step
+        max_steps : int
+            Maximum number of steps before min_jumps is increased
+        rel_error : float
+            Relative error to be achived for changes in nanoparticle potentials
+        min_nps_eq : float
+            Minimum amount of nanoparticles to be equilibrated so that the system is stated as euilibrated 
+        max_jumps : int
+            Maximum jumps in total before function ends
+        """
 
         no_equilibrium      = True
         self.total_jumps    = 0
@@ -341,7 +495,7 @@ class simulation_class():
                     self.calc_cotunnel_rates_zero_T()
                 self.select_co_event(random_number1, random_number2)
             
-            counter             += 1
+            counter += 1
 
             if (counter % max_steps == 0):
 
@@ -365,8 +519,17 @@ class simulation_class():
 
     def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=10000000):
         """
-        Overall KMC Algorithm: Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
-        Returns Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
+        Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
+        Tracks Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
+
+        Parameters
+        ----------
+        target_electrode : int
+            electrode index of which electric current is estimated
+        error_th : float
+            relative error in current to be achieved
+        max_jumps : int
+            maximum number of jumps before function ends
         """
         
         self.total_jumps                = 0
@@ -443,8 +606,18 @@ class simulation_class():
                 self.calc_rel_error()
         
         self.jump_storage = self.jump_storage/self.time
-        
+    
     def kmc_time_simulation(self, target_electrode : int, time_target : float):
+        """
+        Runs KMC until KMC time exceeds a target value
+
+        Parameters
+        ----------
+        target_electrode : int
+            electrode index of which electric current is estimated
+        time_target : float
+            time value to be reached
+        """
 
         self.counter_output_jumps_neg   = 0
         self.counter_output_jumps_pos   = 0
@@ -489,6 +662,22 @@ class simulation_class():
             self.jump_diff_mean = 0
 
     def return_target_values(self):
+        """
+        Returns
+        -------
+        jump_diff_mean : float
+            Difference in target jumps towards/from target electrode
+        jump_diff_std : float
+            Standard Deviation for difference in target jumps
+        self.charge_mean/self.total_jumps : array
+            Average charge landscape
+        self.jump_storage
+            Contribution of all tunnel junctions
+        self.jump_storage_co
+            Contribution of all cotunnel junctions
+        self.total_jumps
+            Number of total jumps
+        """
         
         return self.jump_diff_mean, self.jump_diff_std, self.charge_mean/self.total_jumps, self.jump_storage, self.jump_storage_co, self.total_jumps
 
@@ -665,7 +854,7 @@ class simulation:
             resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
             
             # Simulation Class
-            simulation = simulation_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
+            simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
                                         temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
                                         co_adv_index3, N_electrodes, N_particles)
 
@@ -715,7 +904,7 @@ class simulation:
         # resistances, resistances_co1, resistances_co2                                           = net_model.return_random_resistances()
 
         # Simulation Class
-        simulation = simulation_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
+        simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
                                         temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
                                         co_adv_index3, N_electrodes, N_particles)
         
@@ -834,7 +1023,7 @@ class simulation:
 #         resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
         
 #         # Simulation Class
-#         simulation = simulation_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
+#         simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
 #                                       temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
 #                                       co_adv_index3, N_electrodes, N_particles)
         
@@ -918,7 +1107,7 @@ class simulation:
 #     # resistances, resistances_co1, resistances_co2                                           = net_model.return_random_resistances()
 
 #     # Simulation Class
-#     simulation = simulation_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
+#     simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
 #                                     temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
 #                                     co_adv_index3, N_electrodes, N_particles)
     

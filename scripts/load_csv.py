@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import sys
 sys.path.append("/home/jonas/phd/NanoNets/src/")
-import simulation
+import model
 import multiprocessing
 import time
 
@@ -40,7 +40,7 @@ if __name__ == '__main__':
             t1 = time.process_time_ns()
 
             # Run Simulation
-            sim_class = simulation.simulation(folder=folder, voltages=voltages.values[thread_rows,:], topology_parameter=topology_parameter)
+            sim_class = model.simulation(folder=folder, voltages=voltages.values[thread_rows,:], topology_parameter=topology_parameter)
             sim_class.run_const_voltages(target_electrode=target_electrode, T_val=0.28, sim_dic=sim_dic, save_th=10)
 
             t2 = time.process_time_ns()

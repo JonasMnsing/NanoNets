@@ -3,7 +3,7 @@ import pandas as pd
 import sys
 sys.path.append("/home/j/j_mens07/NanoNets/src/")
 sys.path.append("/home/jonas/phd/NanoNets/src/")
-import simulation
+import model
 import voltage_config
 import multiprocessing
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
                 "np_distance"   : 1.0
             }
 
-            simulation.cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
+            model.cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
                                 save_th=10, tunnel_order=tunnel_order, T_val=Temp, sim_dic=sim_dic, np_info2=np_info2)
     
     for i in range(N_processes):

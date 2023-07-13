@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import sys
 sys.path.append("/home/j/j_mens07/NanoNets/src/")
-import simulation
+import model
 import multiprocessing
 
 if __name__ == '__main__':
@@ -84,7 +84,7 @@ if __name__ == '__main__':
             sim_dic['error_th']     = 0.05
             sim_dic['max_jumps']    = 10000000
 
-            simulation.cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
+            model.cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
                                 save_th=100, tunnel_order=tunnel_order, T_val=0, sim_dic=sim_dic)
     
     for i in range(N_processes):

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append("/home/jonas/phd/NanoNets/src/")
 # sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
-import simulation
+import model
 import multiprocessing
 
 if __name__ == '__main__':
@@ -33,7 +33,7 @@ if __name__ == '__main__':
             voltages            = pd.DataFrame(np.zeros((N_voltages,N_electrodes+1)))
             voltages.iloc[:,0]  = voltages_values
 
-            simulation.time_simulation(target_electrode, time_steps, topology_parameter, voltages.values, folder, add_to_path=f"_{thread}_f{f_mult}",
+            model.time_simulation(target_electrode, time_steps, topology_parameter, voltages.values, folder, add_to_path=f"_{thread}_f{f_mult}",
                                         save_th=1, T_val=0.0)
     
     for i in range(N_processes):

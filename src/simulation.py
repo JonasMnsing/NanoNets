@@ -1,7 +1,7 @@
 import multiprocessing
 import topology
 import electrostatic
-import model
+import tunneling
 import numpy as np
 import pandas as pd
 import os.path
@@ -652,7 +652,7 @@ class simulation:
             charge_vector           = self.net_electrostatic.return_charge_vector()
 
             # Model
-            net_model = model.model_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
+            net_model = tunneling.model_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
             net_model.init_potential_vector(voltage_values=voltage_values)
             net_model.init_const_capacitance_values()
 
@@ -701,7 +701,7 @@ class simulation:
         charge_vector           = self.net_electrostatic.return_charge_vector()
 
         # Model
-        net_model = model.model_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix)
+        net_model = tunneling.model_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix)
         net_model.init_potential_vector(voltage_values=self.voltages[0])
         net_model.init_const_capacitance_values()
 

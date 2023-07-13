@@ -2,7 +2,7 @@ import sys
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src")
 import numpy as np
 from joblib import Parallel, delayed
-import model
+import tunneling
 
 topology_parameter      = {}
 topology_parameter[0]   = {
@@ -36,6 +36,6 @@ folder              = f"../data/electrode_impact/zeros/"
 def parallel_code(i):
     
     voltages[:,i] = voltage_sweep 
-    model.cubic_net_simulation(target_electrode, topology_parameter[setup], voltages, folder, 100, f"_E{i}")
+    tunneling.cubic_net_simulation(target_electrode, topology_parameter[setup], voltages, folder, 100, f"_E{i}")
 
 Parallel(n_jobs=8)(delayed(parallel_code)(i) for i in range(len(topology_parameter[setup]["e_pos"])))

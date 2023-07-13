@@ -4,7 +4,7 @@ sys.path.append("/home/jonas/phd/NanoNets/src")
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
-import model
+import tunneling
 import time
 
 voltages = pd.read_csv("scripts/voltage_configs.csv", sep=' ', header=None).values
@@ -31,7 +31,7 @@ def parallel_code(thread):
         folder              = "../data/mf_kmc_comparsion/"
 
         t0  = time.time()
-        model.cubic_net_simulation(target_electrode, topology_parameter, voltages[thread_rows,:], folder, 9)
+        tunneling.cubic_net_simulation(target_electrode, topology_parameter, voltages[thread_rows,:], folder, 9)
         t1  = time.time()
         t10 = t1-t0
 

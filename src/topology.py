@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import networkx as nx
 import pandas as pd
@@ -5,58 +6,100 @@ from typing import List
 
 class topology_class:
     """
-    Class to setup network topology and connect electrodes. Cubic and random topologies are supported.
-    Electrodes may either be connected to specific nanoparticle positions or randomly.
+    Class to setup nanoparticle network topology and connect electrodes. The class supports regular cubic
+    grid and random topologies. Electrodes are connected to nanoparticle indices or nanopartciles closest
+    to a fixed position.   
 
-    net_topology    :   np.array representing nanoparticles as rows and connections as columns
-                        -100 as element indicates no connection
-                        First column corresponds to connected electrode
-                        Second to last column corresponds to connected nanoparticles
-                        Number of columns indicates maximum number of conneections per nanoparticle
+    Attributes
+    ----------
+    N_particles : int
+        Number of nanoparticles
+    N_electrodes : int
+        Number of electrodes
+    N_junctions : int
+        Number of Junctions per Nanoparticle
+    rng : Generator
+        Bit Generator 
+    G : nx.DiGraph
+        NetworkX directed graph of the nanoparticle network
+    pos : dict
+        dictonary of nanoparticle (keys) positions (values) 
+    net_topology : array
+        Network topology. Rows represent nanoparticles. First column stores connected electrodes.
+        Second to last columns store connected nanoparticles.
+    
+    Methods
+    -------
+        cubic_network(N_x : int, N_y : int, N_z : int)
+            Setup a regular cubic grid of nanoparticles
+        random_network(N_particles : int, N_junctions : int)
+            Setup a random regular network of nanoparticles. The resulting network might be higher dimensional.
+        add_electrodes_to_random_net(electrode_positions : List[List])
+            List which contains electrode positions [x,y]. Nanoparticles sit inside a box of lengths [1,1].
+        graph_to_net_topology()
+            Transfer directed graph to net_topology array
+        set_electrodes_based_on_pos(particle_pos : List[List], N_x : int, N_y : int)
+            Attach electrode to spcific nanoparticle positions.
+            Only use this method for regular grid like networks
+        set_electrodes_randomly(N_electrodes : int)
+            Attache electrodes randomly to nanoparticles
+        return_net_topology()
     """
 
-    def __init__(self, seed=None) -> None:
+    def __init__(self, seed=None)->None:
         """
-        Init a random number generator needed for random network topologies
+        Parameters
+        ----------
+        seed : int
+            Seed for random number generator
+        N_particles : int
+            Number of nanoparticles
+        N_electrodes : int
+            Number of electrodes
+        rng : Generator
+            Bit Generator 
         """
+
         self.N_particles    = 0
         self.N_electrodes   = 0
         self.rng            = np.random.default_rng(seed=seed)
 
-    def cubic_network(self, N_x : int, N_y : int, N_z : int) -> None:
+    def cubic_network(self, N_x : int, N_y : int, N_z : int)->None:
         """
-        Init cubic packed network of nanoparticles
-        N_x         :   Number of nps in x direction
-        N_y         :   Number of nps in y direction
-        N_z         :   Number of nps in z direction
-        N_particles :   Number of nps
+        Setup a regular cubic grid of nanoparticles
+
+        Parameters
+        ----------
+        N_x : int
+            Number of nanoparticles in x-direction
+        N_y : int
+            Number of nanoparticles in y-direction
+        N_z : int
+            Number of nanoparticles in z-direction
         """
 
-        self.N_x            = N_x           # Number of nps in x direction
-        self.N_y            = N_y           # Number of nps in y direction
-        self.N_z            = N_z           # Number of nps in z direction
-        self.N_particles    = N_x*N_y*N_z   # Number of particles
-        nano_particles_pos  = []            # Storage for particle coordinates
-        n_NN                = 0             # Number of next neighbor for a specific NP
+        self.N_particles    = N_x*N_y*N_z
+        nano_particles_pos  = []
+        n_NN                = 0
 
         # Assign coordinates to each nanoparticle
-        for i in range(0,self.N_z):
-            for j in range(0,self.N_y):
-                for k in range(0,self.N_x):
+        for i in range(0,N_z):
+            for j in range(0,N_y):
+                for k in range(0,N_x):
                     nano_particles_pos.append([0, k, j, i])
 
-        # Define max number of next neigbors based on network dimension
-        if ((self.N_x > 1) and (self.N_y > 1) and (self.N_z > 1)):
-            max_NN = 6
+        # Define max number of next neigbors by network dimension
+        if ((N_x > 1) and (N_y > 1) and (N_z > 1)):
+            self.N_junctions = 6
 
-        elif (((self.N_x > 1) and (self.N_y > 1)) or ((self.N_x > 1) and (self.N_z > 1)) or ((self.N_y > 1) and (self.N_z > 1))):
-            max_NN = 4
+        elif (((N_x > 1) and (N_y > 1)) or ((N_x > 1) and (N_z > 1)) or ((N_y > 1) and (N_z > 1))):
+            self.N_junctions = 4
 
         else:
-            max_NN = 2
+            self.N_junctions = 2
 
-        # Network Topology filled with -100 (no connection)
-        self.net_topology = np.zeros(shape=(self.N_particles, max_NN + 1))
+        # Fill network topology with placeholder (-100)
+        self.net_topology = np.zeros(shape=(self.N_particles, self.N_junctions + 1))
         self.net_topology.fill(-100)
 
         # Attach neighbors to each nanoparticle
@@ -80,35 +123,47 @@ class topology_class:
                     self.net_topology[i, n_NN + 1] = j
                     n_NN = n_NN + 1
                     
-                if (n_NN == max_NN):
+                if (n_NN == self.N_junctions):
                     break
                 
             n_NN = 0
-
-    def random_network(self, N_particles : int, N_junctions : int):
+        
+    def random_network(self, N_particles : int, N_junctions : int)->None:
         """
-        N_particles     :   Number of nodes in Graph
-        N_junctions     :   Degree of each node
-        Init a random regular graph of nanoparticles
-        Nanoparticles are positioned based on force-directed graph drawing using Fruchterman-Reingold
-        Thus, there topology will represent a local minimum.
-        The resulting graph will not be planar (2D)!!! 
+        Setup a random regular network of nanoparticles. The resulting network might be higher dimensional.
+
+        Parameters
+        ----------
+        N_particles : int
+            Number of nanoparticles
+        N_junctions : int
+            Number of junctions per nanoparticle
         """
         
         self.N_particles    = N_particles
         self.N_junctions    = N_junctions
         not_connected       = True
         
+        # Generate random graphs until a graph is connected
         while not_connected:
 
             self.G          = nx.random_regular_graph(N_junctions, self.N_particles)
             not_connected   = not(nx.is_connected(self.G))
 
+        # Make graph directed and position nanoparticles
         self.G   = self.G.to_directed()
         self.pos = nx.kamada_kawai_layout(self.G)
         self.pos = nx.spring_layout(self.G, pos=self.pos)
 
-    def add_electrodes_to_random_net(self, electrode_positions : list):
+    def add_electrodes_to_random_net(self, electrode_positions : List[List])->None:
+        """
+        Position electrodes to fixed spots (x,y) and attach them to closest nanoparticles
+
+        Parameters
+        ----------
+        electrode_positions : list
+            List which contains electrode positions [x,y]. Nanoparticles sit inside a box of lengths [1,1].
+        """
 
         self.N_electrodes   = len(electrode_positions)
         rename              = {i:i+self.N_electrodes for i in range(len(self.G.nodes))}
@@ -118,10 +173,13 @@ class topology_class:
         node_positions  = pd.DataFrame(self.pos).T.sort_index()
         used_nodes      = []
 
+        # For each electrode position
         for node, e_pos in enumerate(electrode_positions):
             
+            # Compute distance between all nanoparticle and current electrode position
             node_positions['d'] = np.sqrt((e_pos[0]-node_positions[0])**2 + (e_pos[1]-node_positions[1])**2)
             
+            # Find closest nanoparticle which is not already connected to an electrode
             for i in range(len(node_positions)):
 
                 connected_node = node_positions.sort_values(by='d').index[i]
@@ -131,11 +189,15 @@ class topology_class:
                     used_nodes.append(connected_node)
                     break
             
+            # Add resulting connection as edge to directed graph
             self.G.add_edge(node,connected_node)
             self.G.add_edge(connected_node,node)
             self.pos[node] = e_pos
 
-    def graph_to_net_topology(self):
+    def graph_to_net_topology(self)->None:
+        """
+        Transfer directed graph to net_topology array
+        """
     
         net_topology = np.zeros(shape=(self.N_particles,self.N_junctions+1))
         net_topology.fill(-100)
@@ -150,26 +212,36 @@ class topology_class:
 
         self.net_topology = net_topology
 
-    def set_electrodes_based_on_pos(self, particle_pos : List[List])->None:
+    def set_electrodes_based_on_pos(self, particle_pos : List[List], N_x : int, N_y : int)->None:
         """
-        Attach electrodes to nanoparticles
-        Example:
-        particle_pos    :   list of lists containg x,y,z position of np
-                            example [[0,0,0],[4,2,1]] connects two electrodes
-                            to np at x=0,y=0,z=0 and x=4,y=2,z=1
+        Attach electrode to spcific nanoparticle positions.
+        Only use this method for regular grid like networks
+
+        Parameters
+        ----------
+        particle_pos : list
+            List which contains particle positions [x,y,z], which will be connected to electrodes
+        N_x : int
+            Number of nanoparticles in x-direction
+        N_y : int
+            Number of nanoparticles in y-direction
         """
 
         self.N_electrodes = len(particle_pos) 
 
         for n, pos in enumerate(particle_pos):
 
-            p = pos[1]*self.N_x + pos[0] + pos[2]*self.N_x*self.N_y
+            p = pos[1]*N_x + pos[0] + pos[2]*N_x*N_y
             self.net_topology[p,0] = 1 + n
 
     def set_electrodes_randomly(self, N_electrodes : int)->None:
         """
         Attache electrodes randomly to nanoparticles
-        N_electrodes    :   Number of electrodes to be attached
+        
+        Parameters
+        ----------
+        N_electrodes : int
+            Number of electrodes
         """
 
         self.N_electrodes   = N_electrodes
@@ -180,6 +252,13 @@ class topology_class:
             self.net_topology[p,0] = 1 + n
 
     def return_net_topology(self)->np.array:
+        """
+        Returns
+        -------
+        net_topology : array
+            Network topology. Rows represent nanoparticles. First column stores connected electrodes.
+            Second to last columns store connected nanoparticles.
+        """
 
         return self.net_topology
 
@@ -189,19 +268,27 @@ class topology_class:
 if __name__ == '__main__':
 
     # Cubic Network Topology
-    cubic_topology = topology_class()
-    cubic_topology.cubic_network(N_x=3, N_y=3, N_z=1)
-    cubic_topology.set_electrodes_based_on_pos([[0,0,0],[2,2,0]])
+    N_x, N_y, N_z   = 3,3,1
+    electrode_pos   = [[0,0,0],[2,0,0],[0,2,0],[2,2,0]]
+    cubic_topology  = topology_class()
+    cubic_topology.cubic_network(N_x, N_y, N_z)
+    cubic_topology.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
     cubic_net = cubic_topology.return_net_topology()
 
     print("Cubic Network Topology:\n", cubic_net)
 
     # Disordered Network Topology
+    N_particles, N_junctions    = 20,4
+    electrode_pos               = [[-1,-1],[1,-1],[-1,1],[1,1]]
     random_topology = topology_class()
-    random_topology.random_network(N_particles=20, N_junctions=4)
-    random_topology.add_electrodes_to_random_net(electrode_positions=[[-1,-1]])
+    random_topology.random_network(N_particles, N_junctions)
+    random_topology.add_electrodes_to_random_net(electrode_pos)
     random_topology.graph_to_net_topology()
 
     random_net = random_topology.return_net_topology()
 
     print("Disordered Network Topology:\n", random_net)
+
+    # Plot Network
+    # nx.draw_networkx(random_topology.G, random_topology.pos)
+    # plt.show()

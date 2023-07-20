@@ -770,14 +770,15 @@ class simulation:
         # Cubic Network Topology
         cubic_topology = topology.topology_class()
         cubic_topology.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
-        cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"])
+        cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
         self.net_topology = cubic_topology.return_net_topology()
 
         # Electrostatic
         self.net_electrostatic = electrostatic.electrostatic_class(net_topology=self.net_topology)
         if del_n_junctions != 0:
             self.net_electrostatic.delete_n_junctions(del_n_junctions)
-        self.net_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['mean_radius'], np_info['std_radius'], np_info['np_distance'])
+        self.net_electrostatic.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
+        self.net_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
         
         # Output Lists
         self.output_values   = []
@@ -813,7 +814,8 @@ class simulation:
 
         # Electrostatic
         self.net_electrostatic = electrostatic.electrostatic_class(net_topology=self.net_topology)
-        self.net_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['mean_radius'], np_info['std_radius'], np_info['np_distance'])
+        self.net_electrostatic.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
+        self.net_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
         
         # Output Lists
         self.output_values   = []
@@ -841,7 +843,7 @@ class simulation:
             charge_vector           = self.net_electrostatic.return_charge_vector()
 
             # Model
-            net_model = tunneling.model_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
+            net_model = tunneling.tunnel_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
             net_model.init_potential_vector(voltage_values=voltage_values)
             net_model.init_const_capacitance_values()
 
@@ -890,7 +892,7 @@ class simulation:
         charge_vector           = self.net_electrostatic.return_charge_vector()
 
         # Model
-        net_model = tunneling.model_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix)
+        net_model = tunneling.tunnel_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix)
         net_model.init_potential_vector(voltage_values=self.voltages[0])
         net_model.init_const_capacitance_values()
 
@@ -987,7 +989,7 @@ class simulation:
 #     # Cubic Network Topology
 #     cubic_topology = topology.topology_class()
 #     cubic_topology.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
-#     cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"])
+#     cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
 #     cubic_net = cubic_topology.return_net_topology()
 
 #     # Electrostatic
@@ -1073,7 +1075,7 @@ class simulation:
 #     # Cubic Network Topology
 #     cubic_topology = topology.topology_class()
 #     cubic_topology.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
-#     cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"])
+#     cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
 #     cubic_net = cubic_topology.return_net_topology()
 
 #     # Electrostatic

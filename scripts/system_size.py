@@ -9,8 +9,8 @@ import multiprocessing
 if __name__ == '__main__':
 
     # Voltage Sweep
-    N_voltages          = 4#80028
-    N_processes         = 4
+    N_voltages          = 80028
+    N_processes         = 36
     v_rand              = np.repeat(np.random.uniform(low=-0.05, high=0.05, size=((int(N_voltages/4),5))), 4, axis=0)
     v_gates             = np.repeat(np.random.uniform(low=-0.1, high=0.1, size=int(N_voltages/4)),4)
     i1                  = np.tile([0.0,0.0,0.01,0.01], int(N_voltages/4))
@@ -27,14 +27,13 @@ if __name__ == '__main__':
             topology_parameter["Ny"]    = N
             topology_parameter["Nz"]    = 1
             topology_parameter["e_pos"] = [[0,0,0], [int((N-1)/2),0,0], [N-1,0,0], [0,int((N-1)/2),0], [0,N-1,0], [N-1,int((N)/2),0], [int((N)/2),(N-1),0], [N-1,N-1,0]]
-            tunnel_order                = 1
 
             sim_dic                 = {}
             sim_dic['error_th']     = 0.05
-            sim_dic['max_jumps']    = 100#10000000
+            sim_dic['max_jumps']    = 100000000
 
             target_electrode    = len(topology_parameter["e_pos"]) - 1
-            folder              = "/mnt/c/Users/jonas/Desktop/phd/NanoNets/test_runs/"#"/scratch/tmp/j_mens07/data/system_size/"
+            folder              = "/scratch/tmp/j_mens07/data/system_size_new/"
             thread_rows         = rows[thread]
             voltages            = pd.DataFrame(np.zeros((N_voltages,9)))
             voltages.iloc[:,0]  = v_rand[:,0]
@@ -46,10 +45,9 @@ if __name__ == '__main__':
             voltages.iloc[:,6]  = i2
             voltages.iloc[:,-1] = v_gates
 
-
-            model.cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
-                                save_th=1, tunnel_order=tunnel_order, T_val=0, sim_dic=sim_dic)
-    
+            sim_class = model.simulation(voltages.values[thread_rows,:])
+            sim_class.init_cubic(folder=folder, topology_parameter=topology_parameter)
+            sim_class.run_const_voltages(target_electrode=target_electrode, sim_dic=sim_dic, save_th=1)
 
     for i in range(N_processes):
 

@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
             sim_class = model.simulation(voltages.values[thread_rows,:])
             sim_class.init_cubic(folder=folder, topology_parameter=topology_parameter)
-            sim_class.run_const_voltages(target_electrode=target_electrode, sim_dic=sim_dic, save_th=20, T_val=0)
+            sim_class.run_const_voltages(target_electrode=target_electrode, sim_dic=sim_dic, save_th=20, T_val=0.0)
 
     for i in range(N_processes):
 

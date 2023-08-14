@@ -37,12 +37,12 @@ if __name__ == '__main__':
             thread_rows         = rows[thread]
             voltages            = pd.DataFrame(np.zeros((N_voltages,9)))
             voltages.iloc[:,0]  = v_rand[:,0]
-            voltages.iloc[:,1]  = v_rand[:,1]
-            voltages.iloc[:,2]  = v_rand[:,2]
-            voltages.iloc[:,3]  = v_rand[:,3]
-            voltages.iloc[:,4]  = v_rand[:,4]
-            voltages.iloc[:,5]  = i1
-            voltages.iloc[:,6]  = i2
+            voltages.iloc[:,1]  = i1
+            voltages.iloc[:,2]  = v_rand[:,1]
+            voltages.iloc[:,3]  = i2
+            voltages.iloc[:,4]  = v_rand[:,2]
+            voltages.iloc[:,5]  = v_rand[:,3]
+            voltages.iloc[:,6]  = v_rand[:,4]
             voltages.iloc[:,-1] = v_gates
 
             sim_class = model.simulation(voltages.values[thread_rows,:])

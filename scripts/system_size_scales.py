@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import sys
-sys.path.append("/home/jonas/phd/NanoNets/src/")
+# sys.path.append("/home/jonas/phd/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 import model
 import multiprocessing
@@ -9,17 +9,17 @@ import multiprocessing
 if __name__ == '__main__':
 
     # Voltage Sweep
-    N_voltages          = 80640
-    N_processes         = 36
+    N_voltages          = 80000#80640
+    N_processes         = 10#36
 
     index               = [i for i in range(N_voltages)]
     rows                = [index[i::N_processes] for i in range(N_processes)]
 
     scales              = [0.69, 0.77, 0.84, 0.92, 1., 1.08, 1.16, 1.23, 1.31, 1.39, 1.47, 1.55, 1.62, 1.7, 1.78, 1.86]
-    v_rand              = np.repeat(np.random.uniform(low=-0.05, high=0.05, size=((int(N_voltages/4),5))), 4, axis=0)
+    v_rand              = np.repeat(np.random.uniform(low=-0.1, high=0.1, size=((int(N_voltages/4),5))), 4, axis=0)
     v_gates             = np.repeat(np.random.uniform(low=-0.1, high=0.1, size=int(N_voltages/4)),4)
-    i1                  = np.tile([0.0,0.0,0.01,0.01], int(N_voltages/4))
-    i2                  = np.tile([0.0,0.01,0.0,0.01], int(N_voltages/4))
+    i1                  = np.tile([0.0,0.0,0.05,0.05], int(N_voltages/4))
+    i2                  = np.tile([0.0,0.05,0.0,0.05], int(N_voltages/4))
 
     def parallel_code(thread, rows, v_rand, v_gates, i1, i2, scales, N_voltages):
 
@@ -38,8 +38,8 @@ if __name__ == '__main__':
             sim_dic['max_jumps']    = 10000000
 
             target_electrode    = len(topology_parameter["e_pos"]) - 1
-            folder              = "/scratch/tmp/j_mens07/data/system_size_new/"
-            # folder              = "/home/jonas/phd/data/system_size_scale/"
+            # folder              = "/scratch/tmp/j_mens07/data/system_size_new/"
+            folder              = "/mnt/c/Users/jonas/Desktop/phd/data/system_size_scale/"
             thread_rows         = rows[thread]
             voltages            = pd.DataFrame(np.zeros((N_voltages,9)))
             voltages.iloc[:,0]  = scales[i] * v_rand[:,0]

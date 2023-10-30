@@ -823,7 +823,7 @@ class simulation:
         self.average_jumps   = []
         self.average_cojumps = []
 
-    def run_const_voltages(self, target_electrode : int, T_val=0.28, sim_dic=None, save_th=10, tunnel_order=1):
+    def run_const_voltages(self, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, tunnel_order=1):
 
         # Simulation Parameter
         if sim_dic != None:
@@ -884,7 +884,7 @@ class simulation:
                 self.average_cojumps = []
                 j                    = i+1
 
-    def run_var_voltages(self, target_electrode : int, time_steps : np.array, T_val=0.28, save_th=10):
+    def run_var_voltages(self, target_electrode : int, time_steps : np.array, T_val=0.0, save_th=10):
 
         # First time step
         self.net_electrostatic.init_charge_vector(voltage_values=self.voltages[0])
@@ -934,21 +934,21 @@ class simulation:
             simulation.kmc_time_simulation(target_electrode, time_target)
             jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = simulation.return_target_values()
             
-            output_values.append(np.array([-1, total_jumps, jump_diff_mean, jump_diff_std]))
-            microstates.append(mean_state)
-            average_jumps.append(executed_jumps)
-            average_cojumps.append(executed_cojumps)
+            self.output_values.append(np.array([-1, total_jumps, jump_diff_mean, jump_diff_std]))
+            self.microstates.append(mean_state)
+            self.average_jumps.append(executed_jumps)
+            self.average_cojumps.append(executed_cojumps)
 
             if ((i+1) % save_th == 0):
                 
-                save_target_currents(np.array(output_values), self.voltages[j:(i+1),:], self.path1)
-                save_mean_microstate(microstates, self.path2)
-                save_jump_storage(average_jumps, adv_index_rows, adv_index_cols, self.path3)
-                output_values   = []
-                microstates     = []
-                average_jumps   = []
-                average_cojumps = []
-                j               = i+1
+                save_target_currents(np.array(self.output_values), self.voltages[j:(i+1),:], self.path1)
+                save_mean_microstate(self.microstates, self.path2)
+                save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
+                self.output_values      = []
+                self.microstates        = []
+                self.average_jumps      = []
+                self.average_cojumps    = []
+                j                       = i+1
             
             offset                      = self.net_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
             simulation.charge_vector    =- offset

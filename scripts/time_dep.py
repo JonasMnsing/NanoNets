@@ -11,11 +11,11 @@ if __name__ == '__main__':
 
     N_processes         = 10
     N_electrodes        = 8
-    N_voltages          = 500
-    max_time            = 2e-4
-    frequency           = 0.5e5
+    N_voltages          = 2500
+    max_time            = 10e-4
+    frequency           = 0.2e5
     time_steps          = np.linspace(0,max_time,N_voltages)
-    amplitude           = 0.05
+    amplitude           = 0.1
 
     def parallel_code(thread, N_voltages, frequency, time_steps, amplitude, N_electrodes):
 
@@ -29,15 +29,24 @@ if __name__ == '__main__':
             topology_parameter["e_pos"] = [[0,0,0], [int((N-1)/2),0,0], [N-1,0,0], [0,int((N-1)/2),0], [0,N-1,0], [N-1,int((N)/2),0], [int((N)/2),(N-1),0], [N-1,N-1,0]]
 
             target_electrode    = len(topology_parameter["e_pos"]) - 1
-            folder              = "/home/jonas/phd/NanoNets/test_runs/time_run/data/"#"/scratch/tmp/j_mens07/data/system_size/"
+            folder              = f"/home/jonas/phd/NanoNets/test_runs/time_run/data/periodic/dis_f_01_"#"/scratch/tmp/j_mens07/data/system_size/"
             voltages            = pd.DataFrame(np.zeros((N_voltages, N_electrodes+1)))
             voltages.iloc[:,0]  = voltages_values
+            
+            np_info = {
+                "eps_r"         : 2.6,
+                "eps_s"         : 3.9,
+                "mean_radius"   : 10.0,
+                "std_radius"    : 5.0,
+                "np_distance"   : 1.0
+            }
 
             sim_class   = model.simulation(voltages.values)
-            sim_class.init_cubic(folder, topology_parameter, add_to_path=f"_{thread}_{inner_stat}")
+            sim_class.init_cubic(folder, topology_parameter, add_to_path=f"_{thread}_{inner_stat}", np_info=np_info)
             sim_class.run_var_voltages(target_electrode, time_steps, save_th=1)
             # model.time_simulation(target_electrode, time_steps, topology_parameter, voltages.values, folder, add_to_path=f"_{thread}_f{f_mult}",
             #                             save_th=1, T_val=0.0)
+
     
     for i in range(N_processes):
 

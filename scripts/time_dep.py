@@ -13,7 +13,7 @@ if __name__ == '__main__':
     N_electrodes        = 8
     N_voltages          = 2500
     max_time            = 10e-4
-    frequency           = 0.2e5
+    frequency           = 0.1e5
     time_steps          = np.linspace(0,max_time,N_voltages)
     amplitude           = 0.1
 

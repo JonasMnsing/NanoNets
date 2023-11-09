@@ -9,7 +9,7 @@ import multiprocessing
 if __name__ == '__main__':
 
     # Voltage Sweep
-    N_voltages          = 1000
+    N_voltages          = 4000
     N_processes         = 10
     v_rand              = np.random.uniform(low=-0.05, high=0.05, size=((N_voltages,7)))
     v_gates             = np.random.uniform(low=-0.1, high=0.1, size=N_voltages)

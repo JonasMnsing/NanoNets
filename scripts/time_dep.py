@@ -11,7 +11,7 @@ if __name__ == '__main__':
 
     N_processes         = 10
     N_electrodes        = 2
-    N_voltages          = 5000
+    N_voltages          = 10000
     # frequency           = 2e5
     step_size           = 1e-8
     time_steps          = np.cumsum(np.repeat(step_size, N_voltages))
@@ -19,11 +19,11 @@ if __name__ == '__main__':
 
     def parallel_code(thread, N_voltages, time_steps, amplitude, N_electrodes):
 
-        for frequency in [7e5,8e5,9e5,10e5]:
+        for frequency in [3e5,4e5,5e5]:
 
             for inner_stat in range(5):
 
-                N                           = 5
+                N                           = 3
                 voltages_values             = amplitude*np.cos(2*np.pi*frequency*time_steps)
                 topology_parameter          = {}
                 topology_parameter["Nx"]    = N

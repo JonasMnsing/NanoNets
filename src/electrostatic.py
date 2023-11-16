@@ -366,12 +366,12 @@ class electrostatic_class:
 if __name__ == '__main__':
 
     # Parameter
-    N_x, N_y, N_z       = 3,3,1
-    electrode_pos       = [[0,0,0],[2,0,0],[0,2,0],[2,2,0]]
+    N_x, N_y, N_z       = 5,5,1
+    electrode_pos       = [[0,0,0],[4,4,0]]
     radius, radius_std  = 10.0, 0.0
     eps_r, eps_s        = 2.6, 3.9
     np_distance         = 1
-    voltage_values      = [0.1,0.2,-0.1,0.3,-0.8]
+    voltage_values      = [0.0,0.0,0.0]
 
     # Cubic Network Topology
     cubic_topology  = topology.topology_class()

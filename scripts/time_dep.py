@@ -19,7 +19,7 @@ if __name__ == '__main__':
 
     def parallel_code(thread, N_voltages, time_steps, amplitude, N_electrodes):
 
-        for frequency in [3e5,4e5,5e5]:
+        for frequency in [1e5,2e5,3e5,4e5,5e5]:
 
             for inner_stat in range(5):
 

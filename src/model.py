@@ -902,8 +902,8 @@ class simulation:
         N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
         adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
         temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
-        resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
-        # resistances, resistances_co1, resistances_co2                                           = net_model.return_random_resistances()
+        # resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
+        resistances, resistances_co1, resistances_co2                                           = net_model.return_random_resistances()
 
         # Simulation Class
         simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,

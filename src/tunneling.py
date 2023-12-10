@@ -309,11 +309,14 @@ class tunnel_class:
         const_R_co2 : array
             Empty Array
         """
+
+        minR = self.ele_charge*self.ele_charge*1e-12
                 
         if self.tunnel_order >= 1:
-            const_R     = np.repeat(np.abs(np.random.normal(R*self.ele_charge*self.ele_charge, Rstd)), len(self.adv_index_rows))
-            const_R_co1 = np.array([])
-            const_R_co2 = np.array([])
+            const_R                     = np.abs(np.random.normal(R*self.ele_charge*self.ele_charge, Rstd*self.ele_charge*self.ele_charge, len(self.adv_index_rows)))
+            const_R[const_R < minR]     = minR
+            const_R_co1                 = np.array([])
+            const_R_co2                 = np.array([])
 
         if self.tunnel_order >= 2:
             "Random resistance not supported in tunnel_order >= 2"

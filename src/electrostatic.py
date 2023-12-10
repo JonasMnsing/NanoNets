@@ -182,6 +182,7 @@ class electrostatic_class:
         """
 
         self.radius_vals  = np.abs(np.random.normal(loc=mean_radius, scale=std_radius, size=self.N_particles))
+        self.radius_vals[self.radius_vals < 3] = 3.0
 
     def update_nanoparticle_radius(self, nanoparticles : list, mean_radius=10.0, std_radius=0.0)->None:
         """
@@ -198,6 +199,7 @@ class electrostatic_class:
         """
 
         self.radius_vals[nanoparticles] = np.abs(np.random.normal(loc=mean_radius, scale=std_radius, size=len(nanoparticles)))
+        self.radius_vals[self.radius_vals < 3] = 3.0
         
     def calc_capacitance_matrix(self, eps_r=2.6, eps_s=3.9, np_distance=1.0)->None:
         """

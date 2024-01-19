@@ -360,6 +360,17 @@ class electrostatic_class:
 
         return self.inv_capacitance_matrix
 
+    def return_net_topology(self)->np.array:
+        """
+        Returns
+        -------
+        net_topology : array
+            Network topology. Rows represent nanoparticles. First column stores connected electrodes.
+            Second to last columns store connected nanoparticles.
+        """
+
+        return self.net_topology
+
 ###########################################################################################################################
 ###########################################################################################################################
 

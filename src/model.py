@@ -749,11 +749,12 @@ class simulation:
 
     def init_cubic(self, folder : str, topology_parameter : dict,
                  del_n_junctions=0, np_info=None, np_info2=None, add_to_path="") -> None:
-
+        
         # Save Paths
-        self.path1 = folder + f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
-        self.path2 = folder + f'mean_state_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
-        self.path3 = folder + f'net_currents_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
+        base_path   = f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
+        self.path1  = folder + base_path
+        self.path2  = folder + 'mean_state_' + base_path
+        self.path3  = folder + 'net_currents_' + base_path
         
         # NP Informations
         if np_info == None:
@@ -823,6 +824,38 @@ class simulation:
         self.average_jumps   = []
         self.average_cojumps = []
 
+    def run(self, voltages : np.array, target_electrode : int, error_th : float, max_jumps : int, T_val=0.0, tunnel_order=1):
+
+        self.net_electrostatic.init_charge_vector(voltage_values=voltages)
+
+        inv_capacitance_matrix  = self.net_electrostatic.return_inv_capacitance_matrix()
+        charge_vector           = self.net_electrostatic.return_charge_vector()
+
+        # Model
+        net_model = tunneling.tunnel_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
+        net_model.init_potential_vector(voltage_values=voltages)
+        net_model.init_const_capacitance_values()
+
+        # Return Model Arguments
+        potential_vector                                                                        = net_model.return_potential_vector()
+        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
+        N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
+        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
+        temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
+        resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
+        
+        # Simulation Class
+        simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
+                                temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
+                                co_adv_index3, N_electrodes, N_particles)
+        
+        simulation.reach_equilibrium()
+        eq_jumps = simulation.total_jumps
+
+        simulation.kmc_simulation(target_electrode, error_th, max_jumps)
+        jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = simulation.return_target_values()
+
+
     def run_const_voltages(self, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, tunnel_order=1):
 
         # Simulation Parameter
@@ -857,8 +890,8 @@ class simulation:
             
             # Simulation Class
             simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
-                                        temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                        co_adv_index3, N_electrodes, N_particles)
+                                    temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
+                                    co_adv_index3, N_electrodes, N_particles)
 
             simulation.reach_equilibrium()
             eq_jumps = simulation.total_jumps

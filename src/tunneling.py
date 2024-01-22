@@ -1,10 +1,9 @@
 import numpy as np
 import pandas as pd
 import networkx as nx
-import topology
 import electrostatic
 
-class tunnel_class:
+class tunnel_class(electrostatic.electrostatic_class):
     """
     Class to setup possible charge hopping events
     This class depends on the topology_class and electrostatic_class
@@ -42,6 +41,8 @@ class tunnel_class:
 
     Methods
     -------
+    init_adv_indices()
+        Initialize indices for numpy broadcasting
     init_potential_vector(voltage_values : np.array)
         Initialize potential landscape via electrode voltages
     init_const_capacitance_values()
@@ -56,18 +57,17 @@ class tunnel_class:
     -------
     """
 
-    def __init__(self, net_topology : np.array, inv_capacitance_matrix : np.array, tunnel_order=1)->None:
+    def __init__(self, tunnel_order=1, seed=None)->None:
         """
         Parameters
         ----------
-        net_topology : array
-            Network topology. Rows represent nanoparticles. First column stores connected electrodes.
-            Second to last columns store connected nanoparticles.
-        inv_capacitance_matrix : array
-            Inverse of capacitance matrix
         tunnel_order : int
             Consider either next neighbor hopping (tunnel_order=1) or also second neighbor hopping (tunnel_order=1) 
+        seed : int
+            Seed for random number generator
         """
+
+        super().__init__(seed)
         
         self.tunnel_order = tunnel_order
 
@@ -75,24 +75,18 @@ class tunnel_class:
         self.ele_charge = 0.160217662
         self.kb         = 1.38064852e-5
 
-        # Topology Parameter
-        self.N_particles            = net_topology.shape[0]
-        self.N_junctions            = net_topology.shape[1]
-        self.N_electrodes           = np.sum(net_topology[:,0] != -100)
-        
-        # Inverse Capacitance Matrix
-        self.inv_capacitance_matrix = inv_capacitance_matrix
-        
+    def init_adv_indices(self):
+
         if self.tunnel_order >= 1:
 
             # Connection Array to show which nps and electrodes are connected 
             connections = np.zeros((self.N_particles+self.N_electrodes, self.N_junctions))
             connections.fill(-100)
-            connections[self.N_electrodes:,:]   = net_topology
+            connections[self.N_electrodes:,:]   = self.net_topology
             nth_e                               = 1
             nth_np                              = 0
             while ((nth_np < self.N_particles)) and (nth_e <= self.N_electrodes):
-                if int(net_topology[nth_np,0]) == nth_e:
+                if int(self.net_topology[nth_np,0]) == nth_e:
                     connections[nth_e-1,1] = nth_np
                     nth_e   += 1
                     nth_np  = 0
@@ -357,42 +351,30 @@ if __name__ == "__main__":
     voltage_values      = [0.1,0.2,-0.1,0.3,-0.8]
     tunnel_order        = 1
 
-    # Cubic Network Topology
-    cubic_topology  = topology.topology_class()
-    cubic_topology.cubic_network(N_x, N_y, N_z)
-    cubic_topology.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
-    topology_arr = cubic_topology.return_net_topology()
+    # Cubic Network Initialization
+    cubic_system  = tunnel_class(tunnel_order)
+    cubic_system.cubic_network(N_x, N_y, N_z)
+    cubic_system.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
+    cubic_system.attach_np_to_gate()
+    cubic_system.init_nanoparticle_radius(radius, radius_std)
+    cubic_system.calc_capacitance_matrix(eps_r, eps_s, np_distance)
+    cubic_system.init_charge_vector(voltage_values)
+    cubic_system.init_adv_indices()
 
-    print("Cubic Network Topology:\n", topology_arr)
+    # Return Class Attributes
+    topology_arr            = cubic_system.return_net_topology()
+    capacitance_matrix      = cubic_system.return_capacitance_matrix()
+    inv_capacitance_matrix  = cubic_system.return_inv_capacitance_matrix()
+    charge_vector           = cubic_system.return_charge_vector()
 
-    # Disordered Network Topology
-    # N_particles, N_junctions    = 20,4
-    # electrode_pos               = [[-1,-1],[1,-1],[-1,1],[1,1]]
-    # random_topology = topology.topology_class()
-    # random_topology.random_network(N_particles, N_junctions)
-    # random_topology.add_electrodes_to_random_net(electrode_pos)
-    # random_topology.graph_to_net_topology()
-    # topology_arr = random_topology.return_net_topology()
+    # Print Attributes
+    print("Cubic Network Topology:\n",      topology_arr)
+    print("Capacitance Matrix:\n",          capacitance_matrix)
+    print("Inverse Capacitance Matrix:\n",  inv_capacitance_matrix)
+    print("Initial Charge Vector:\n",       charge_vector)
 
-    # print("Disordered Network Topology:\n", topology_arr)
-
-    # Electrostatic
-    cubic_electrostatic = electrostatic.electrostatic_class(net_topology=topology_arr)
-    cubic_electrostatic.init_nanoparticle_radius(radius, radius_std)
-    cubic_electrostatic.calc_capacitance_matrix(eps_r, eps_s, np_distance)
-    cubic_electrostatic.init_charge_vector(voltage_values)
-
-    capacitance_matrix      = cubic_electrostatic.return_capacitance_matrix()
-    inv_capacitance_matrix  = cubic_electrostatic.return_inv_capacitance_matrix()
-    charge_vector           = cubic_electrostatic.return_charge_vector()
-
-    print("Capacitance Matrix:\n", capacitance_matrix)
-    print("Inverse Capacitance Matrix:\n", inv_capacitance_matrix)
-    print("Initial Charge Vector:\n", charge_vector)
-
-    cubic_tunneling = tunnel_class(topology_arr, inv_capacitance_matrix, tunnel_order=1)
-
-    adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3 = cubic_tunneling.return_advanced_indices()
+    # Advanced Indices:
+    adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3 = cubic_system.return_advanced_indices()
 
     print("Tunnel Origins:\n", adv_index_rows)
     print("Tunnel Targets:\n", adv_index_cols)

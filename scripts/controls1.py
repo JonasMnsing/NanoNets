@@ -3,7 +3,7 @@ import pandas as pd
 import sys
 # sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 sys.path.append("/home/j/j_mens07/NanoNets/src/")
-import model
+import nanonets
 import multiprocessing
 
 if __name__ == '__main__':
@@ -71,7 +71,7 @@ if __name__ == '__main__':
             sim_dic['error_th']     = 0.05
             sim_dic['max_jumps']    = 10000000
 
-            sim_class = model.simulation(voltages.values[thread_rows,:])
+            sim_class = nanonets.simulation(voltages.values[thread_rows,:])
             sim_class.init_cubic(folder=folder, topology_parameter=topology_parameter)
             sim_class.run_const_voltages(target_electrode=target_electrode, sim_dic=sim_dic, save_th=20, T_val=0)
     

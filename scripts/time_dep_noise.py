@@ -4,7 +4,7 @@ import sys
 # sys.path.append("/home/jonas/phd/NanoNets/src/")
 # sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 sys.path.append("/home/j/j_mens07/NanoNets/src/")
-import model
+import nanonets
 import multiprocessing
 
 if __name__ == '__main__':
@@ -52,7 +52,7 @@ if __name__ == '__main__':
                     "np_distance"   : 1.0
                 }
 
-                sim_class   = model.simulation(voltages.values)
+                sim_class   = nanonets.simulation(voltages.values)
                 sim_class.init_cubic(folder, topology_parameter, add_to_path=f"_{thread}_{inner_stat}", np_info=np_info)
                 sim_class.run_var_voltages(target_electrode, time_steps, save_th=1, T_val=0.0)
     

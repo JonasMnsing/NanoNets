@@ -295,7 +295,7 @@ if __name__ == '__main__':
     cubic_net = cubic_topology.return_net_topology()
 
     print("Cubic Network Topology:\n", cubic_net)
-
+    
     # Disordered Network Topology
     N_particles, N_junctions    = 20,4
     electrode_pos               = [[-1,-1],[1,-1],[-1,1],[1,1]]
@@ -307,7 +307,3 @@ if __name__ == '__main__':
     random_net = random_topology.return_net_topology()
 
     print("Disordered Network Topology:\n", random_net)
-
-    # Plot Network
-    # nx.draw_networkx(random_topology.G, random_topology.pos)
-    # plt.show()

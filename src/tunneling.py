@@ -80,7 +80,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         if self.tunnel_order >= 1:
 
             # Connection Array to show which nps and electrodes are connected 
-            connections = np.zeros((self.N_particles+self.N_electrodes, self.N_junctions))
+            connections = np.zeros((self.N_particles+self.N_electrodes, self.N_junctions+1))
             connections.fill(-100)
             connections[self.N_electrodes:,:]   = self.net_topology
             nth_e                               = 1
@@ -351,7 +351,7 @@ if __name__ == "__main__":
     voltage_values      = [0.1,0.2,-0.1,0.3,-0.8]
     tunnel_order        = 1
 
-    # Cubic Network Initialization
+    # Network Initialization
     cubic_system  = tunnel_class(tunnel_order)
     cubic_system.cubic_network(N_x, N_y, N_z)
     cubic_system.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)

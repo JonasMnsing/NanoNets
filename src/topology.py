@@ -52,12 +52,6 @@ class topology_class:
         ----------
         seed : int
             Seed for random number generator
-        N_particles : int
-            Number of nanoparticles
-        N_electrodes : int
-            Number of electrodes
-        rng : Generator
-            Bit Generator 
         """
 
         self.N_particles    = 0
@@ -261,6 +255,16 @@ class topology_class:
         """
 
         return self.net_topology
+    
+    def return_graph_object(self)->nx.Graph:
+        """
+        Returns
+        -------
+        G : nx.DiGraph
+            NetworkX directed graph of the nanoparticle network
+        """
+
+        return self.G
 
 ###########################################################################################################################
 ###########################################################################################################################

@@ -3,7 +3,7 @@ import pandas as pd
 import sys
 sys.path.append("/home/jonas/phd/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
-import model
+import nanonets
 import multiprocessing
 
 if __name__ == '__main__':
@@ -56,7 +56,7 @@ if __name__ == '__main__':
                 voltage_values = np.column_stack((voltage_values, np.zeros(voltage_values.shape[0])))
                 voltage_values = np.column_stack((voltage_values, v_gates_new))
 
-                sim_class = model.simulation(voltage_values[thread_rows,:])
+                sim_class = nanonets.simulation(voltage_values[thread_rows,:])
                 sim_class.init_cubic(folder=folder, topology_parameter=topology_parameter, add_to_path=f"_{n}_{j}")
                 sim_class.run_const_voltages(target_electrode=target_electrode, sim_dic=sim_dic, save_th=1, T_val=0.0)
 

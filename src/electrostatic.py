@@ -1,7 +1,7 @@
 import numpy as np
 import topology
 
-class electrostatic_class:
+class electrostatic_class(topology.topology_class):
     """
     Class to setup electrostatic properties of the nanoparticle network.
     This class depends on the topology_class.
@@ -59,29 +59,15 @@ class electrostatic_class:
     return_inv_capacitance_matrix()
     """
     
-    def __init__(self, net_topology : np.array, gate_nps=None, seed=None)->None:
+    def __init__(self, seed=None)->None:
         """
         Parameters
         ----------
-        net_topology : array
-            Network topology. Rows represent nanoparticles. First column stores connected electrodes.
-            Second to last columns store connected nanoparticles.
-        gate_nps : array
-            Nanoparticles capacitively couple to gate
         seed : int
             Seed for random number generator
         """
 
-        self.rng            = np.random.default_rng(seed=seed)
-        self.net_topology   = net_topology
-        self.N_particles    = self.net_topology.shape[0]
-        self.N_junctions    = self.net_topology.shape[1]
-        self.N_electrodes   = np.sum(self.net_topology[:,0] != -100)
-
-        if gate_nps == None:
-            self.gate_nps = np.ones(self.N_particles)
-        else:
-            self.gate_nps = gate_nps
+        super().__init__(seed)
 
     def delete_n_junctions(self, n : int)->None:
         """
@@ -386,16 +372,11 @@ if __name__ == '__main__':
     np_distance         = 1
     voltage_values      = [0.0,0.0,0.0]
 
-    # Cubic Network Topology
-    cubic_topology  = topology.topology_class()
-    cubic_topology.cubic_network(N_x, N_y, N_z)
-    cubic_topology.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
-    cubic_net = cubic_topology.return_net_topology()
-
-    print("Cubic Network Topology:\n", cubic_net)
-
     # Electrostatic
-    cubic_electrostatic = electrostatic_class(net_topology=cubic_net)
+    cubic_electrostatic = electrostatic_class()
+    cubic_electrostatic.cubic_network(N_x, N_y, N_z)
+    cubic_electrostatic.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
+    cubic_electrostatic.attach_np_to_gate()
     cubic_electrostatic.init_nanoparticle_radius(radius, radius_std)
     cubic_electrostatic.calc_capacitance_matrix(eps_r, eps_s, np_distance)
     cubic_electrostatic.init_charge_vector(voltage_values)

@@ -3,7 +3,7 @@ import pandas as pd
 import sys
 sys.path.append("/home/jonas/phd/NanoNets/src/")
 # sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src")
-import model
+import nanonets
 import voltage_config
 import multiprocessing
 
@@ -47,7 +47,7 @@ if __name__ == '__main__':
                 voltages.iloc[:,i]  = v_rand[:,i]
             voltages.iloc[:,-1] = v_gates
             
-            model.cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
+            nanonets.cubic_net_simulation(target_electrode, topology_parameter, voltages.values[thread_rows,:], folder,
                                 save_th=10, tunnel_order=tunnel_order, T_val=0, sim_dic=sim_dic)
     
 

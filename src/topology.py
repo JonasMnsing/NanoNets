@@ -34,6 +34,8 @@ class topology_class:
             Setup a regular cubic grid of nanoparticles
         random_network(N_particles : int, N_junctions : int)
             Setup a random regular network of nanoparticles. The resulting network might be higher dimensional.
+        attach_np_to_gate(self, gate_nps=None)
+            Attach NPs to gate electrode. If gate_nps==None, all NPs are attached
         add_electrodes_to_random_net(electrode_positions : List[List])
             List which contains electrode positions [x,y]. Nanoparticles sit inside a box of lengths [1,1].
         graph_to_net_topology()
@@ -148,6 +150,19 @@ class topology_class:
         self.G   = self.G.to_directed()
         self.pos = nx.kamada_kawai_layout(self.G)
         self.pos = nx.spring_layout(self.G, pos=self.pos)
+    
+    def attach_np_to_gate(self, gate_nps=None)->None:
+        """
+        Attach NPs to gate electrode. If gate_nps==None, all NPs are attached
+        ----------
+        gate_nps : array
+            Nanoparticles capacitively couple to gate
+        """
+
+        if gate_nps == None:
+            self.gate_nps = np.ones(self.N_particles)
+        else:
+            self.gate_nps = gate_nps
 
     def add_electrodes_to_random_net(self, electrode_positions : List[List])->None:
         """
@@ -280,7 +295,7 @@ if __name__ == '__main__':
     cubic_net = cubic_topology.return_net_topology()
 
     print("Cubic Network Topology:\n", cubic_net)
-
+    
     # Disordered Network Topology
     N_particles, N_junctions    = 20,4
     electrode_pos               = [[-1,-1],[1,-1],[-1,1],[1,1]]
@@ -292,7 +307,3 @@ if __name__ == '__main__':
     random_net = random_topology.return_net_topology()
 
     print("Disordered Network Topology:\n", random_net)
-
-    # Plot Network
-    # nx.draw_networkx(random_topology.G, random_topology.pos)
-    # plt.show()

@@ -1,5 +1,3 @@
-import topology
-import electrostatic
 import tunneling
 import numpy as np
 import pandas as pd
@@ -441,7 +439,7 @@ class model_class():
         self.time   = self.time - np.log(random_number2)/k_tot
         self.jump   = jump
 
-    def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000):
+    def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000) -> int:
         """
         Equilibrate the system
 
@@ -516,6 +514,8 @@ class model_class():
                 mean_potentials_1   = np.zeros(N_particles)
 
                 counter = 0
+        
+        return self.total_jumps
 
     def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=10000000):
         """
@@ -741,21 +741,17 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 #####################################################################################################################################################################################
 #####################################################################################################################################################################################
 
-class simulation:
+class simulation(tunneling.tunnel_class):
 
-    def __init__(self, voltages : np.array):
+    def __init__(self, network_topology : str, folder : str, topology_parameter : dict, np_info=None, np_info2=None,
+                        add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
 
-        self.voltages = voltages
+        super().__init__(tunnel_order, seed)
 
-    def init_cubic(self, folder : str, topology_parameter : dict,
-                 del_n_junctions=0, np_info=None, np_info2=None, add_to_path="") -> None:
+        # Type of Network Topology:
+        self.network_topology = network_topology
 
-        # Save Paths
-        self.path1 = folder + f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
-        self.path2 = folder + f'mean_state_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
-        self.path3 = folder + f'net_currents_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
-        
-        # NP Informations
+        # NP Parameter of first NP Type
         if np_info == None:
             np_info = {
                 "eps_r"         : 2.6,
@@ -764,66 +760,68 @@ class simulation:
                 "std_radius"    : 0.0,
                 "np_distance"   : 1.0
             }
+
+        # NP Parameter of second NP Type
         if np_info2 == None:
             np_info2 = np_info
 
-        # Cubic Network Topology
-        cubic_topology = topology.topology_class()
-        cubic_topology.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
-        cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
-        self.net_topology = cubic_topology.return_net_topology()
+        # Set Type of Network Topology
+        if network_topology == "cubic":
 
-        # Electrostatic
-        self.net_electrostatic = electrostatic.electrostatic_class(net_topology=self.net_topology)
-        if del_n_junctions != 0:
-            self.net_electrostatic.delete_n_junctions(del_n_junctions)
-        self.net_electrostatic.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
-        self.net_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
+            # Path variable
+            path_var = f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
+            
+            # Cubic Network Topology
+            self.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
+            self.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
+            self.attach_np_to_gate(gate_nps=gate_nps)
+            
+            # Delete Junctions if porvided
+            if del_n_junctions != 0:
+                self.delete_n_junctions(del_n_junctions)
+                
+            # Electrostatic Properties
+            self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
+            self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
+
+        elif network_topology == "random":
+            
+            # Path variable
+            path_var = f'Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
+            
+            # Cubic Network Topology
+            self.random_network(N_particles=topology_parameter["Np"], N_junctions=topology_parameter["Nj"])
+            self.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
+            self.graph_to_net_topology()
+            self.attach_np_to_gate(gate_nps=gate_nps)
+            
+            # Delete Junctions if porvided
+            if del_n_junctions != 0:
+                self.delete_n_junctions(del_n_junctions)
+                
+            # Electrostatic Properties
+            self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
+            self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
         
-        # Output Lists
-        self.output_values   = []
-        self.microstates     = []
-        self.average_jumps   = []
-        self.average_cojumps = []
-    
-    def init_random(self, folder : str, topology_parameter : dict, np_info=None, np_info2=None, add_to_path="") -> None:
+        else:
+            raise ValueError("Only 'cubic' and 'random' topologies are supported.")
+
+        # Indices for Numpy broadcasting
+        self.init_adv_indices()
 
         # Save Paths
-        self.path1 = folder + f'Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
-        self.path2 = folder + f'mean_state_Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
-        self.path3 = folder + f'net_currents_Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={self.voltages.shape[1]-1}'+add_to_path+'.csv'
-        
-        # NP Informations
-        if np_info == None:
-            np_info = {
-                "eps_r"         : 2.6,
-                "eps_s"         : 3.9,
-                "mean_radius"   : 10.0,
-                "std_radius"    : 0.0,
-                "np_distance"   : 1.0
-            }
-        if np_info2 == None:
-            np_info2 = np_info
+        self.path1  = folder + path_var
+        self.path2  = folder + 'mean_state_' + path_var
+        self.path3  = folder + 'net_currents_' + path_var
 
-        # Cubic Network Topology
-        random_topology = topology.topology_class()
-        random_topology.random_network(N_particles=topology_parameter["Np"], N_junctions=topology_parameter["Nj"])
-        random_topology.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
-        random_topology.graph_to_net_topology()
-        self.net_topology = random_topology.return_net_topology()
-
-        # Electrostatic
-        self.net_electrostatic = electrostatic.electrostatic_class(net_topology=self.net_topology)
-        self.net_electrostatic.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
-        self.net_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
-        
         # Output Lists
         self.output_values   = []
         self.microstates     = []
+        self.pot_values      = []
         self.average_jumps   = []
         self.average_cojumps = []
 
-    def run_const_voltages(self, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, tunnel_order=1):
+    def run_const_voltages(self, voltages : np.array, target_electrode, T_val=0.0, sim_dic=None, save_th=10, tunnel_order=1):
 
         # Simulation Parameter
         if sim_dic != None:
@@ -835,45 +833,46 @@ class simulation:
 
         j = 0
 
-        for i, voltage_values in enumerate(self.voltages):
-        
-            self.net_electrostatic.init_charge_vector(voltage_values=voltage_values)
-
-            inv_capacitance_matrix  = self.net_electrostatic.return_inv_capacitance_matrix()
-            charge_vector           = self.net_electrostatic.return_charge_vector()
-
-            # Model
-            net_model = tunneling.tunnel_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
-            net_model.init_potential_vector(voltage_values=voltage_values)
-            net_model.init_const_capacitance_values()
+        for i, voltage_values in enumerate(voltages):
+            
+            # Based on current voltages get charges and potentials
+            self.init_charge_vector(voltage_values=voltage_values)
+            self.init_potential_vector(voltage_values=voltage_values)
+            self.init_const_capacitance_values()
 
             # Return Model Arguments
-            potential_vector                                                                        = net_model.return_potential_vector()
-            const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
-            N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
-            adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
-            temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
-            resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
+            inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
+            charge_vector                                                                           = self.return_charge_vector()
+            potential_vector                                                                        = self.return_potential_vector()
+            const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
+            N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
+            adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
+            temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
+            resistances, resistances_co1, resistances_co2                                           = self.return_const_resistances()
+            # resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances()
             
-            # Simulation Class
-            simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
-                                        temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                        co_adv_index3, N_electrodes, N_particles)
+            # Pass all model arguments into Numba optimized Class
+            model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
+                                    temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
+                                    co_adv_index3, N_electrodes, N_particles)
 
-            simulation.reach_equilibrium()
-            eq_jumps = simulation.total_jumps
+            # Eqilibrate Potential Landscape
+            eq_jumps = model.reach_equilibrium()
 
-            simulation.kmc_simulation(target_electrode, error_th, max_jumps)
-            jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = simulation.return_target_values()
+            # Production Run until Current at target electrode is less than error_th or max_jumps was passed
+            model.kmc_simulation(target_electrode, error_th, max_jumps)
+            jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = model.return_target_values()
             
+            # Append Results to Outputs
             self.output_values.append(np.array([eq_jumps, total_jumps, jump_diff_mean, jump_diff_std]))
             self.microstates.append(mean_state)
             self.average_jumps.append(executed_jumps)
             self.average_cojumps.append(executed_cojumps)
 
+            # Store Data
             if ((i+1) % save_th == 0):
                 
-                save_target_currents(np.array(self.output_values), self.voltages[j:(i+1),:], self.path1)
+                save_target_currents(np.array(self.output_values), voltages[j:(i+1),:], self.path1)
                 save_mean_microstate(self.microstates, self.path2)
                 save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
                 if (tunnel_order != 1):
@@ -884,64 +883,67 @@ class simulation:
                 self.average_cojumps = []
                 j                    = i+1
 
-    def run_var_voltages(self, target_electrode : int, time_steps : np.array, T_val=0.0, save_th=10):
+    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, save_th=10):
 
         # First time step
-        self.net_electrostatic.init_charge_vector(voltage_values=self.voltages[0])
-        inv_capacitance_matrix  = self.net_electrostatic.return_inv_capacitance_matrix()
-        charge_vector           = self.net_electrostatic.return_charge_vector()
-
-        # Model
-        net_model = tunneling.tunnel_class(net_topology=self.net_topology, inv_capacitance_matrix=inv_capacitance_matrix)
-        net_model.init_potential_vector(voltage_values=self.voltages[0])
-        net_model.init_const_capacitance_values()
+        self.init_charge_vector(voltage_values=voltages[0])
+        self.init_potential_vector(voltage_values=voltages[0])
+        self.init_const_capacitance_values()
 
         # Return Model Arguments
-        potential_vector                                                                        = net_model.return_potential_vector()
-        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
-        N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
-        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
-        temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
-        # resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
-        resistances, resistances_co1, resistances_co2                                           = net_model.return_random_resistances()
+        inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
+        charge_vector                                                                           = self.return_charge_vector()
+        potential_vector                                                                        = self.return_potential_vector()
+        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
+        N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
+        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
+        temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
+        resistances, resistances_co1, resistances_co2                                           = self.return_const_resistances()
+        # resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances()
 
         # Simulation Class
-        simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
+        model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
                                         temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
                                         co_adv_index3, N_electrodes, N_particles)
         
-        simulation.reach_equilibrium()
+        # Eqilibrate Potential Landscape
+        # eq_jumps = model.reach_equilibrium()
 
-        simulation.time                     = 0.0
-        simulation.counter_output_jumps_neg = 0
-        simulation.counter_output_jumps_pos = 0
+        # Initial time and Jumps towards and from target electrode
+        model.time                     = 0.0
+        model.counter_output_jumps_neg = 0
+        model.counter_output_jumps_pos = 0
 
-        offset                      = self.net_electrostatic.get_charge_vector_offset(voltage_values=self.voltages[0])
-        simulation.charge_vector    =- offset
+        # Subtract charges induces by initial electrode voltages
+        offset              = self.get_charge_vector_offset(voltage_values=voltages[0])
+        model.charge_vector = model.charge_vector - offset
         
         j = 0
 
-        for i, voltage_values in enumerate(self.voltages[:-1]):
-
-            offset                      = self.net_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
-            simulation.charge_vector    += offset
+        for i, voltage_values in enumerate(voltages[:-1]):
             
-            simulation.time = time_steps[i]
-            time_target     = time_steps[i+1]
+            offset              = self.get_charge_vector_offset(voltage_values=voltage_values)
+            model.charge_vector = model.charge_vector + offset
+            
+            model.time  = time_steps[i]
+            time_target = time_steps[i+1]
 
             # Update Electrode Potentials
-            simulation.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
-            simulation.kmc_time_simulation(target_electrode, time_target)
-            jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = simulation.return_target_values()
+            model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
+            model.kmc_time_simulation(target_electrode, time_target)
+            jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = model.return_target_values()
             
+            # Append Results to Outputs
             self.output_values.append(np.array([-1, total_jumps, jump_diff_mean, jump_diff_std]))
             self.microstates.append(mean_state)
             self.average_jumps.append(executed_jumps)
             self.average_cojumps.append(executed_cojumps)
+            # self.pot_values.append()
 
+            # Store Data
             if ((i+1) % save_th == 0):
                 
-                save_target_currents(np.array(self.output_values), self.voltages[j:(i+1),:], self.path1)
+                save_target_currents(np.array(self.output_values), voltages[j:(i+1),:], self.path1)
                 save_mean_microstate(self.microstates, self.path2)
                 save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
                 self.output_values      = []
@@ -950,213 +952,20 @@ class simulation:
                 self.average_cojumps    = []
                 j                       = i+1
             
-            offset                      = self.net_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
-            simulation.charge_vector    =- offset
+            offset              = self.get_charge_vector_offset(voltage_values=voltage_values)
+            model.charge_vector = model.charge_vector - offset
 
-# def cubic_net_simulation(target_electrode : int, topology_parameter : dict, voltages : np.array, folder : str,
-#                          save_th=10, add_to_path="", tunnel_order=1, T_val=0.28, sim_dic=None, del_n_junctions=0, 
-#                          np_info=None, np_info2=None):
+    def return_output_values(self):
 
-#     # Save Paths
-#     path1 = folder + f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-#     path2 = folder + f'mean_state_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-#     path3 = folder + f'net_currents_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-#     path4 = folder + f'net_cocurrents_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-    
-#     # NP Informations
-#     if np_info == None:
-#         np_info = {
-#             "eps_r"         : 2.6,
-#             "eps_s"         : 3.9,
-#             "mean_radius"   : 10.0,
-#             "std_radius"    : 0.0,
-#             "np_distance"   : 1.0
-#         }
-    
-#     # NP Informations
-#     if np_info2 == None:
-#         np_info2 = np_info
+        return_var      = np.array(self.output_values)
+        return_var[:,2] = return_var[:,2]*10**(-6)
+        return_var[:,3] = return_var[:,3]*10**(-6)
 
+        return return_var
 
-#     # Simulation Parameter
-#     if sim_dic != None:
-#         error_th    = sim_dic['error_th']
-#         max_jumps   = sim_dic['max_jumps']
-#     else:
-#         error_th    = 0.05
-#         max_jumps   = 10000000
+    def return_microstates(self):
 
-#     # Cubic Network Topology
-#     cubic_topology = topology.topology_class()
-#     cubic_topology.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
-#     cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
-#     cubic_net = cubic_topology.return_net_topology()
-
-#     # Electrostatic
-#     cubic_electrostatic = electrostatic.electrostatic_class(net_topology=cubic_net)
-#     if del_n_junctions != 0:
-#         cubic_electrostatic.delete_n_junctions(del_n_junctions)
-#     cubic_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['mean_radius'], np_info['std_radius'],
-#                                                 np_info['np_distance'], np_info2['mean_radius'], np_info2['std_radius'])
-#     output_values   = []
-#     microstates     = []
-#     average_jumps   = []
-#     average_cojumps = []
-#     j               = 0
-
-#     for i, voltage_values in enumerate(voltages):
-        
-#         cubic_electrostatic.init_charge_vector(voltage_values=voltage_values)
-
-#         inv_capacitance_matrix  = cubic_electrostatic.return_inv_capacitance_matrix()
-#         charge_vector           = cubic_electrostatic.return_charge_vector()
-
-#         # Model
-#         net_model = model.model_class(net_topology=cubic_net, inv_capacitance_matrix=inv_capacitance_matrix, tunnel_order=tunnel_order)
-#         net_model.init_potential_vector(voltage_values=voltage_values)
-#         net_model.init_const_capacitance_values()
-
-#         # Return Model Arguments
-#         potential_vector                                                                        = net_model.return_potential_vector()
-#         const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
-#         N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
-#         adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
-#         temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
-#         resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
-        
-#         # Simulation Class
-#         simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
-#                                       temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-#                                       co_adv_index3, N_electrodes, N_particles)
-        
-#         simulation.reach_equilibrium()
-#         eq_jumps = simulation.total_jumps
-#         simulation.kmc_simulation(target_electrode, error_th, max_jumps)
-#         jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = simulation.return_target_values()
-        
-#         output_values.append(np.array([eq_jumps, total_jumps, jump_diff_mean, jump_diff_std]))
-#         microstates.append(mean_state)
-#         average_jumps.append(executed_jumps)
-#         average_cojumps.append(executed_cojumps)
-
-#         if ((i+1) % save_th == 0):
-            
-#             save_target_currents(np.array(output_values), voltages[j:(i+1),:], path1)
-#             save_mean_microstate(microstates, path2)
-#             save_jump_storage(average_jumps, adv_index_rows, adv_index_cols, path3)
-#             if (tunnel_order != 1):
-#                 save_cojump_storage(average_cojumps, co_adv_index1, co_adv_index3, path4)
-#             output_values   = []
-#             microstates     = []
-#             average_jumps   = []
-#             average_cojumps = []
-#             j               = i+1
-
-# def time_simulation(target_electrode : int, time_steps : np.array, topology_parameter : dict, voltages : np.array, folder : str,
-#                     save_th=10, add_to_path="", T_val=0.0, del_n_junctions=0, np_info=None, np_info2=None):
-    
-#     # Save Paths
-#     path1 = folder + f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-#     path2 = folder + f'mean_state_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-#     path3 = folder + f'net_currents_Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={voltages.shape[1]-1}'+add_to_path+'.csv'
-    
-#     # NP Informations
-#     if np_info == None:
-#         np_info = {
-#             "eps_r"         : 2.6,
-#             "eps_s"         : 3.9,
-#             "mean_radius"   : 10.0,
-#             "std_radius"    : 0.0,
-#             "np_distance"   : 1.0
-#         }
-#     if np_info2 == None:
-#         np_info2 = np_info
-    
-#     # Cubic Network Topology
-#     cubic_topology = topology.topology_class()
-#     cubic_topology.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
-#     cubic_topology.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
-#     cubic_net = cubic_topology.return_net_topology()
-
-#     # Electrostatic
-#     cubic_electrostatic = electrostatic.electrostatic_class(net_topology=cubic_net)
-#     if del_n_junctions != 0:
-#         cubic_electrostatic.delete_n_junctions(del_n_junctions)
-#     cubic_electrostatic.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['mean_radius'], np_info['std_radius'], np_info['np_distance'])
-#     output_values   = []
-#     microstates     = []
-#     average_jumps   = []
-#     average_cojumps = []
-#     j               = 0
-
-#     # First time step
-#     cubic_electrostatic.init_charge_vector(voltage_values=voltages[0])
-#     inv_capacitance_matrix  = cubic_electrostatic.return_inv_capacitance_matrix()
-#     charge_vector           = cubic_electrostatic.return_charge_vector()
-
-#     # Model
-#     net_model = model.model_class(net_topology=cubic_net, inv_capacitance_matrix=inv_capacitance_matrix)
-#     net_model.init_potential_vector(voltage_values=voltages[0])
-#     net_model.init_const_capacitance_values()
-
-#     # Return Model Arguments
-#     potential_vector                                                                        = net_model.return_potential_vector()
-#     const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = net_model.return_const_capacitance_values()
-#     N_electrodes, N_particles                                                               = net_model.return_particle_electrode_count()
-#     adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = net_model.return_advanced_indices()
-#     temperatures, temperatures_co                                                           = net_model.return_const_temperatures(T=T_val)
-#     resistances, resistances_co1, resistances_co2                                           = net_model.return_const_resistances()
-#     # resistances, resistances_co1, resistances_co2                                           = net_model.return_random_resistances()
-
-#     # Simulation Class
-#     simulation = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
-#                                     temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-#                                     co_adv_index3, N_electrodes, N_particles)
-    
-#     simulation.reach_equilibrium()
-
-#     simulation.time                     = 0.0
-#     simulation.counter_output_jumps_neg = 0
-#     simulation.counter_output_jumps_pos = 0
-
-#     offset                      = cubic_electrostatic.get_charge_vector_offset(voltage_values=voltages[0])
-#     simulation.charge_vector    =- offset
-
-#     for i, voltage_values in enumerate(voltages[:-1]):
-
-#         offset                      = cubic_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
-#         simulation.charge_vector    += offset
-        
-#         # Eigentlich update state ? 
-#         # cubic_electrostatic.init_charge_vector(voltage_values=voltage_values)
-#         simulation.time = time_steps[i]
-#         time_target     = time_steps[i+1]
-
-#         # Update Electrode Potentials
-#         simulation.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
-#         simulation.kmc_time_simulation(target_electrode, time_target)
-#         jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = simulation.return_target_values()
-        
-#         output_values.append(np.array([-1, total_jumps, jump_diff_mean, jump_diff_std]))
-#         microstates.append(mean_state)
-#         average_jumps.append(executed_jumps)
-#         average_cojumps.append(executed_cojumps)
-
-#         if ((i+1) % save_th == 0):
-            
-#             save_target_currents(np.array(output_values), voltages[j:(i+1),:], path1)
-#             save_mean_microstate(microstates, path2)
-#             save_jump_storage(average_jumps, adv_index_rows, adv_index_cols, path3)
-#             output_values   = []
-#             microstates     = []
-#             average_jumps   = []
-#             average_cojumps = []
-#             j               = i+1
-        
-#         offset                      = cubic_electrostatic.get_charge_vector_offset(voltage_values=voltage_values)
-#         simulation.charge_vector    =- offset
-
-
+        return np.array(self.microstates)
 
 ###########################################################################################################################
 ###########################################################################################################################

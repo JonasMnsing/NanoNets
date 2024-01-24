@@ -42,8 +42,11 @@ spec = [
     ('co_event_selected', boolean),
     ('zero_T', boolean),
     ('charge_mean', float64[::1]),
+    ('potential_mean', float64[::1]),
     ('jump_storage', float64[::1]),
     ('jump_storage_co', float64[::1]),
+    ('jump_dist_per_it', float64[:,::1]),
+    ('landscape_per_it', float64[:,::1]),
     ('N_rates', int64),
     ('N_corates', int64),
 ]
@@ -125,6 +128,8 @@ class model_class():
         Occured jump/event
     charge_mean : array
         Storage for average network charges
+    potential_mean : array
+        Storage for average potential landscape
     jump_storage : array
         Storage for executed tunneling events
     jump_storage_co : array
@@ -208,6 +213,7 @@ class model_class():
 
         # Storages
         self.charge_mean        = np.zeros(len(charge_vector))
+        self.potential_mean     = np.zeros(len(potential_vector))
         self.jump_storage       = np.zeros(len(adv_index_rows))
         self.jump_storage_co    = np.zeros(len(co_adv_index1))
 
@@ -583,7 +589,8 @@ class model_class():
                     np2 = self.adv_index_cols[self.jump]
                     self.jump_storage[self.jump]    += 1
 
-            self.charge_mean += self.charge_vector
+            self.charge_mean    += self.charge_vector
+            self.potential_mean += self.potential_vector
 
             # If jump from target electrode
             if (np1 == target_electrode):
@@ -607,7 +614,7 @@ class model_class():
         
         self.jump_storage = self.jump_storage/self.time
     
-    def kmc_time_simulation(self, target_electrode : int, time_target : float):
+    def kmc_time_simulation(self, target_electrode : int, time_target : float, store_per_it_min=0, store_per_it_max=0):
         """
         Runs KMC until KMC time exceeds a target value
 
@@ -621,6 +628,9 @@ class model_class():
 
         self.counter_output_jumps_neg   = 0
         self.counter_output_jumps_pos   = 0
+        self.jump_storage               = np.zeros(len(self.adv_index_rows))
+        self.jump_dist_per_it           = np.expand_dims(np.zeros(len(self.adv_index_rows)),0)
+        self.landscape_per_it           = np.expand_dims(np.zeros(len(self.potential_vector)),0)
         inner_time                      = self.time
         last_time                       = 0.0
 
@@ -643,7 +653,12 @@ class model_class():
             np2 = self.adv_index_cols[self.jump]
             self.jump_storage[self.jump]    += 1
             
-            self.charge_mean += self.charge_vector
+            self.charge_mean    += self.charge_vector
+            self.potential_mean += self.potential_vector
+            
+            if ((self.time >= store_per_it_min) & (self.time < store_per_it_max)):
+                self.jump_dist_per_it = np.vstack((self.jump_dist_per_it, np.expand_dims(self.jump_storage,0)))
+                self.landscape_per_it = np.vstack((self.landscape_per_it, np.expand_dims(self.potential_vector,0)))
 
             # If jump from target electrode
             if (np1 == target_electrode):
@@ -679,7 +694,7 @@ class model_class():
             Number of total jumps
         """
         
-        return self.jump_diff_mean, self.jump_diff_std, self.charge_mean/self.total_jumps, self.jump_storage, self.jump_storage_co, self.total_jumps
+        return self.jump_diff_mean, self.jump_diff_std, self.charge_mean/self.total_jumps,  self.potential_mean/self.total_jumps, self.jump_storage, self.jump_storage_co, self.landscape_per_it, self.jump_dist_per_it, self.total_jumps
 
 ###################################################################################################
 # FUNCTIONS
@@ -817,7 +832,10 @@ class simulation(tunneling.tunnel_class):
         # Output Lists
         self.output_values   = []
         self.microstates     = []
+        self.landscape       = []
         self.pot_values      = []
+        self.jumps_per_it    = []
+        self.pot_per_it      = []
         self.average_jumps   = []
         self.average_cojumps = []
 
@@ -861,11 +879,12 @@ class simulation(tunneling.tunnel_class):
 
             # Production Run until Current at target electrode is less than error_th or max_jumps was passed
             model.kmc_simulation(target_electrode, error_th, max_jumps)
-            jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = model.return_target_values()
+            jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, total_jumps = model.return_target_values()
             
             # Append Results to Outputs
             self.output_values.append(np.array([eq_jumps, total_jumps, jump_diff_mean, jump_diff_std]))
             self.microstates.append(mean_state)
+            self.landscape.append(mean_potentials)
             self.average_jumps.append(executed_jumps)
             self.average_cojumps.append(executed_cojumps)
 
@@ -879,11 +898,12 @@ class simulation(tunneling.tunnel_class):
                     save_cojump_storage(self.average_cojumps, co_adv_index1, co_adv_index3, self.path4)
                 self.output_values   = []
                 self.microstates     = []
+                self.landscape       = []
                 self.average_jumps   = []
                 self.average_cojumps = []
                 j                    = i+1
 
-    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, save_th=10):
+    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, save_th=10, store_per_it_min=0, store_per_it_max=0):
 
         # First time step
         self.init_charge_vector(voltage_values=voltages[0])
@@ -906,9 +926,6 @@ class simulation(tunneling.tunnel_class):
                                         temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
                                         co_adv_index3, N_electrodes, N_particles)
         
-        # Eqilibrate Potential Landscape
-        # eq_jumps = model.reach_equilibrium()
-
         # Initial time and Jumps towards and from target electrode
         model.time                     = 0.0
         model.counter_output_jumps_neg = 0
@@ -930,14 +947,17 @@ class simulation(tunneling.tunnel_class):
 
             # Update Electrode Potentials
             model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
-            model.kmc_time_simulation(target_electrode, time_target)
-            jump_diff_mean, jump_diff_std, mean_state, executed_jumps, executed_cojumps, total_jumps = model.return_target_values()
+            model.kmc_time_simulation(target_electrode, time_target, store_per_it_min, store_per_it_max)
+            jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, total_jumps = model.return_target_values()
             
             # Append Results to Outputs
             self.output_values.append(np.array([-1, total_jumps, jump_diff_mean, jump_diff_std]))
             self.microstates.append(mean_state)
+            self.landscape.append(mean_potentials)
             self.average_jumps.append(executed_jumps)
             self.average_cojumps.append(executed_cojumps)
+            self.jumps_per_it.append(jump_dist_per_it)
+            self.pot_per_it.append(landscape_per_it)
             # self.pot_values.append()
 
             # Store Data
@@ -948,6 +968,7 @@ class simulation(tunneling.tunnel_class):
                 save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
                 self.output_values      = []
                 self.microstates        = []
+                self.landscape          = []
                 self.average_jumps      = []
                 self.average_cojumps    = []
                 j                       = i+1
@@ -967,6 +988,24 @@ class simulation(tunneling.tunnel_class):
 
         return np.array(self.microstates)
 
+    def return_potential_landscape(self):
+
+        return np.array(self.landscape)
+
+    def return_network_currents(self):
+
+        avg_j_cols = [(self.adv_index_rows[i],self.adv_index_cols[i]) for i in range(len(self.adv_index_rows))]
+
+        return avg_j_cols, np.array(self.average_jumps)*10**(-6)   
+    
+    def return_jumps_per_it(self):
+
+        return self.jumps_per_it
+    
+    def return_pot_per_it(self):
+
+        return self.pot_per_it
+    
 ###########################################################################################################################
 ###########################################################################################################################
 

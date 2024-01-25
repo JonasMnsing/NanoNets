@@ -4,7 +4,7 @@ import pandas as pd
 import os.path
 from typing import List
 from numba.experimental import jitclass
-from numba import int64, float64, boolean
+from numba import int64, float64, boolean, types
 
 spec = [
     ('charge_vector', float64[::1]),
@@ -47,6 +47,7 @@ spec = [
     ('jump_storage_co', float64[::1]),
     ('jump_dist_per_it', float64[:,::1]),
     ('landscape_per_it', float64[:,::1]),
+    ('time_vals', float64[::1]),
     ('N_rates', int64),
     ('N_corates', int64),
 ]
@@ -631,6 +632,7 @@ class model_class():
         self.jump_storage               = np.zeros(len(self.adv_index_rows))
         self.jump_dist_per_it           = np.expand_dims(np.zeros(len(self.adv_index_rows)),0)
         self.landscape_per_it           = np.expand_dims(np.zeros(len(self.potential_vector)),0)
+        self.time_vals                  = np.zeros(1)
         inner_time                      = self.time
         last_time                       = 0.0
 
@@ -657,8 +659,9 @@ class model_class():
             self.potential_mean += self.potential_vector
             
             if ((self.time >= store_per_it_min) & (self.time < store_per_it_max)):
-                self.jump_dist_per_it = np.vstack((self.jump_dist_per_it, np.expand_dims(self.jump_storage,0)))
-                self.landscape_per_it = np.vstack((self.landscape_per_it, np.expand_dims(self.potential_vector,0)))
+                self.jump_dist_per_it   = np.vstack((self.jump_dist_per_it, np.expand_dims(self.jump_storage,0)))
+                self.landscape_per_it   = np.vstack((self.landscape_per_it, np.expand_dims(self.potential_vector,0)))
+                self.time_vals          = np.hstack((self.time_vals, np.array([self.time])))
 
             # If jump from target electrode
             if (np1 == target_electrode):
@@ -694,7 +697,7 @@ class model_class():
             Number of total jumps
         """
         
-        return self.jump_diff_mean, self.jump_diff_std, self.charge_mean/self.total_jumps,  self.potential_mean/self.total_jumps, self.jump_storage, self.jump_storage_co, self.landscape_per_it, self.jump_dist_per_it, self.total_jumps
+        return self.jump_diff_mean, self.jump_diff_std, self.charge_mean/self.total_jumps,  self.potential_mean/self.total_jumps, self.jump_storage, self.jump_storage_co, self.landscape_per_it, self.jump_dist_per_it, self.time_vals, self.total_jumps
 
 ###################################################################################################
 # FUNCTIONS
@@ -835,6 +838,7 @@ class simulation(tunneling.tunnel_class):
         self.landscape       = []
         self.pot_values      = []
         self.jumps_per_it    = []
+        self.time_values     = []
         self.pot_per_it      = []
         self.average_jumps   = []
         self.average_cojumps = []
@@ -948,7 +952,7 @@ class simulation(tunneling.tunnel_class):
             # Update Electrode Potentials
             model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
             model.kmc_time_simulation(target_electrode, time_target, store_per_it_min, store_per_it_max)
-            jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, total_jumps = model.return_target_values()
+            jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
             
             # Append Results to Outputs
             self.output_values.append(np.array([-1, total_jumps, jump_diff_mean, jump_diff_std]))
@@ -958,6 +962,7 @@ class simulation(tunneling.tunnel_class):
             self.average_cojumps.append(executed_cojumps)
             self.jumps_per_it.append(jump_dist_per_it)
             self.pot_per_it.append(landscape_per_it)
+            self.time_values.append(time_vals)
             # self.pot_values.append()
 
             # Store Data
@@ -1005,6 +1010,10 @@ class simulation(tunneling.tunnel_class):
     def return_pot_per_it(self):
 
         return self.pot_per_it
+    
+    def return_time_vals(self):
+
+        return self.time_values
     
 ###########################################################################################################################
 ###########################################################################################################################

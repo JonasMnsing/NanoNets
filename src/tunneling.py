@@ -274,6 +274,8 @@ class tunnel_class(electrostatic.electrostatic_class):
             Resistances for each cotunneling event k to j
         """
 
+        R_mo = R 
+
         if self.tunnel_order >= 1:
             const_R     = np.repeat(R*self.ele_charge*self.ele_charge, len(self.adv_index_rows))
             const_R_co1 = np.array([])
@@ -285,7 +287,7 @@ class tunnel_class(electrostatic.electrostatic_class):
 
         return const_R, const_R_co1, const_R_co2
     
-    def return_random_resistances(self, R=25e-12, Rstd=2e-12):
+    def return_random_resistances(self, R=25, Rstd=2):
         """        
         Parameter
         ---------
@@ -303,9 +305,12 @@ class tunnel_class(electrostatic.electrostatic_class):
         const_R_co2 : array
             Empty Array
         """
+
+        R_megaO     = R*1e-12
+        R_std_megaO = Rstd*1e-12
                 
         if self.tunnel_order >= 1:
-            const_R     = np.repeat(np.abs(np.random.normal(R*self.ele_charge*self.ele_charge, Rstd)), len(self.adv_index_rows))
+            const_R     = np.abs(np.random.normal(R_megaO*self.ele_charge*self.ele_charge, R_std_megaO*self.ele_charge*self.ele_charge, size=len(self.adv_index_rows)))
             const_R_co1 = np.array([])
             const_R_co2 = np.array([])
 

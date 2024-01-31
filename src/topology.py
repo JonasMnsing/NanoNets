@@ -271,15 +271,15 @@ class topology_class:
 
         return self.net_topology
     
-    def return_graph_object(self)->nx.Graph:
-        """
-        Returns
-        -------
-        G : nx.DiGraph
-            NetworkX directed graph of the nanoparticle network
-        """
+    # def return_graph_object(self)->nx.Graph:
+    #     """
+    #     Returns
+    #     -------
+    #     G : nx.DiGraph
+    #         NetworkX directed graph of the nanoparticle network
+    #     """
 
-        return self.G
+    #     return self.G
 
 ###########################################################################################################################
 ###########################################################################################################################

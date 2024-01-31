@@ -186,6 +186,20 @@ class tunnel_class(electrostatic.electrostatic_class):
 
             self.const_capacitance_values_co2 = (cap_ii + cap_jj - 2*cap_ij)
 
+    def return_graph_object(self)->nx.Graph:
+        """
+        Returns
+        -------
+        G : nx.DiGraph
+            NetworkX directed graph of the nanoparticle network
+        """
+
+        G = nx.DiGraph()
+        G.add_nodes_from([i for i in range(self.N_particles+self.N_electrodes)])
+        G.add_edges_from([(self.adv_index_rows[i], self.adv_index_cols[i]) for i in range(len(self.adv_index_rows))])
+
+        return G
+
     def return_potential_vector(self)->np.array:
         """
         Returns
@@ -287,7 +301,7 @@ class tunnel_class(electrostatic.electrostatic_class):
 
         return const_R, const_R_co1, const_R_co2
     
-    def return_random_resistances(self, R=25, Rstd=2):
+    def return_random_resistances(self, R=25, Rstd=0):
         """        
         Parameter
         ---------

@@ -676,10 +676,10 @@ class model_class():
             # Statistics
             self.total_jumps    +=  1
         
-        if last_time-inner_time != 0:
+        if (last_time-inner_time) != 0:
             # self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(last_time)
             # self.jump_storage   = self.jump_storage/(last_time)            
-            if self.total_jumps > 4:
+            if self.total_jumps >= 10:
                 self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(last_time-inner_time)
                 self.jump_storage   = self.jump_storage/(last_time-inner_time)
             else:

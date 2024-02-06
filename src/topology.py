@@ -84,6 +84,10 @@ class topology_class:
                 for k in range(0,N_x):
                     nano_particles_pos.append([0, k, j, i])
 
+        self.pos    = {i : pos[1:3] for i, pos in enumerate(nano_particles_pos)}
+        self.G      = nx.DiGraph()
+        self.G.add_nodes_from(np.arange(self.N_particles))
+
         # Define max number of next neigbors by network dimension
         if ((N_x > 1) and (N_y > 1) and (N_z > 1)):
             self.N_junctions = 6
@@ -118,6 +122,8 @@ class topology_class:
 
                     self.net_topology[i, n_NN + 1] = j
                     n_NN = n_NN + 1
+                    self.G.add_edge(i,j)
+                    self.G.add_edge(j,i)
                     
                 if (n_NN == self.N_junctions):
                     break
@@ -236,12 +242,25 @@ class topology_class:
             Number of nanoparticles in y-direction
         """
 
-        self.N_electrodes = len(particle_pos) 
+        self.N_electrodes = len(particle_pos)
+        self.G.add_nodes_from(-np.arange(1,self.N_electrodes+1))
 
         for n, pos in enumerate(particle_pos):
 
             p = pos[1]*N_x + pos[0] + pos[2]*N_x*N_y
             self.net_topology[p,0] = 1 + n
+            
+            self.G.add_edge((-1-n),p)
+            self.G.add_edge(p,(-1-n))
+
+            if (pos[0] == 0):
+                self.pos[-1-n] = (pos[0]-1,pos[1])
+            elif (pos[0] == (N_x-1)):
+                self.pos[-1-n] = (pos[0]+1,pos[1])
+            elif (pos[1] == 0):
+                self.pos[-1-n] = (pos[0],pos[1]-1)
+            else:
+                self.pos[-1-n] = (pos[0],pos[1]+1)
 
     def set_electrodes_randomly(self, N_electrodes : int)->None:
         """

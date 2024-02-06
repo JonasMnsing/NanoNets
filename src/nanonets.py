@@ -305,14 +305,14 @@ class model_class():
 
         self.co_tunnel_rates = factor*val1*val2
             
-    def calc_rel_error(self):
+    def calc_rel_error(self, N_calculations):
         """
         Calculate relative error and standard deviation by welford one pass 
         """
 
         if (self.jump_diff_mean != 0.0):
 
-            self.jump_diff_std   = np.sqrt(np.abs(self.jump_diff_mean2) / self.total_jumps)
+            self.jump_diff_std   = np.sqrt(np.abs(self.jump_diff_mean2) / self.total_jumps)/np.sqrt(N_calculations)
             self.rel_error       = self.jump_diff_std/np.abs(self.jump_diff_mean)
     
     def select_event(self, random_number1 : float, random_number2 : float):
@@ -539,6 +539,7 @@ class model_class():
             maximum number of jumps before function ends
         """
         
+        N_calculations                  = 0
         self.total_jumps                = 0
         self.time                       = 0.0
         self.rel_error                  = 1.0
@@ -610,9 +611,12 @@ class model_class():
 
             # Update relative error and standard deviation if target electrode was involved
             if ((np1 == target_electrode) or (np2 == target_electrode)):
+                N_calculations += 1
+                self.calc_rel_error(N_calculations)
                 
-                self.calc_rel_error()
-        
+        if (self.total_jumps < 10):
+            self.jump_diff_mean = 0.0
+
         self.jump_storage = self.jump_storage/self.time
     
     def kmc_time_simulation(self, target_electrode : int, time_target : float, store_per_it_min=0, store_per_it_max=0):
@@ -770,7 +774,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 
 class simulation(tunneling.tunnel_class):
 
-    def __init__(self, network_topology : str, folder : str, topology_parameter : dict, np_info=None, np_info2=None,
+    def __init__(self, network_topology : str, topology_parameter : dict, folder='', np_info=None, np_info2=None,
                         add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
 
         super().__init__(tunnel_order, seed)
@@ -892,7 +896,7 @@ class simulation(tunneling.tunnel_class):
 
             # Production Run until Current at target electrode is less than error_th or max_jumps was passed
             model.kmc_simulation(target_electrode, error_th, max_jumps)
-            jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, total_jumps = model.return_target_values()
+            jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
             
             # Append Results to Outputs
             self.output_values.append(np.array([eq_jumps, total_jumps, jump_diff_mean, jump_diff_std]))

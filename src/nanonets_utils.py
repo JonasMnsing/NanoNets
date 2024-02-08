@@ -96,7 +96,7 @@ def select_electrode_currents(np_network_sim : nanonets.simulation):
     return electrode_currents
 
 def memory_capacity_simulation(time, voltages, train_length, test_length, remember_distance, network_topology, topology_parameter, np_info=None,
-                               save_th=10, folder='data/', regularization_coeff = 1e-8, path_info=''):
+                               save_th=10, folder='data/', regularization_coeff = 1e-8, R=25, Rstd=0, path_info=''):
 
     # Train Test Split
     t_train, u_train, y_train, t_test, u_test, y_test = train_test_split_memory(time=time, voltages=voltages, train_length=train_length,
@@ -105,7 +105,7 @@ def memory_capacity_simulation(time, voltages, train_length, test_length, rememb
     # Run Train Simulation
     np_network_sim = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, np_info=np_info,
                                          folder=folder, add_to_path=f'_mc_train_{remember_distance}{path_info}')
-    np_network_sim.run_var_voltages(voltages=u_train, time_steps=t_train, target_electrode=(np_network_sim.N_electrodes-1), save_th=save_th)
+    np_network_sim.run_var_voltages(voltages=u_train, time_steps=t_train, target_electrode=(np_network_sim.N_electrodes-1), save_th=save_th, R=R, Rstd=Rstd)
 
     # Return Electrode Currents
     electrode_currents      = select_electrode_currents(np_network_sim)
@@ -126,7 +126,7 @@ def memory_capacity_simulation(time, voltages, train_length, test_length, rememb
     # Run Test Simulation
     np_network_sim = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, np_info=np_info,
                                          folder=folder, add_to_path=f'_mc_test_{remember_distance}{path_info}')
-    np_network_sim.run_var_voltages(voltages=u_test, time_steps=t_test, target_electrode=(np_network_sim.N_electrodes-1), save_th=save_th)
+    np_network_sim.run_var_voltages(voltages=u_test, time_steps=t_test, target_electrode=(np_network_sim.N_electrodes-1), save_th=save_th, R=R, Rstd=Rstd)
 
     # Return Electrode Currents
     electrode_currents      = select_electrode_currents(np_network_sim)

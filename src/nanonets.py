@@ -446,7 +446,7 @@ class model_class():
         self.time   = self.time - np.log(random_number2)/k_tot
         self.jump   = jump
 
-    def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000) -> int:
+    def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=10000) -> int:
         """
         Equilibrate the system
 
@@ -943,7 +943,10 @@ class simulation(tunneling.tunnel_class):
         model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
                                         temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
                                         co_adv_index3, N_electrodes, N_particles)
-        
+
+        # Eqilibrate Potential Landscape
+        eq_jumps = model.reach_equilibrium()
+
         # Initial time and Jumps towards and from target electrode
         model.time                     = 0.0
         model.counter_output_jumps_neg = 0

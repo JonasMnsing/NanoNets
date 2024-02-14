@@ -5,6 +5,9 @@ import networkx as nx
 import nanonets
 import scienceplots
 
+blue_color  = '#348ABD'
+red_color   = '#A60628'
+
 def display_network(np_network_sim : nanonets.simulation, fig=None, ax=None, blue_color='#348ABD', red_color='#A60628', save_to_path=False, 
                     style_context=['science','bright'], node_size=300, edge_width=1.0, font_size=12, title='', title_size='small',
                     arrows=False, provide_electrode_labels=None, np_numbers=False, height_scale=1, width_scale=1, margins=None):

@@ -156,7 +156,7 @@ class topology_class:
         self.G   = self.G.to_directed()
         self.pos = nx.kamada_kawai_layout(self.G)
         self.pos = nx.spring_layout(self.G, pos=self.pos)
-    
+
     def attach_np_to_gate(self, gate_nps=None)->None:
         """
         Attach NPs to gate electrode. If gate_nps==None, all NPs are attached
@@ -181,9 +181,9 @@ class topology_class:
         """
 
         self.N_electrodes   = len(electrode_positions)
-        rename              = {i:i+self.N_electrodes for i in range(len(self.G.nodes))}
-        self.G              = nx.relabel_nodes(G=self.G, mapping=rename)
-        self.pos            = {k+self.N_electrodes: v for k, v in self.pos.items()}
+        # rename              = {i:i+self.N_electrodes for i in range(len(self.G.nodes))}
+        # self.G              = nx.relabel_nodes(G=self.G, mapping=rename)
+        # self.pos            = {k+self.N_electrodes: v for k, v in self.pos.items()}
 
         node_positions  = pd.DataFrame(self.pos).T.sort_index()
         used_nodes      = []
@@ -205,10 +205,10 @@ class topology_class:
                     break
             
             # Add resulting connection as edge to directed graph
-            self.G.add_edge(node,connected_node)
-            self.G.add_edge(connected_node,node)
-            self.pos[node] = e_pos
-
+            self.G.add_edge(-node-1,connected_node)
+            self.G.add_edge(connected_node,-node-1)
+            self.pos[-node-1] = e_pos
+        
     def graph_to_net_topology(self)->None:
         """
         Transfer directed graph to net_topology array
@@ -217,12 +217,19 @@ class topology_class:
         net_topology = np.zeros(shape=(self.N_particles,self.N_junctions+1))
         net_topology.fill(-100)
 
-        for node in range(self.N_electrodes,len(self.G.nodes)):
+        # for node in range(self.N_electrodes,len(self.G.nodes)):
+        #     for i, neighbor in enumerate(self.G.neighbors(node)):
+        #         if neighbor >= self.N_electrodes:
+        #             net_topology[node-self.N_electrodes,i+1] = neighbor-self.N_electrodes
+        #         else:
+        #             net_topology[node-self.N_electrodes,0] = neighbor+1
+        #             i -= 1
+        for node in range(0,len(self.G.nodes)-self.N_electrodes):
             for i, neighbor in enumerate(self.G.neighbors(node)):
-                if neighbor >= self.N_electrodes:
-                    net_topology[node-self.N_electrodes,i+1] = neighbor-self.N_electrodes
+                if neighbor >= 0:
+                    net_topology[node,i+1] = neighbor
                 else:
-                    net_topology[node-self.N_electrodes,0] = neighbor+1
+                    net_topology[node,0] = -neighbor
                     i -= 1
 
         self.net_topology = net_topology

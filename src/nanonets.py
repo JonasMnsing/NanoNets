@@ -921,55 +921,65 @@ class simulation(tunneling.tunnel_class):
                 j                    = i+1
 
     def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, save_th=10, store_per_it_min=0, store_per_it_max=0, 
-                         R=25, Rstd=0.0):
+                         R=25, Rstd=0.0, init=True):
 
-        # First time step
-        self.init_charge_vector(voltage_values=voltages[0])
-        self.init_potential_vector(voltage_values=voltages[0])
-        self.init_const_capacitance_values()
+        if init:
+            
+            # First time step
+            self.init_charge_vector(voltage_values=voltages[0])
+            self.init_potential_vector(voltage_values=voltages[0])
+            self.init_const_capacitance_values()
 
-        # Return Model Arguments
-        inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
-        charge_vector                                                                           = self.return_charge_vector()
-        potential_vector                                                                        = self.return_potential_vector()
-        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
-        N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
-        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
-        temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
-        # resistances, resistances_co1, resistances_co2                                           = self.return_const_resistances()
-        resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=R, Rstd=Rstd)
+            # Return Model Arguments
+            inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
+            charge_vector                                                                           = self.return_charge_vector()
+            potential_vector                                                                        = self.return_potential_vector()
+            const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
+            N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
+            adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
+            temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
+            resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=R, Rstd=Rstd)
 
-        # Simulation Class
-        model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
-                                        temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                        co_adv_index3, N_electrodes, N_particles)
+            # Simulation Class
+            self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
+                                    temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
+                                    co_adv_index3, N_electrodes, N_particles)
 
-        # Eqilibrate Potential Landscape
-        eq_jumps = model.reach_equilibrium()
+            # Eqilibrate Potential Landscape
+            eq_jumps = self.model.reach_equilibrium()
 
-        # Initial time and Jumps towards and from target electrode
-        model.time                     = 0.0
-        model.counter_output_jumps_neg = 0
-        model.counter_output_jumps_pos = 0
+            # Initial time and Jumps towards and from target electrode
+            self.model.time                     = 0.0
+            self.model.counter_output_jumps_neg = 0
+            self.model.counter_output_jumps_pos = 0
 
-        # Subtract charges induces by initial electrode voltages
-        offset              = self.get_charge_vector_offset(voltage_values=voltages[0])
-        model.charge_vector = model.charge_vector - offset
-        
+            # Subtract charges induces by initial electrode voltages
+            offset                      = self.get_charge_vector_offset(voltage_values=voltages[0])
+            self.model.charge_vector    = self.model.charge_vector - offset
+            
         j = 0
+        self.output_values   = []
+        self.microstates     = []
+        self.landscape       = []
+        self.pot_values      = []
+        self.jumps_per_it    = []
+        self.time_values     = []
+        self.pot_per_it      = []
+        self.average_jumps   = []
+        self.average_cojumps = []
 
         for i, voltage_values in enumerate(voltages[:-1]):
             
-            offset              = self.get_charge_vector_offset(voltage_values=voltage_values)
-            model.charge_vector = model.charge_vector + offset
+            offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
+            self.model.charge_vector    = self.model.charge_vector + offset
             
-            model.time  = time_steps[i]
-            time_target = time_steps[i+1]
+            self.model.time = time_steps[i]
+            time_target     = time_steps[i+1]
 
             # Update Electrode Potentials
-            model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
-            model.kmc_time_simulation(target_electrode, time_target, store_per_it_min, store_per_it_max)
-            jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
+            self.model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
+            self.model.kmc_time_simulation(target_electrode, time_target, store_per_it_min, store_per_it_max)
+            jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = self.model.return_target_values()
             
             # Append Results to Outputs
             self.output_values.append(np.array([-1, total_jumps, jump_diff_mean, jump_diff_std]))
@@ -995,8 +1005,8 @@ class simulation(tunneling.tunnel_class):
                 self.average_cojumps    = []
                 j                       = i+1
             
-            offset              = self.get_charge_vector_offset(voltage_values=voltage_values)
-            model.charge_vector = model.charge_vector - offset
+            offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
+            self.model.charge_vector    = self.model.charge_vector - offset
 
     def return_output_values(self):
 

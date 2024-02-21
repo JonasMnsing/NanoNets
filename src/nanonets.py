@@ -445,8 +445,37 @@ class model_class():
         
         self.time   = self.time - np.log(random_number2)/k_tot
         self.jump   = jump
+    
+    def run_equilibration_steps(self, n_jumps=10000):
 
-    def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=10000) -> int:
+        self.calc_potentials()
+
+        for i in range(n_jumps):
+
+            if (self.jump == -1):
+                break
+            
+            random_number1  = np.random.rand()
+            random_number2  = np.random.rand()
+
+            if self.cotunneling == False:
+                if not(self.zero_T):
+                    self.calc_tunnel_rates()
+                else:
+                    self.calc_tunnel_rates_zero_T()
+                self.select_event(random_number1, random_number2)
+            else:
+                if not(self.zero_T):
+                    self.calc_tunnel_rates()
+                    self.calc_cotunnel_rates()
+                else:
+                    self.calc_tunnel_rates_zero_T()
+                    self.calc_cotunnel_rates_zero_T()
+                self.select_co_event(random_number1, random_number2)
+            
+        return n_jumps
+
+    def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000) -> int:
         """
         Equilibrate the system
 
@@ -524,7 +553,7 @@ class model_class():
         
         return self.total_jumps
 
-    def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=10000000):
+    def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=1000000):
         """
         Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
         Tracks Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
@@ -863,8 +892,8 @@ class simulation(tunneling.tunnel_class):
             error_th    = sim_dic['error_th']
             max_jumps   = sim_dic['max_jumps']
         else:
-            error_th    = 0.05
-            max_jumps   = 10000000
+            error_th    = 0.01
+            max_jumps   = 1000000
 
         j = 0
 
@@ -892,7 +921,8 @@ class simulation(tunneling.tunnel_class):
                                     co_adv_index3, N_electrodes, N_particles)
 
             # Eqilibrate Potential Landscape
-            eq_jumps = model.reach_equilibrium()
+            # eq_jumps = model.reach_equilibrium()
+            eq_jumps = model.run_equilibration_steps()
 
             # Production Run until Current at target electrode is less than error_th or max_jumps was passed
             model.kmc_simulation(target_electrode, error_th, max_jumps)
@@ -946,7 +976,7 @@ class simulation(tunneling.tunnel_class):
                                     co_adv_index3, N_electrodes, N_particles)
 
             # Eqilibrate Potential Landscape
-            eq_jumps = self.model.reach_equilibrium()
+            eq_jumps = self.model.run_equilibration_steps()
 
             # Initial time and Jumps towards and from target electrode
             self.model.time                     = 0.0

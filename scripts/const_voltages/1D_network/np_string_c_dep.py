@@ -5,7 +5,7 @@ import multiprocessing
 
 # Extend PATH Variable
 import sys
-sys.path.append("src/")
+sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 
 # NanoNets Simulation Tool
 import nanonets

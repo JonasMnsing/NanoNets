@@ -276,7 +276,7 @@ def prepare_for_fitness_calculation(df : pd.DataFrame, N_c : int, min_current=No
     
     return data
 
-def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame, df11 : pd.DataFrame, gate : str) -> pd.DataFrame:
+def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame, df11 : pd.DataFrame, gate : str, all=False) -> pd.DataFrame:
     """
     Get off and on state for fitness calculation for gate provided as string\\
     Get residual sums of squares as sqrt(RSS/4)
@@ -319,6 +319,54 @@ def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame
         df['on']    = (df00['Current'] + df11['Current'])/2
         df['off']   = (df01['Current'] + df10['Current'])/2
         df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['on'])**2)/4)
+    
+    elif gate == 'P':
+
+        df['on']    = (df10['Current'] + df11['Current'])/2
+        df['off']   = (df00['Current'] + df01['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['on'])**2)/4)
+    
+    elif gate == 'notP':
+
+        df['on']    = (df00['Current'] + df01['Current'])/2
+        df['off']   = (df10['Current'] + df11['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['off'])**2)/4)
+
+    elif gate == 'Q':
+
+        df['on']    = (df01['Current'] + df11['Current'])/2
+        df['off']   = (df00['Current'] + df10['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['on'])**2)/4)
+    
+    elif gate == 'notQ':
+
+        df['on']    = (df00['Current'] + df10['Current'])/2
+        df['off']   = (df01['Current'] + df11['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['off'])**2)/4)
+
+    elif gate == 'PnotQ':
+
+        df['on']    = df10['Current']
+        df['off']   = (df00['Current'] + df01['Current'] + df11['Current'])/3
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['off'])**2)/4)
+    
+    elif gate == 'notPQ':
+
+        df['on']    = df01['Current']
+        df['off']   = (df00['Current'] + df10['Current'] + df11['Current'])/3
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['off'])**2)/4)
+    
+    elif gate == 'notPandQ':
+
+        df['on']    = (df00['Current'] + df01['Current'] + df11['Current'])/3
+        df['off']   = df10['Current']
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['on'])**2)/4)
+    
+    elif gate == 'PandnotQ':
+
+        df['on']    = (df00['Current'] + df10['Current'] + df11['Current'])/3
+        df['off']   = df01['Current']
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['on'])**2)/4)
 
     return df
 

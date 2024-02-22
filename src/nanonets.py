@@ -892,7 +892,7 @@ class simulation(tunneling.tunnel_class):
             error_th    = sim_dic['error_th']
             max_jumps   = sim_dic['max_jumps']
         else:
-            error_th    = 0.01
+            error_th    = 0.05
             max_jumps   = 1000000
 
         j = 0

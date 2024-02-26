@@ -17,7 +17,8 @@ def parallel_code(thread, voltages, rows):
     topology_parameter  = {
         "Np"    : 100,
         "Nj"    : 4,
-        "e_pos" : [[-1,-1],[0,-1],[1,-1],[-1,0],[-1,1],[0,1],[1,0],[1,1]]
+        "e_pos" : [[-1,-1],[0,-1],[1,-1],[-1,0],[-1,1],[0,1],[1,0],[1,1]],
+        "seed"  : None
     }
 
     thread_rows = rows[thread]

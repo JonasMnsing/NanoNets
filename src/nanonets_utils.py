@@ -10,7 +10,7 @@ blue_color  = '#348ABD'
 red_color   = '#A60628'
 
 def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list], boot_steps=0, i1_col=1, i2_col=3, o_col=7,
-                    min_currents=0.0, min_error=0.0, max_error=np.inf, dic=None, dic_nc=None, off_state=[0.0], on_state=[0.01])->Tuple[dict,dict]:
+                    min_currents=0.0, min_error=0.0, max_error=np.inf, dic=None, dic_nc=None, off_state=[0.0], on_state=[0.01], disordered=False)->Tuple[dict,dict]:
 
     # For variable numbers of nanoparticles
     if (type(N) == list and type(N_e) == int):
@@ -31,7 +31,10 @@ def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list],
         # For variable numbers of nanoparticles
         for index,i in enumerate(N):
             
-            df          = pd.read_csv(folder+f"Nx={i}_Ny={i}_Nz=1_Ne={N_e}.csv")
+            if disordered:
+                df  = pd.read_csv(folder+f"Np={i}_Nj=4_Ne={N_e}.csv")
+            else:
+                df  = pd.read_csv(folder+f"Nx={i}_Ny={i}_Nz=1_Ne={N_e}.csv")
             df          = df.round(4)
             df.columns  = columns
             df          = df[new_cols]
@@ -98,7 +101,10 @@ def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list],
             columns.insert(i-1,'O')
             new_cols = ['I1','I2'] + [f'C{i}' for i in range(1,i-2)] + ['G','Jumps_eq','Jumps','Current','Error']
             
-            df          = pd.read_csv(folder+f"Nx={N}_Ny={N}_Nz=1_Ne={i}.csv")
+            if disordered:
+                df  = pd.read_csv(folder+f"Np={N}_Nj=4_Ne={i}.csv")
+            else:
+                df  = pd.read_csv(folder+f"Nx={N}_Ny={N}_Nz=1_Ne={i}.csv")
             df.columns  = columns
             df          = df[new_cols]
             df1         = df.copy()
@@ -154,7 +160,10 @@ def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list],
         new_cols = ['I1','I2'] + [f'C{i}' for i in range(1,N_e-2)] + ['G','Jumps_eq','Jumps','Current','Error']
 
         # Load DataFrame
-        df          = pd.read_csv(folder+f"Nx={N}_Ny={N}_Nz=1_Ne={N_e}.csv")
+        if disordered:
+            df  = pd.read_csv(folder+f"Np={N}_Nj=4_Ne={N_e}.csv")
+        else:
+            df  = pd.read_csv(folder+f"Nx={N}_Ny={N}_Nz=1_Ne={N_e}.csv")
         df          = df.round(4)
         df.columns  = columns
         df          = df[new_cols]

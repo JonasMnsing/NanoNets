@@ -58,6 +58,7 @@ class topology_class:
 
         self.N_particles    = 0
         self.N_electrodes   = 0
+        self.seed           = seed
         self.rng            = np.random.default_rng(seed=seed)
 
     def cubic_network(self, N_x : int, N_y : int, N_z : int)->None:

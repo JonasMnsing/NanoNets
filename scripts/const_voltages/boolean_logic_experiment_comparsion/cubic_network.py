@@ -6,6 +6,7 @@ import multiprocessing
 # Extend PATH Variable
 import sys
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
+sys.path.append("/home/jonas/phd/NanoNets/src/")
 
 # NanoNets Simulation Tool
 import nanonets
@@ -23,7 +24,8 @@ def parallel_code(thread, voltages, rows):
 
     thread_rows = rows[thread]
     volt_vals   = voltages[thread_rows]
-    folder      = f"/mnt/c/Users/jonas/Desktop/phd/NanoNets/scripts/const_voltages/boolean_logic_experiment_comparsion/data/"
+    # folder      = f"/mnt/c/Users/jonas/Desktop/phd/NanoNets/scripts/const_voltages/boolean_logic_experiment_comparsion/data/"
+    folder      = f"/home/jonas/phd/NanoNets/scripts/const_voltages/boolean_logic_experiment_comparsion/data/"
     add_to_path = f'_{thread}'
 
     # Run Simulation

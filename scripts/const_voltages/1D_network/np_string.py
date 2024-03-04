@@ -1,7 +1,7 @@
 # Libraries
 import numpy as np
 import pandas as pd
-import multiprocessing
+# import multiprocessing
 
 # Extend PATH Variable
 import sys
@@ -17,20 +17,28 @@ def parallel_code(thread, voltages):
     network_topology        = "cubic"
 
     # Topology
-    if thread == 0:
-        topology_parameter    = {
-            "Nx"    : N_particles,
-            "Ny"    : 1,
-            "Nz"    : 1,
-            "e_pos" : [[0,0,0],[2,0,0],[4,0,0]]
-        }
-    else:
-        topology_parameter    = {
-            "Nx"    : N_particles,
-            "Ny"    : 1,
-            "Nz"    : 1,
-            "e_pos" : [[0,0,0],[3,0,0],[4,0,0]]
-        }
+    # if thread == 0:
+    #     topology_parameter    = {
+    #         "Nx"    : N_particles,
+    #         "Ny"    : 1,
+    #         "Nz"    : 1,
+    #         "e_pos" : [[0,0,0],[2,0,0],[4,0,0]]
+    #     }
+    # else:
+    #     topology_parameter    = {
+    #         "Nx"    : N_particles,
+    #         "Ny"    : 1,
+    #         "Nz"    : 1,
+    #         "e_pos" : [[0,0,0],[3,0,0],[4,0,0]]
+    #     }
+    
+    thread = 1
+    topology_parameter    = {
+        "Nx"    : N_particles,
+        "Ny"    : 1,
+        "Nz"    : 1,
+        "e_pos" : [[0,0,0],[3,0,0],[4,0,0]]
+    }
 
     # Run Simulation
     np_network_sim = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, folder=f"scripts/const_voltages/1D_network/data/", add_to_path=f'_{thread}')
@@ -39,21 +47,22 @@ def parallel_code(thread, voltages):
 if __name__ == '__main__':
 
     # Electrode Voltages
-    N_voltages      = 1000
-    voltages        = np.zeros(shape=(N_voltages,4))
-    voltages[:,0]   = np.linspace(-0.2,0.1,N_voltages)
-    voltages        = np.vstack((voltages,voltages))
-    voltages        = np.vstack((voltages,voltages))
-    voltages        = np.vstack((voltages,voltages))
+    N_voltages  = 2000
+    volt_array  = np.array([0,0,0,0])
 
-    voltages[N_voltages:2*N_voltages,1]     = 0.01
-    voltages[2*N_voltages:3*N_voltages,1]   = 0.03
-    voltages[3*N_voltages:,1]               = 0.04
+    for V in [-0.06, -0.05, -0.02, 0.02, 0.05, 0.06]:
 
-    for i in range(2):
+        voltages        = np.zeros(shape=(N_voltages,4))
+        voltages[:,0]   = np.linspace(-0.2,0.2,N_voltages)
+        voltages[:,1]   = V
+        volt_array      = np.vstack((volt_array, voltages))
+    
+    parallel_code(0, volt_array[1:,:])
 
-        process = multiprocessing.Process(target=parallel_code, args=(i,voltages))
-        process.start()
+    # for i in range(2):
+
+    #     process = multiprocessing.Process(target=parallel_code, args=(0,volt_array[1:,:]))
+    #     process.start()
 
 
 

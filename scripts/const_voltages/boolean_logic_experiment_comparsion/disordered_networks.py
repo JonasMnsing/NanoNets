@@ -20,12 +20,14 @@ def parallel_code(thread, N_voltages, N_Networks):
 
         # Electrode Voltages
         voltages        = np.zeros(shape=(N_voltages,9))
-        i1              = np.tile([0.0,0.1,0.0,0.1], int(N_voltages/4))
-        i2              = np.tile([0.0,0.0,0.1,0.1], int(N_voltages/4))
-        v_rand          = np.repeat(rs.uniform(low=-0.1, high=0.1, size=((int(N_voltages/4),5))), 4, axis=0)
+        i1              = np.tile([0.0,0.01,0.0,0.01], int(N_voltages/4))*1.23
+        i2              = np.tile([0.0,0.0,0.01,0.01], int(N_voltages/4))*1.23
+        v_rand          = np.repeat(rs.uniform(low=-0.05, high=0.05, size=((int(N_voltages/4),5))), 4, axis=0)*1.23
+        v_gates         = np.repeat(rs.uniform(low=-0.1, high=0.1, size=int(N_voltages/4)),4)
         voltages[:,0]   = i1
         voltages[:,1]   = i2
         voltages[:,2:7] = v_rand
+        voltages[:-1]   = v_gates
 
         network_topology    = "random"
         topology_parameter  = {

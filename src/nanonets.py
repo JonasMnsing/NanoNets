@@ -553,7 +553,7 @@ class model_class():
         
         return self.total_jumps
 
-    def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=1000000):
+    def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=10000000):
         """
         Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
         Tracks Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
@@ -579,6 +579,7 @@ class model_class():
         self.jump_diff_std              = 0.0
         np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]     
         self.calc_potentials()
+
         while(self.rel_error > error_th):
 
             if ((self.total_jumps == max_jumps) or (self.jump == -1)):
@@ -626,6 +627,7 @@ class model_class():
             # If jump from target electrode
             if (np1 == target_electrode):
                 self.counter_output_jumps_neg += 1
+
             # If jump towards target electrode
             if (np2 == target_electrode):
                 self.counter_output_jumps_pos += 1
@@ -647,6 +649,97 @@ class model_class():
             self.jump_diff_mean = 0.0
 
         self.jump_storage = self.jump_storage/self.time
+    
+    def kmc_simulation_fixed(self, target_electrode : int, max_jumps=10000000):
+        """
+        Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
+        Tracks Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
+
+        Parameters
+        ----------
+        target_electrode : int
+            electrode index of which electric current is estimated
+        error_th : float
+            relative error in current to be achieved
+        max_jumps : int
+            maximum number of jumps before function ends
+        """
+        
+        self.total_jumps                = max_jumps
+        n_stat                          = 10
+        jump_diff_vals                  = np.zeros(n_stat)
+        np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]     
+        self.calc_potentials()
+
+        for i in range(n_stat):
+
+            self.time                       = 0.0
+            self.counter_output_jumps_pos   = 0
+            self.counter_output_jumps_neg   = 0
+            self.jump_diff_mean             = 0.0
+            self.jump_diff_std              = 0.0
+
+            for j in range(self.total_jumps):
+
+            # if ((self.total_jumps == max_jumps) or (self.jump == -1)):
+
+            #     break
+                        
+                # KMC Part
+                random_number1  = np.random.rand()
+                random_number2  = np.random.rand()
+
+                if self.cotunneling == False:
+                    if not(self.zero_T):
+                        self.calc_tunnel_rates()
+                    else:
+                        self.calc_tunnel_rates_zero_T()
+                    self.select_event(random_number1, random_number2)
+
+                    np1 = self.adv_index_rows[self.jump]
+                    np2 = self.adv_index_cols[self.jump]
+                    self.jump_storage[self.jump]    += 1
+
+                else:
+                    
+                    if not(self.zero_T):
+                        self.calc_tunnel_rates()
+                        self.calc_cotunnel_rates()
+                    else:
+                        self.calc_tunnel_rates_zero_T()
+                        self.calc_cotunnel_rates_zero_T()
+
+                    self.select_co_event(random_number1, random_number2)
+
+                    if self.co_event_selected:
+                        np1 = self.co_adv_index1[self.jump]
+                        np2 = self.co_adv_index3[self.jump]
+                        self.jump_storage_co[self.jump] += 1
+                    else:
+                        np1 = self.adv_index_rows[self.jump]
+                        np2 = self.adv_index_cols[self.jump]
+                        self.jump_storage[self.jump]    += 1
+
+                # self.charge_mean    += self.charge_vector
+                # self.potential_mean += self.potential_vector
+
+                # If jump from target electrode
+                if (np1 == target_electrode):
+                    self.counter_output_jumps_neg += 1
+                    
+                # If jump towards target electrode
+                if (np2 == target_electrode):
+                    self.counter_output_jumps_pos += 1
+            
+            jump_diff_vals[i] = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
+        
+        self.jump_diff_mean = np.mean(jump_diff_vals)
+        self.jump_diff_std  = np.std(jump_diff_vals)/np.sqrt(n_stat)
+                
+        # if (self.total_jumps < 10):
+        #     self.jump_diff_mean = 0.0
+
+        # self.jump_storage = self.jump_storage/self.time
     
     def kmc_time_simulation(self, target_electrode : int, time_target : float, store_per_it_min=0, store_per_it_max=0):
         """
@@ -891,9 +984,11 @@ class simulation(tunneling.tunnel_class):
         if sim_dic != None:
             error_th    = sim_dic['error_th']
             max_jumps   = sim_dic['max_jumps']
+            eq_steps    = sim_dic['eq_steps']
         else:
             error_th    = 0.05
-            max_jumps   = 1000000
+            max_jumps   = 10000000
+            eq_steps    = 100000
 
         j = 0
 
@@ -922,10 +1017,11 @@ class simulation(tunneling.tunnel_class):
 
             # Eqilibrate Potential Landscape
             # eq_jumps = model.reach_equilibrium()
-            eq_jumps = model.run_equilibration_steps()
+            eq_jumps = model.run_equilibration_steps(eq_steps)
 
             # Production Run until Current at target electrode is less than error_th or max_jumps was passed
-            model.kmc_simulation(target_electrode, error_th, max_jumps)
+            # model.kmc_simulation(target_electrode, error_th, max_jumps)
+            model.kmc_simulation_fixed(target_electrode, max_jumps)
             jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
             
             # Append Results to Outputs

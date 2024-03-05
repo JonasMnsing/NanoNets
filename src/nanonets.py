@@ -650,7 +650,7 @@ class model_class():
 
         self.jump_storage = self.jump_storage/self.time
     
-    def kmc_simulation_fixed(self, target_electrode : int, max_jumps=10000000):
+    def kmc_simulation_fixed(self, target_electrode : int, n_stat=10, max_jumps=10000000):
         """
         Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
         Tracks Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
@@ -666,7 +666,6 @@ class model_class():
         """
         
         self.total_jumps                = max_jumps
-        n_stat                          = 10
         jump_diff_vals                  = np.zeros(n_stat)
         np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]     
         self.calc_potentials()

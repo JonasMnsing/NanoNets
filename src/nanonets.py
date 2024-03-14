@@ -1019,8 +1019,8 @@ class simulation(tunneling.tunnel_class):
             eq_jumps = model.run_equilibration_steps(eq_steps)
 
             # Production Run until Current at target electrode is less than error_th or max_jumps was passed
-            # model.kmc_simulation(target_electrode, error_th, max_jumps)
-            model.kmc_simulation_fixed(target_electrode, max_jumps)
+            model.kmc_simulation(target_electrode, error_th, max_jumps)
+            # model.kmc_simulation_fixed(target_electrode, max_jumps)
             jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
             
             # Append Results to Outputs

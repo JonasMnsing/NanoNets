@@ -27,7 +27,7 @@ def parallel_code(thread, N_voltages, N_Networks):
         voltages[:,0]   = i1
         voltages[:,1]   = i2
         voltages[:,2:7] = v_rand
-        voltages[:-1]   = v_gates
+        voltages[:,-1] = v_gates
 
         network_topology    = "random"
         topology_parameter  = {
@@ -37,8 +37,8 @@ def parallel_code(thread, N_voltages, N_Networks):
             "seed"  : None
         }
 
-        # folder      = f"/mnt/c/Users/jonas/Desktop/phd/NanoNets/scripts/const_voltages/boolean_logic_experiment_comparsion/data/"
-        folder      = f"/home/jonas/phd/NanoNets/scripts/const_voltages/boolean_logic_experiment_comparsion/data/"
+        folder      = f"/mnt/c/Users/jonas/Desktop/phd/NanoNets/scripts/const_voltages/boolean_logic_experiment_comparsion/data/"
+        # folder      = f"/home/jonas/phd/NanoNets/scripts/const_voltages/boolean_logic_experiment_comparsion/data/"
         add_to_path = f'_{thread}_{i_net}'
 
         # Run Simulation

@@ -44,7 +44,7 @@ if __name__ == '__main__':
     voltages[:,0]   = i1
     voltages[:,1]   = i2
     voltages[:,2:7] = v_rand
-    voltages[:-1]   = v_gates
+    voltages[:,-1]  = v_gates
 
     N_processes     = 10
     index           = [i for i in range(N_voltages)]

@@ -39,10 +39,16 @@ def parallel_code(thread, voltages):
         "Nz"    : 1,
         "e_pos" : [[0,0,0],[3,0,0],[4,0,0]]
     }
+    sim_dic = {
+        "error_th"    : 0.05,
+        "max_jumps"   : 100000,
+        "eq_steps"    : 100000
+    }
 
     # Run Simulation
-    np_network_sim = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, folder=f"scripts/const_voltages/1D_network/data/", add_to_path=f'_{thread}')
-    np_network_sim.run_const_voltages(voltages=voltages, target_electrode=2, save_th=10)
+    np_network_sim = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter,
+                                         folder=f"scripts/const_voltages/1D_network/data/", add_to_path=f'_{thread}')
+    np_network_sim.run_const_voltages(voltages=voltages, target_electrode=2, save_th=10, sim_dic=sim_dic)
 
 if __name__ == '__main__':
 

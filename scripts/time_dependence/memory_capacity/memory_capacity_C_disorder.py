@@ -44,14 +44,14 @@ if __name__ == '__main__':
     }
 
     # Nanoparticle Sizes
-    df      = pd.read_csv("scripts/ipynb/memory_capacity/np_sizes_exp.CSV", sep=';', names=['small','medium','large'])
+    df      = pd.read_csv("scripts/time_dependence/memory_capacity/np_sizes_exp.CSV", sep=';', names=['small','medium','large'])
     df      = df/1000
     r_means = df.mean().values
     r_stds  = df.std().values
 
     # Simulation 1
     N_processes = 10
-    folder      = "scripts/ipynb/memory_capacity/data/lattice_C_disorder/c1/"
+    folder      = "scripts/time_dependence/memory_capacity/data/lattice_C_disorder/c1/"
     np_info     = {
             "eps_r"         : 2.6,
             "eps_s"         : 3.9,
@@ -66,7 +66,7 @@ if __name__ == '__main__':
         process.start()
 
     # Simulation 2
-    folder      = "scripts/ipynb/memory_capacity/data/lattice_C_disorder/c2/"
+    folder      = "scripts/time_dependence/memory_capacity/data/lattice_C_disorder/c2/"
     np_info     = {
             "eps_r"         : 2.6,
             "eps_s"         : 3.9,
@@ -81,7 +81,7 @@ if __name__ == '__main__':
         process.start()
     
     # Simulation 3
-    folder      = "scripts/ipynb/memory_capacity/data/lattice_C_disorder/c3/"
+    folder      = "scripts/time_dependence/memory_capacity/data/lattice_C_disorder/c3/"
     np_info     = {
             "eps_r"         : 2.6,
             "eps_s"         : 3.9,

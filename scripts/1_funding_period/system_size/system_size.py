@@ -11,6 +11,7 @@ sys.path.append("/home/jonas/phd/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 
 import nanonets
+import voltage_config
 import multiprocessing
 
 # Simulation Function

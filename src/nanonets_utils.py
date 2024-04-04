@@ -9,6 +9,60 @@ from typing import Union, Tuple, List
 blue_color  = '#348ABD'
 red_color   = '#A60628'
 
+def load_time_params(folder : str):
+
+    txt_file    = open(folder+'params.txt', 'r')
+    lines       = txt_file.readlines()
+
+    params = []
+
+    for line in lines:
+        
+        if ((line[0] != '#') and (line[0] != '\n')):
+
+            params.append(line[:-1])
+
+    N_processes         = eval(params[0])
+    network_topology    = params[1]
+
+    if network_topology == 'cubic':
+        topology_parameter  = {
+            "Nx"    :   eval(params[2][0]),
+            "Ny"    :   eval(params[2][2]),
+            "Nz"    :   eval(params[2][4]),
+            "e_pos" :   eval(params[3])
+        }
+    else:
+        topology_parameter  = {
+            "Np"    :   eval(params[2][0]),
+            "Nj"    :   eval(params[2][2]),
+            "e_pos" :   eval(params[3])
+        }
+
+    sim_dic = {
+        'error_th'  :   eval(params[4]),
+        'max_jumps' :   eval(params[5]),
+        'eq_steps'  :   eval(params[6])
+    }
+
+    np_info = {
+        "eps_r"         : eval(params[7]),
+        "eps_s"         : eval(params[8]),
+        "mean_radius"   : eval(params[9]),
+        "std_radius"    : eval(params[10]),
+        "np_distance"   : eval(params[11])
+    }
+
+    T_val       = eval(params[12])
+    save_th     = eval(params[13])
+
+    if len(params) == 15:
+        add_to_path = params[14]
+    else:
+        add_to_path = ''
+
+    return N_processes, network_topology, topology_parameter, sim_dic, np_info, T_val, save_th, add_to_path
+
 def load_params(folder : str):
 
     txt_file    = open(folder+'params.txt', 'r')
@@ -24,12 +78,20 @@ def load_params(folder : str):
 
     N_processes         = eval(params[0])
     network_topology    = params[1]
-    topology_parameter  = {
-        "Nx"    :   eval(params[2][0]),
-        "Ny"    :   eval(params[2][2]),
-        "Nz"    :   eval(params[2][4]),
-        "e_pos" :   eval(params[3])
-    }
+
+    if network_topology == 'cubic':
+        topology_parameter  = {
+            "Nx"    :   eval(params[2][0]),
+            "Ny"    :   eval(params[2][2]),
+            "Nz"    :   eval(params[2][4]),
+            "e_pos" :   eval(params[3])
+        }
+    else:
+        topology_parameter  = {
+            "Np"    :   eval(params[2][0]),
+            "Nj"    :   eval(params[2][2]),
+            "e_pos" :   eval(params[3])
+        }
 
     sim_dic = {
         'error_th'  :   eval(params[4]),

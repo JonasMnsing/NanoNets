@@ -931,7 +931,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 
 class simulation(tunneling.tunnel_class):
 
-    def __init__(self, network_topology : str, topology_parameter : dict, folder='', np_info=None, np_info2=None,
+    def __init__(self, network_topology : str, topology_parameter : dict, folder='', res_info=None, np_info=None, np_info2=None,
                         add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
 
         super().__init__(tunnel_order, seed)
@@ -952,6 +952,15 @@ class simulation(tunneling.tunnel_class):
         # NP Parameter of second NP Type
         if np_info2 == None:
             np_info2 = np_info
+
+        # NP Resistances
+        if res_info == None:
+            res_info = {
+                "mean_R"    : 25.0,
+                "std_R"     : 0.0    
+            }
+        
+        self.res_info = res_info
 
         # Set Type of Network Topology
         if network_topology == "cubic":
@@ -1042,7 +1051,7 @@ class simulation(tunneling.tunnel_class):
             N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
             adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
-            resistances, resistances_co1, resistances_co2                                           = self.return_const_resistances()
+            resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
             
             # Pass all model arguments into Numba optimized Class
             model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
@@ -1080,8 +1089,8 @@ class simulation(tunneling.tunnel_class):
                 self.average_cojumps = []
                 j                    = i+1
 
-    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, save_th=10, store_per_it_min=0, store_per_it_max=0, 
-                         R=25, Rstd=0.0, init=True):
+    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, eq_steps=100000, T_val=0.0,
+                         save_th=10, store_per_it_min=0, store_per_it_max=0, init=True):
 
         if init:
             
@@ -1098,7 +1107,7 @@ class simulation(tunneling.tunnel_class):
             N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
             adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
-            resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=R, Rstd=Rstd)
+            resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
 
             # Simulation Class
             self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
@@ -1106,7 +1115,7 @@ class simulation(tunneling.tunnel_class):
                                     co_adv_index3, N_electrodes, N_particles)
 
             # Eqilibrate Potential Landscape
-            eq_jumps = self.model.run_equilibration_steps()
+            eq_jumps = self.model.run_equilibration_steps(eq_steps)
 
             # Initial time and Jumps towards and from target electrode
             self.model.time                     = 0.0

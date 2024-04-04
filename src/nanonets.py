@@ -361,6 +361,20 @@ class model_class():
         # Update Time and last Jump
         self.time   = self.time - np.log(random_number2)/k_tot
         self.jump   = jump
+
+    def neglect_last_event(self, np1,np2):
+
+        # If Electrode is involved
+        if ((np1 - self.N_electrodes) < 0):
+            self.charge_vector[np2-self.N_electrodes] -= self.ele_charge
+            self.potential_vector[self.N_electrodes:] -= self.ele_charge*self.inv_capacitance_matrix[:,np2-self.N_electrodes]
+        elif ((np2 - self.N_electrodes) < 0):
+            self.charge_vector[np1-self.N_electrodes] += self.ele_charge
+            self.potential_vector[self.N_electrodes:] += self.ele_charge*self.inv_capacitance_matrix[:,np1-self.N_electrodes]
+        else:
+            self.charge_vector[np1-self.N_electrodes] += self.ele_charge
+            self.charge_vector[np2-self.N_electrodes] -= self.ele_charge
+            self.potential_vector[self.N_electrodes:] -= self.ele_charge*(self.inv_capacitance_matrix[:,np2-self.N_electrodes] - self.inv_capacitance_matrix[:,np1-self.N_electrodes])
     
     def select_co_event(self, random_number1 : float, random_number2 : float):
         """
@@ -700,9 +714,6 @@ class model_class():
             self.time                       = 0.0
 
             for i in range(jumps_per_stat):
-
-                if (self.jump == -1):
-                    break
             
                 # KMC Part
                 random_number1  = np.random.rand()
@@ -771,7 +782,8 @@ class model_class():
                 count -= 1
 
             else:
-
+                
+                self.jump_diff_mean = 0.0
                 break
               
         self.jump_storage = self.jump_storage/total_time
@@ -815,8 +827,16 @@ class model_class():
                 self.calc_tunnel_rates_zero_T()
             self.select_event(random_number1, random_number2)
 
+            if (self.jump == -1):
+                break
+
             np1 = self.adv_index_rows[self.jump]
             np2 = self.adv_index_cols[self.jump]
+
+            if (self.time >= time_target):
+                self.neglect_last_event(np1,np2)
+                break
+
             self.jump_storage[self.jump]    += 1
             
             self.charge_mean    += self.charge_vector
@@ -835,17 +855,24 @@ class model_class():
                 self.counter_output_jumps_pos += 1
             
             # Statistics
-            self.total_jumps    +=  1
+            self.total_jumps +=  1
         
+        # if (self.jump == -1):
+
+        #     self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(time_target-inner_time)
+        #     self.jump_storage   = self.jump_storage/(time_target-inner_time)
+
         if (last_time-inner_time) != 0:
-            # self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(last_time)
-            # self.jump_storage   = self.jump_storage/(last_time)            
-            if self.total_jumps >= 10:
-                self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(last_time-inner_time)
-                self.jump_storage   = self.jump_storage/(last_time-inner_time)
-            else:
-                self.jump_diff_mean = 0.0
-                self.jump_storage   = self.jump_storage/(last_time-inner_time)
+            
+            self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(last_time-inner_time)
+            self.jump_storage   = self.jump_storage/(last_time-inner_time)
+
+            # if self.total_jumps >= 10:
+            #     self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(last_time-inner_time)
+            #     self.jump_storage   = self.jump_storage/(last_time-inner_time)
+            # else:
+            #     self.jump_diff_mean = 0.0
+            #     self.jump_storage   = self.jump_storage/(last_time-inner_time)
         else:
             self.jump_diff_mean = 0
 
@@ -1125,6 +1152,9 @@ class simulation(tunneling.tunnel_class):
             # Subtract charges induces by initial electrode voltages
             offset                      = self.get_charge_vector_offset(voltage_values=voltages[0])
             self.model.charge_vector    = self.model.charge_vector - offset
+        
+        else:
+            eq_jumps = 0
             
         j = 0
         self.output_values   = []
@@ -1151,7 +1181,7 @@ class simulation(tunneling.tunnel_class):
             jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = self.model.return_target_values()
             
             # Append Results to Outputs
-            self.output_values.append(np.array([-1, total_jumps, jump_diff_mean, jump_diff_std]))
+            self.output_values.append(np.array([eq_jumps, total_jumps, jump_diff_mean, jump_diff_std]))
             self.microstates.append(mean_state)
             self.landscape.append(mean_potentials)
             self.average_jumps.append(executed_jumps)
@@ -1176,6 +1206,18 @@ class simulation(tunneling.tunnel_class):
             
             offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
             self.model.charge_vector    = self.model.charge_vector - offset
+
+    def clear_outputs(self):
+
+        self.output_values   = []
+        self.microstates     = []
+        self.landscape       = []
+        self.pot_values      = []
+        self.jumps_per_it    = []
+        self.time_values     = []
+        self.pot_per_it      = []
+        self.average_jumps   = []
+        self.average_cojumps = []
 
     def return_output_values(self):
 

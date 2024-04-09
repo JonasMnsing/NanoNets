@@ -5,6 +5,7 @@ Output Electrode @ last position in topology_parameter key "pos"
 
 import numpy as np
 import sys
+import time
 
 # Add to path
 sys.path.append("/home/jonas/phd/NanoNets/src/")
@@ -14,24 +15,30 @@ import nanonets
 import nanonets_utils
 import multiprocessing
 
+# Set Seed
+np.random.seed(0)
+
 # Simulation Function
-def parallel_code(thread, voltages, time_steps, topology_parameter, folder, np_info, T_val, save_th, add_to_path):
+def parallel_code(thread, voltages, time_steps, topology_parameter, res_info, eq_steps, folder, np_info, T_val, save_th, add_to_path, stat_size, seed):
 
     target_electrode = len(topology_parameter["e_pos"]) - 1
-        
-    sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter, folder=folder, np_info=np_info, add_to_path=add_to_path)
-    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, T_val=T_val, save_th=save_th)
+    
+    for s in range(stat_size):
+        sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter, folder=folder, res_info=res_info, np_info=np_info, add_to_path=add_to_path+f'_s{s}', seed=seed)
+        sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, eq_steps=eq_steps, T_val=T_val, save_th=save_th)
 
 if __name__ == '__main__':
 
-    folder      = "scripts/2_funding_period/WP2/step_input/"
+    folder      = "scripts/2_funding_period/WP2/step_input/1I_1O_R_dis/"
     voltages    = np.loadtxt(folder+'volt.csv')
     time_steps  = np.loadtxt(folder+'time.csv')
+    stat_size   = 50
+    seed        = 1
 
-    N_processes, network_topology, topology_parameter, sim_dic, np_info, T_val, save_th, add_to_path = nanonets_utils.load_params(folder=folder)
-    
+    N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th, add_to_path = nanonets_utils.load_time_params(folder=folder)
+
     for i in range(N_processes):
 
-        process = multiprocessing.Process(target=parallel_code, args=(i, rows, voltages, topology_parameter, sim_dic, folder,
-                                                                      np_info, T_val, save_th, add_to_path))
+        process = multiprocessing.Process(target=parallel_code, args=(i, voltages, time_steps, topology_parameter, res_info, eq_steps, folder,
+                                                                      np_info, T_val, save_th, add_to_path, stat_size, seed))
         process.start()

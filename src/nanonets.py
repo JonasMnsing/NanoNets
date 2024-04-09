@@ -819,8 +819,6 @@ class model_class():
             random_number2  = np.random.rand()
             last_time       = self.time
 
-            # self.calc_potentials()
-
             if not(self.zero_T):
                 self.calc_tunnel_rates()
             else:
@@ -857,22 +855,16 @@ class model_class():
             # Statistics
             self.total_jumps +=  1
         
-        # if (self.jump == -1):
+        if (self.jump == -1):
 
-        #     self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(time_target-inner_time)
-        #     self.jump_storage   = self.jump_storage/(time_target-inner_time)
+            self.jump_diff_mean = 0.0
+            self.jump_storage   = self.jump_storage/(time_target-inner_time)
 
         if (last_time-inner_time) != 0:
             
-            self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(last_time-inner_time)
-            self.jump_storage   = self.jump_storage/(last_time-inner_time)
+            self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(time_target-inner_time)
+            self.jump_storage   = self.jump_storage/(time_target-inner_time)
 
-            # if self.total_jumps >= 10:
-            #     self.jump_diff_mean = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/(last_time-inner_time)
-            #     self.jump_storage   = self.jump_storage/(last_time-inner_time)
-            # else:
-            #     self.jump_diff_mean = 0.0
-            #     self.jump_storage   = self.jump_storage/(last_time-inner_time)
         else:
             self.jump_diff_mean = 0
 
@@ -893,8 +885,15 @@ class model_class():
         self.total_jumps
             Number of total jumps
         """
+
+        if self.total_jumps != 0:
         
-        return self.jump_diff_mean, self.jump_diff_std, self.charge_mean/self.total_jumps,  self.potential_mean/self.total_jumps, self.jump_storage, self.jump_storage_co, self.landscape_per_it, self.jump_dist_per_it, self.time_vals, self.total_jumps
+            return self.jump_diff_mean, self.jump_diff_std, self.charge_mean/self.total_jumps,  self.potential_mean/self.total_jumps, self.jump_storage, self.jump_storage_co, self.landscape_per_it, self.jump_dist_per_it, self.time_vals, self.total_jumps
+
+        else:
+
+            return self.jump_diff_mean, self.jump_diff_std, self.charge_mean,  self.potential_mean, self.jump_storage, self.jump_storage_co, self.landscape_per_it, self.jump_dist_per_it, self.time_vals, self.total_jumps
+
 
 ###################################################################################################
 # FUNCTIONS
@@ -1135,7 +1134,9 @@ class simulation(tunneling.tunnel_class):
             adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
             resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
-
+            
+            print(resistances)
+            
             # Simulation Class
             self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
                                     temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,

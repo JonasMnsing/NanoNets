@@ -49,17 +49,10 @@ class topology_class:
     """
 
     def __init__(self, seed=None)->None:
-        """
-        Parameters
-        ----------
-        seed : int
-            Seed for random number generator
-        """
 
+        self.rng            = np.random.RandomState(seed)
         self.N_particles    = 0
         self.N_electrodes   = 0
-        self.seed           = seed
-        self.rng            = np.random.default_rng(seed=seed)
 
     def cubic_network(self, N_x : int, N_y : int, N_z : int)->None:
         """
@@ -281,7 +274,7 @@ class topology_class:
         """
 
         self.N_electrodes   = N_electrodes
-        particles           = self.rng.choice(self.N_particles, size=self.N_electrodes, replace=False)
+        particles           = np.random.choice(self.N_particles, size=self.N_electrodes, replace=False)
 
         for n,p in enumerate(particles):
 

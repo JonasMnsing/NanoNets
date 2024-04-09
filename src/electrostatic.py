@@ -60,12 +60,6 @@ class electrostatic_class(topology.topology_class):
     """
     
     def __init__(self, seed=None)->None:
-        """
-        Parameters
-        ----------
-        seed : int
-            Seed for random number generator
-        """
 
         super().__init__(seed)
 

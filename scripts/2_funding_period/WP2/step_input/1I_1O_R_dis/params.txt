@@ -10,12 +10,6 @@ cubic
 # Electrode Positions
 [[0,0,0],[4,4,0]]
 
-# Error Threshold
-0.05
-
-# Maximum Number of MC Steps
-10000000
-
 # Equilibration MC Steps
 100000
 
@@ -33,6 +27,12 @@ cubic
 
 # Distance between NPs
 1.0
+
+# Mean Resistance
+25.0
+
+# Std Resistance
+10.0
 
 # Temperature
 0.0

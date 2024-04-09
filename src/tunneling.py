@@ -62,9 +62,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         Parameters
         ----------
         tunnel_order : int
-            Consider either next neighbor hopping (tunnel_order=1) or also second neighbor hopping (tunnel_order=1) 
-        seed : int
-            Seed for random number generator
+            Consider either next neighbor hopping (tunnel_order=1) or also second neighbor hopping (tunnel_order=1)
         """
 
         super().__init__(seed)
@@ -324,7 +322,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         R_std_megaO = Rstd*1e-12
                 
         if self.tunnel_order >= 1:
-            const_R     = np.abs(np.random.normal(R_megaO*self.ele_charge*self.ele_charge, R_std_megaO*self.ele_charge*self.ele_charge, size=len(self.adv_index_rows)))
+            const_R     = np.abs(self.rng.normal(R_megaO*self.ele_charge*self.ele_charge, R_std_megaO*self.ele_charge*self.ele_charge, size=len(self.adv_index_rows)))
             const_R_co1 = np.array([])
             const_R_co2 = np.array([])
 

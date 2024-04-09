@@ -14,7 +14,7 @@ voltages    = np.zeros(shape=(N_voltages,3))
 
 # Input Electrode
 voltages[:,0]           = np.repeat(off_state, N_voltages)
-voltages[on_t1:on_t2]   = on_state
+voltages[on_t1:on_t2,0] = on_state
 
 np.savetxt("scripts/2_funding_period/WP2/step_input/volt.csv", voltages)
 np.savetxt("scripts/2_funding_period/WP2/step_input/time.csv", time)

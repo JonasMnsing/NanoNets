@@ -39,18 +39,19 @@ def load_time_params(folder : str):
             "e_pos" :   eval(params[3])
         }
 
-    sim_dic = {
-        'error_th'  :   eval(params[4]),
-        'max_jumps' :   eval(params[5]),
-        'eq_steps'  :   eval(params[6])
-    }
+    eq_steps = eval(params[4])
 
     np_info = {
-        "eps_r"         : eval(params[7]),
-        "eps_s"         : eval(params[8]),
-        "mean_radius"   : eval(params[9]),
-        "std_radius"    : eval(params[10]),
-        "np_distance"   : eval(params[11])
+        "eps_r"         : eval(params[5]),
+        "eps_s"         : eval(params[6]),
+        "mean_radius"   : eval(params[7]),
+        "std_radius"    : eval(params[8]),
+        "np_distance"   : eval(params[9])
+    }
+
+    res_info = {
+        "mean_R"    : eval(params[10]),
+        "std_R"     : eval(params[11])    
     }
 
     T_val       = eval(params[12])
@@ -61,7 +62,7 @@ def load_time_params(folder : str):
     else:
         add_to_path = ''
 
-    return N_processes, network_topology, topology_parameter, sim_dic, np_info, T_val, save_th, add_to_path
+    return N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th, add_to_path
 
 def load_params(folder : str):
 

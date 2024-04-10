@@ -161,7 +161,7 @@ class electrostatic_class(topology.topology_class):
             Radius standard deviation
         """
 
-        self.radius_vals  = np.abs(np.random.normal(loc=mean_radius, scale=std_radius, size=self.N_particles))
+        self.radius_vals  = np.abs(self.rng.normal(loc=mean_radius, scale=std_radius, size=self.N_particles))
 
     def update_nanoparticle_radius(self, nanoparticles : list, mean_radius=10.0, std_radius=0.0)->None:
         """
@@ -177,7 +177,7 @@ class electrostatic_class(topology.topology_class):
             Radius standard deviation
         """
 
-        self.radius_vals[nanoparticles] = np.abs(np.random.normal(loc=mean_radius, scale=std_radius, size=len(nanoparticles)))
+        self.radius_vals[nanoparticles] = np.abs(self.rng.normal(loc=mean_radius, scale=std_radius, size=len(nanoparticles)))
         
     def calc_capacitance_matrix(self, eps_r=2.6, eps_s=3.9, np_distance=1.0)->None:
         """

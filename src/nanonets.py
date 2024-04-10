@@ -1135,7 +1135,7 @@ class simulation(tunneling.tunnel_class):
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
             resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
             
-            print(resistances)
+            print(self.radius_vals)
             
             # Simulation Class
             self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -117,7 +118,6 @@ def load_params(folder : str):
         add_to_path = ''
 
     return N_processes, network_topology, topology_parameter, sim_dic, np_info, T_val, save_th, add_to_path
-
 
 def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list], boot_steps=0, i1_col=1, i2_col=3, o_col=7,
                     min_currents=0.0, min_error=0.0, max_error=np.inf, dic=None, dic_nc=None, off_state=[0.0], on_state=[0.01], disordered=False)->Tuple[dict,dict]:
@@ -669,6 +669,64 @@ def display_network(np_network_sim : nanonets.simulation, fig=None, ax=None, blu
             fig.savefig(save_to_path, bbox_inches='tight', transparent=True)
 
     return fig, ax
+
+def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm', vmin=None, vmax=None,
+                        x_label='$x_{NP}$', y_label='$x_{NP}$'):
+
+    arr = pd.read_csv(path).loc[row,:].values
+    arr = arr.reshape(Nx, Ny)
+    
+    if fig == None:
+        fig = plt.figure()
+    if ax == None:
+        ax = fig.add_subplot()
+    
+    ax.imshow(arr, cmap=cmap, vmin=vmin, vmax=vmax, origin='lower')
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+
+    return fig, ax
+
+def animate_landscape(path : str, Nx, Ny, N_rows=None, fig=None, ax=None, cmap='coolwarm', vmin=None, vmax=None,
+                        x_label='$x_{NP}$', y_label='$y_{NP}$', interpolation=None, delay_between_frames=200, cbar_width=0.05):
+
+    arr = pd.read_csv(path).values
+    
+    if N_rows == None:
+        N_rows = arr.shape[0]
+
+    if vmin==None:
+        vmin = np.min(arr)
+    if vmax==None:
+        vmax = np.max(arr)
+    
+    if fig == None:
+        fig = plt.figure()
+    if ax == None:
+        ax = fig.add_subplot()
+
+    cax = ax.inset_axes([1.03, 0, cbar_width, 1], transform=ax.transAxes)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+
+    ims = []
+
+    for i in range(N_rows):
+        
+        cax.clear()
+        
+        im  = ax.imshow(arr[i,:].reshape(Nx, Ny), cmap=cmap, vmin=vmin, vmax=vmax,
+                        origin='lower', interpolation=interpolation, animated=True)
+        cb  = fig.colorbar(im, ax=ax, cax=cax)
+        
+        ims.append([im])
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+
+    ani = animation.ArtistAnimation(fig, ims, interval=delay_between_frames, repeat_delay=delay_between_frames*10)
+
+    return ani
 
 def train_test_split(time, voltages, train_length, test_length, prediction_distance):
 

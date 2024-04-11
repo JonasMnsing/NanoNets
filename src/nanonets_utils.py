@@ -688,7 +688,7 @@ def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm
     return fig, ax
 
 def animate_landscape(path : str, Nx, Ny, N_rows=None, fig=None, ax=None, cmap='coolwarm', vmin=None, vmax=None,
-                        x_label='$x_{NP}$', y_label='$y_{NP}$', interpolation=None, delay_between_frames=200, cbar_width=0.05):
+                        x_label='$x_{NP}$', y_label='$y_{NP}$', interpolation=None, delay_between_frames=200, cbar_width=0.05, cbar_label='', plot_steps=False):
 
     arr = pd.read_csv(path).values
     
@@ -717,7 +717,10 @@ def animate_landscape(path : str, Nx, Ny, N_rows=None, fig=None, ax=None, cmap='
         
         im  = ax.imshow(arr[i,:].reshape(Nx, Ny), cmap=cmap, vmin=vmin, vmax=vmax,
                         origin='lower', interpolation=interpolation, animated=True)
-        cb  = fig.colorbar(im, ax=ax, cax=cax)
+        cb  = fig.colorbar(im, ax=ax, cax=cax, label=cbar_label)
+
+        if plot_steps:
+            ax.set_title(f"Step: {i+1}/{N_rows}")
         
         ims.append([im])
 

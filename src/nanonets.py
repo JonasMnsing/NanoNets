@@ -975,10 +975,6 @@ class simulation(tunneling.tunnel_class):
                 "np_distance"   : 1.0
             }
 
-        # NP Parameter of second NP Type
-        if np_info2 == None:
-            np_info2 = np_info
-
         # NP Resistances
         if res_info == None:
             res_info = {
@@ -1005,6 +1001,11 @@ class simulation(tunneling.tunnel_class):
                 
             # Electrostatic Properties
             self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
+
+            # Second Type of Nanopartciles
+            if np_info2 != None:
+                self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
+
             self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
 
         elif network_topology == "random":
@@ -1024,6 +1025,11 @@ class simulation(tunneling.tunnel_class):
                 
             # Electrostatic Properties
             self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
+
+            # Second Type of Nanopartciles
+            if np_info2 != None:
+                self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
+
             self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
         
         else:

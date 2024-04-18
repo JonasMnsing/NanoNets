@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     # Save Folder
     # folder  = "/scratch/tmp/j_mens07/data/system_size/"
-    folder  = "/home/jonas/phd/data/system_size_scaled_V/"
+    folder  = "/home/jonas/phd/data/system_size/scaled/"
 
     for i in range(N_processes):
 

@@ -578,7 +578,6 @@ class model_class():
         mean_value2     +=  delta * delta2
 
         return mean_value, mean_value2, count
-
     
     def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=10000000):
         """

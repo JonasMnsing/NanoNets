@@ -1012,7 +1012,7 @@ class simulation(tunneling.tunnel_class):
             # Path variable
             path_var = f'Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
             
-            # Cubic Network Topology
+            # Random Network Topology
             self.random_network(N_particles=topology_parameter["Np"], N_junctions=topology_parameter["Nj"])
             self.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
             self.graph_to_net_topology()

@@ -687,10 +687,10 @@ def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm
 
     return fig, ax
 
-def animate_landscape(path : str, Nx, Ny, N_rows=None, fig=None, ax=None, cmap='coolwarm', vmin=None, vmax=None,
+def animate_landscape(landscape : np.array, Nx, Ny, N_rows=None, fig=None, ax=None, cmap='coolwarm', vmin=None, vmax=None,
                         x_label='$x_{NP}$', y_label='$y_{NP}$', interpolation=None, delay_between_frames=200, cbar_width=0.05, cbar_label='', plot_steps=False):
 
-    arr = pd.read_csv(path).values
+    arr = landscape
     
     if N_rows == None:
         N_rows = arr.shape[0]

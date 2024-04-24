@@ -22,19 +22,22 @@ def parallel_code(thread, voltages, time_steps, topology_parameter, res_info, eq
     
     for s in range(stat_size):
 
-        sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter, folder=folder+"d3/", res_info=res_info, np_info=np_info, add_to_path=add_to_path+f'_t{thread}_s{s}', seed=seed)
-        sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, eq_steps=eq_steps, T_val=T_val, save_th=save_th)
+        sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter,
+                                        folder=folder+"data/f2/", res_info=res_info, np_info=np_info,
+                                        add_to_path=add_to_path+f'_t{thread}_s{s}', seed=seed)
+        sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
+                                   eq_steps=eq_steps, T_val=T_val, save_th=save_th)
 
 if __name__ == '__main__':
 
-    folder      = "scripts/2_funding_period/WP2/step_input/1I_1O/"
+    folder      = "scripts/2_funding_period/WP2/cos_input/1I_1O/"
     voltages    = np.loadtxt(folder+'volt.csv')
     time_steps  = np.loadtxt(folder+'time.csv')
-    stat_size   = 5
+    stat_size   = 10
     seed        = 0
 
     # Set Seed
-    np.random.seed(seed)
+    # np.random.seed(seed)
 
     N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th, add_to_path = nanonets_utils.load_time_params(folder=folder)
 

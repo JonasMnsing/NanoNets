@@ -52,7 +52,6 @@ class tunnel_class(electrostatic.electrostatic_class):
     return_particle_electrode_count()
     return_advanced_indices()
     return_const_temperatures(T : float)
-    return_const_resistances(R)
     return_random_resistances(R=25e-12, Rstd=2e-12)
     -------
     """
@@ -268,36 +267,6 @@ class tunnel_class(electrostatic.electrostatic_class):
         T_arr = np.repeat(T*self.kb, len(self.adv_index_rows)), np.repeat(T*self.kb, len(self.co_adv_index1))
 
         return T_arr
-
-    def return_const_resistances(self, R=25e-12)->np.array:
-        """        
-        Parameter
-        ---------
-        R : float
-            Tunnel resistance
-
-        Returns
-        -------
-        const_R : array
-            Resistances for each tunneling event i to j
-        const_R_co1 : array
-            Resistances for each cotunneling event i to k
-        const_R_co2 : array
-            Resistances for each cotunneling event k to j
-        """
-
-        R_mo = R 
-
-        if self.tunnel_order >= 1:
-            const_R     = np.repeat(R*self.ele_charge*self.ele_charge, len(self.adv_index_rows))
-            const_R_co1 = np.array([])
-            const_R_co2 = np.array([])
-
-        if self.tunnel_order >= 2:
-            const_R_co1 = np.repeat(R*self.ele_charge*self.ele_charge, len(self.co_adv_index2))
-            const_R_co2 = np.repeat(R*self.ele_charge*self.ele_charge, len(self.co_adv_index3))
-
-        return const_R, const_R_co1, const_R_co2
     
     def return_random_resistances(self, R=25, Rstd=0):
         """        
@@ -331,15 +300,29 @@ class tunnel_class(electrostatic.electrostatic_class):
 
         return const_R, const_R_co1, const_R_co2
     
-    def set_np_resistance(self, np_index, np_R, resistance_arr):
+    def update_junction_resistances(self, resistance_arr, junctions : list, R=25)->np.array:
+
+        R_megaO = R*1e-12
+
+        for junc in junctions:
+
+            a   = np.where(self.adv_index_rows == junc[0] - self.N_electrodes)[0]
+            b   = np.where(self.adv_index_cols == junc[1] - self.N_electrodes)[0]
+            idx = np.intersect1d(a,b)[0]
+
+            resistance_arr[idx] = R_megaO
+
+        return resistance_arr
+
+    def update_nanoparticle_resistances(self, resistance_arr, nanoparticles : list, R=25)->np.array:
         """
         Set all resistances in array of resistances which correspond to jumps TOWARDS a particular nanoparticle 
 
         Parameter
         ---------
-        np_index : int
+        nanoparticles : list
             Index of nanoparticle with new resistance value
-        np_R : float
+        R : float
             new resistance value
         resistance_arr : array
             Resistances for each tunneling event
@@ -349,8 +332,12 @@ class tunnel_class(electrostatic.electrostatic_class):
         resistance_arr : array
             Resistances for each tunneling event
         """
+
+        R_megaO = R*1e-12
         
-        resistance_arr[np.where(self.adv_index_cols==np_index)[0]] = np_R
+        for idx in nanoparticles:
+
+            resistance_arr[np.where(self.adv_index_cols == idx + self.N_electrodes)[0]] = R_megaO
 
         return resistance_arr
 

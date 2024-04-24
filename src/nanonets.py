@@ -956,7 +956,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 
 class simulation(tunneling.tunnel_class):
 
-    def __init__(self, network_topology : str, topology_parameter : dict, folder='', res_info=None, np_info=None, np_info2=None,
+    def __init__(self, network_topology : str, topology_parameter : dict, folder='', res_info=None, res_info2=None, np_info=None, np_info2=None,
                         add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
 
         super().__init__(tunnel_order, seed)
@@ -981,7 +981,8 @@ class simulation(tunneling.tunnel_class):
                 "std_R"     : 0.0    
             }
         
-        self.res_info = res_info
+        self.res_info   = res_info
+        self.res_info2  = res_info2
 
         # Set Type of Network Topology
         if network_topology == "cubic":
@@ -1084,6 +1085,9 @@ class simulation(tunneling.tunnel_class):
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
             resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
             
+            if self.res_info2 != None:
+                resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
+
             # Pass all model arguments into Numba optimized Class
             model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
                                     temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
@@ -1140,6 +1144,9 @@ class simulation(tunneling.tunnel_class):
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
             resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
             
+            if self.res_info2 != None:
+                resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
+
             # Simulation Class
             self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
                                     temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,

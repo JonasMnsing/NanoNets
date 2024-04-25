@@ -10,6 +10,29 @@ from typing import Union, Tuple, List
 blue_color  = '#348ABD'
 red_color   = '#A60628'
 
+def uniform_config(low : float, high : float, N_rows : int, N_cols : int)->np.array:
+
+    arr = np.random.uniform(low=low, high=high, size=(N_rows, N_cols))
+
+    return arr
+
+def logic_gate_config(low : float, high : float, off_state : float, on_state : float, i1_col : int, i2_col : int, N_rows : int, N_cols : int)->np.array:
+
+    arr = np.repeat(a=uniform_config(low, high, int(N_rows/4), N_cols), repeats=4, axis=0)
+    i1  = np.tile([off_state,off_state,on_state,on_state], int(N_rows/4))
+    i2  = np.tile([off_state,on_state,off_state,on_state], int(N_rows/4))
+
+    arr[:,i1_col]   = i1
+    arr[:,i2_col]   = i2
+
+    return arr
+
+def logic_gate_config_G(low : float, high : float, N_rows : int)->np.array:
+    
+    arr = np.repeat(a=uniform_config(low, high, int(N_rows/4), N_cols=1), repeats=4)
+
+    return arr
+
 def load_time_params(folder : str):
 
     txt_file    = open(folder+'params.txt', 'r')
@@ -58,12 +81,7 @@ def load_time_params(folder : str):
     T_val       = eval(params[12])
     save_th     = eval(params[13])
 
-    if len(params) == 15:
-        add_to_path = params[14]
-    else:
-        add_to_path = ''
-
-    return N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th, add_to_path
+    return N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th
 
 def load_params(folder : str):
 
@@ -109,15 +127,15 @@ def load_params(folder : str):
         "np_distance"   : eval(params[11])
     }
 
-    T_val       = eval(params[12])
-    save_th     = eval(params[13])
+    res_info = {
+        "mean_R"    : eval(params[12]),
+        "std_R"     : eval(params[13])
+    }
 
-    if len(params) == 15:
-        add_to_path = params[14]
-    else:
-        add_to_path = ''
+    T_val       = eval(params[14])
+    save_th     = eval(params[15])
 
-    return N_processes, network_topology, topology_parameter, sim_dic, np_info, T_val, save_th, add_to_path
+    return N_processes, network_topology, topology_parameter, sim_dic, np_info, res_info, T_val, save_th
 
 def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list], boot_steps=0, i1_col=1, i2_col=3, o_col=7,
                     min_currents=0.0, min_error=0.0, max_error=np.inf, dic=None, dic_nc=None, off_state=[0.0], on_state=[0.01], disordered=False)->Tuple[dict,dict]:

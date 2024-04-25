@@ -55,9 +55,9 @@ if __name__ == '__main__':
     N_processes = 10 #36
 
     # Maximum absolute voltage values
-    Vc  = 0.2
-    Vg  = 0.2
-    Vi  = 0.1
+    Vc  = 0.05
+    Vg  = 0.1
+    Vi  = 0.01
 
     # Generate voltage values      
     v_rand      = np.repeat(np.random.uniform(low=-Vc, high=Vc, size=((int(N_voltages/4),5))), 4, axis=0)
@@ -66,7 +66,6 @@ if __name__ == '__main__':
     i2          = np.tile([0.0,Vi,0.0,Vi], int(N_voltages/4))
     scales      = [0.69, 0.77, 0.84, 0.92, 1., 1.08, 1.16, 1.23, 1.31, 1.39, 1.47, 1.55, 1.62, 1.7, 1.78, 1.86]
 
-    
     # Simulated rows for each process
     index   = [i for i in range(N_voltages)]
     rows    = [index[i::N_processes] for i in range(N_processes)]

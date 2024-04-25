@@ -1,14 +1,14 @@
 # Number of Processes
-1
+10
 
 # Network type
 cubic
 
 # Network shape Nx, Ny, Nz or if random Np, Nj, 0
-5,5,1
+7,7,1
 
 # Electrode Positions
-[[0,0,0],[4,4,0]]
+[[0,0,0],[3,0,0],[6,0,0],[0,3,0],[0,6,0],[3,6,0],[6,3,0],[6,6,0]]
 
 # Error Threshold
 0.05
@@ -29,7 +29,7 @@ cubic
 10.0
 
 # Std NP radius
-0.0
+2.0
 
 # Distance between NPs
 1.0

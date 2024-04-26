@@ -20,13 +20,13 @@ def parallel_code(thread, rows, voltages, topology_parameter, sim_dic, folder, n
     target_electrode    = len(topology_parameter["e_pos"]) - 1
     thread_rows         = rows[thread]
         
-    sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter, folder=folder,
+    sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter, folder=folder+"data/",
                                     res_info=res_info, np_info=np_info, seed=thread, add_to_path=f"_th={thread}")
     sim_class.run_const_voltages(voltages=voltages[thread_rows,:], target_electrode=target_electrode, T_val=T_val, sim_dic=sim_dic, save_th=save_th)
 
 if __name__ == '__main__':
 
-    folder      = "scripts/2_funding_period/WP2/ndr_nls/resistance/data/"
+    folder      = "scripts/2_funding_period/WP2/ndr_nls/resistance/"
     voltages    = np.loadtxt(folder+'volt.csv')
     N_voltages  = voltages.shape[0]
 

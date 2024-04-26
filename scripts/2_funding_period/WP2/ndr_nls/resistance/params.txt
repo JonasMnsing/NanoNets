@@ -5,10 +5,10 @@
 cubic
 
 # Network shape Nx, Ny, Nz or if random Np, Nj, 0
-5,5,1
+7,7,1
 
 # Electrode Positions
-[[0,0,0],[4,4,0]]
+[[0,0,0],[3,0,0],[6,0,0],[0,3,0],[0,6,0],[3,6,0],[6,3,0],[6,6,0]]
 
 # Error Threshold
 0.05
@@ -38,7 +38,7 @@ cubic
 25.0
 
 # Std Resistance
-10.0
+5.0
 
 # Temperature
 0.0

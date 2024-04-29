@@ -18,4 +18,4 @@ voltages[:,-1]  = 0
 gates           = nanonets_utils.logic_gate_config_G(low=-G_abs, high=G_abs, N_rows=N_voltages)
 voltages        = np.hstack((voltages,gates[np.newaxis].T))
 
-np.savetxt("scripts/2_funding_period/WP2/ndr_nls/volt.csv", voltages, fmt='%1.5f')
+np.savetxt("scripts/2_funding_period/WP2/ndr_nls/resistance/volt.csv", voltages, fmt='%1.5f')

@@ -354,14 +354,13 @@ def prepare_for_fitness_calculation(df : pd.DataFrame, N_c : int, min_current=No
     data    = df.copy()
     
     if min_current != None:
-        data.loc[data[current_col].abs() <= min_current, current_col] = min_current
-        # data    = data[data[current_col].abs() > min_current]
+        # data.loc[data[current_col].abs() <= min_current, current_col] = min_current
+        data = data[data[current_col].abs() > min_current]
     
     data    = data.sort_values(by=sort_cols)
     data    = data.reset_index(drop=True)
 
     # Move through each row and proof that for each electrode voltage combination all possible input states are present
-
     i       = 0
     rows    = np.floor(len(data))
 
@@ -509,12 +508,16 @@ def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame
 
 def fitness(df : pd.DataFrame, N_controls : int, delta=0.01, min_current=None, off_state=0.0, on_state=0.01,
     gates=['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR'], input1_column = 'I1', input2_column = 'I2', gate_column = 'G',
-    controls_column = 'C', current_column = 'Current', error_column='Error', N_inputs=2) -> pd.DataFrame:
+    controls_column = 'C', current_column = 'Current', error_column='Error') -> pd.DataFrame:
     """
     Calculate Fitness based on m/(sqrt(RSS/4) + delta*|c|)\\
     Input pandas Dataframe of electric currents and provide number of controls Nc\\
     Before starting the fitness calculation: Allows to exclude any currents having an absolute value less than min_current and check if all possible input states are present
     """
+
+    if min_current != None:
+        df = prepare_for_fitness_calculation(df=df, N_c=N_controls, min_current=min_current, input1_col=input1_column, input2_col=input2_column,
+                                             gate_col=gate_column, control_col=controls_column, current_col=current_column, off_state=off_state, on_state=on_state)
 
     columns         = [gate_column] + [controls_column + '{}'.format(i) for i in range(1, N_controls+1)]
     
@@ -748,6 +751,58 @@ def animate_landscape(landscape : np.array, Nx, Ny, N_rows=None, fig=None, ax=No
     ani = animation.ArtistAnimation(fig, ims, interval=delay_between_frames, repeat_delay=delay_between_frames*10)
 
     return ani
+
+def nonlinear_parameter(df : pd.DataFrame, input1_column = 'I1', input2_column = 'I2', current_column='Current', on_state=0.01, off_state=0)->pd.DataFrame:
+
+    currents    = pd.DataFrame()
+
+    df_1 = df[df[input1_column] == off_state]
+    df_1 = df_1[df_1[input2_column] == off_state]
+    df_1 = df_1.reset_index(drop=True)
+    currents['I00'] = df_1[current_column]
+
+    df_1 = df[df[input1_column] == off_state]
+    df_1 = df_1[df_1[input2_column] == on_state]
+    df_1 = df_1.reset_index(drop=True)
+    currents['I01'] = df_1[current_column]
+
+    df_1 = df[df[input1_column] == on_state]
+    df_1 = df_1[df_1[input2_column] == off_state]
+    df_1 = df_1.reset_index(drop=True)
+    currents['I10'] = df_1[current_column]
+
+    df_1 = df[df[input1_column] == on_state]
+    df_1 = df_1[df_1[input2_column] == on_state]
+    df_1 = df_1.reset_index(drop=True)
+    currents['I11'] = df_1[current_column]
+
+    currents    = currents.replace(0, np.nan)
+    currents    = currents.dropna()
+    currents    = currents.reset_index(drop=True)
+
+    df_new = pd.DataFrame()
+
+    df_new['Iv']    = (currents["I11"] + currents["I10"] + currents["I01"] + currents["I00"])/4
+    df_new['Ml']    = (currents["I11"] + currents["I10"] - currents["I01"] - currents["I00"])/4
+    df_new['Mr']    = (currents["I11"] - currents["I10"] + currents["I01"] - currents["I00"])/4
+    df_new['X']     = (currents["I11"] - currents["I10"] - currents["I01"] + currents["I00"])/4
+
+    return df_new
+
+def expected_value(arr : np.array, order=1, bins=1000)->float:
+
+    count, bins = np.histogram(a=arr, bins=bins)
+    probs       = count / np.sum(count)
+    mids        = 0.5*(bins[1:]+ bins[:-1])
+    exp_val     = np.sum(probs * mids**order)
+
+    return exp_val
+
+def return_ndr(arr : np.array)->np.array:
+    return (1 - np.tanh(np.mean(arr)/np.std(arr)))/2
+
+def return_nls(df : pd.DataFrame, ml_col='Ml', mr_col='Mr', x_col='X', bins=1000)->np.array:
+    return expected_value(df[x_col].values, order=2, bins=bins)/(expected_value(df[ml_col].values, order=2, bins=bins) + expected_value(df[mr_col].values, order=2, bins=bins))
 
 def train_test_split(time, voltages, train_length, test_length, prediction_distance):
 

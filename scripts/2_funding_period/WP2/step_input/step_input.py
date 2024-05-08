@@ -27,7 +27,7 @@ def parallel_code(thread, voltages, time_steps, topology_parameter, res_info, eq
 
 if __name__ == '__main__':
 
-    folder      = "scripts/2_funding_period/WP2/step_input/1I_1O_R_dis/"
+    folder      = "scripts/2_funding_period/WP2/step_input/1I_1O/"
     voltages    = np.loadtxt(folder+'volt.csv')
     time_steps  = np.loadtxt(folder+'time.csv')
     stat_size   = 10

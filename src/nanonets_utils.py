@@ -723,6 +723,7 @@ def animate_landscape(landscape : np.array, Nx, Ny, N_rows=None, fig=None, ax=No
     
     if fig == None:
         fig = plt.figure()
+        fig.set_tight_layout(True)
     if ax == None:
         ax = fig.add_subplot()
 

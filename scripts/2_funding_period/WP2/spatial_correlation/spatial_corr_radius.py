@@ -13,11 +13,12 @@ import multiprocessing
 # Simulation Function
 def parallel_code(thread, voltages, time_steps, topology_parameter, res_info, eq_steps, folder, np_info, np_info2, T_val, save_th, stat_size, seed):
 
-    target_electrode = len(topology_parameter["e_pos"]) - 1
-    
+    target_electrode    = len(topology_parameter["e_pos"]) - 1
+    r_val               = int(np_info2["mean_radius"])
+
     for s in range(stat_size):
 
-        sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter, folder=folder+"data/", res_info=res_info, np_info=np_info, np_info2=np_info2, add_to_path=f'_t{thread}_s{s}', seed=seed)
+        sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter, folder=folder+f"data/r_{r_val}/", res_info=res_info, np_info=np_info, np_info2=np_info2, add_to_path=f'_t{thread}_s{s}', seed=seed)
         sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, eq_steps=eq_steps, T_val=T_val, save_th=save_th)
 
 if __name__ == '__main__':
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th = nanonets_utils.load_time_params(folder=folder)
 
     np_info2 = {
-            "mean_radius"   : 20.0,
+            "mean_radius"   : 40.0,
             "std_radius"    : 0.0,
             "np_index"      : [16,17,18,23,24,25,30,31,32]
         }

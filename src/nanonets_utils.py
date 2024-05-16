@@ -25,6 +25,13 @@ def store_average_time_states(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
     
     means.to_csv(folder+f"/mean_state_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
 
+def store_average_time_currents(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
+
+    values  = [pd.read_csv(folder+f"/net_currents_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}_t{j}_s{k}.csv") for j in range(N_threads) for k in range(N_stat)]
+    means   = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns).round(3)
+    
+    means.to_csv(folder+f"/net_currents_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
+
 def uniform_config(low : float, high : float, N_rows : int, N_cols : int)->np.array:
 
     arr = np.random.uniform(low=low, high=high, size=(N_rows, N_cols))
@@ -823,54 +830,55 @@ def return_nls(df : pd.DataFrame, ml_col='Ml', mr_col='Mr', x_col='X', bins=1000
 def metropolis_criterion(delta_func, beta):
     return np.exp(-beta * delta_func)
 
-def metropolis_optimization(np_network_sim : nanonets.simulation, time : np.array, time_series : np.array, V_min : float, V_max : float,
-                            Vg_min : float, Vg_max : float, n_runs : int, I_to_U=1.0, stat_size=20):
-
-    # nehme als argument initial voltages und summiere dann in jedem Schritt normal drauf
-
-    voltages                                        = np.zeros(shape=(len(time_series), np_network_sim.N_electrodes+1))
-    voltages[:,0]                                   = time_series
-    voltages[:,1:(np_network_sim.N_electrodes-2)]   = np.tile(np.random.uniform(low=V_min, high=V_max, size=(np_network_sim.N_electrodes-2)), (n_runs,2))
-    voltages[:,-1]                                  = np.repeat(np.random.uniform(low=Vg_min, high=Vg_max, size=n_runs))
+def return_res(np_network_sim : nanonets.simulation, time : np.array, voltages : np.array, stat_size=20, I_to_U=1e-4, fit_after_n=0):
 
     currents = []
 
     for i in range(stat_size):
-    
         np_network_sim.run_var_voltages(voltages=voltages, time_steps=time, target_electrode=(np_network_sim.N_electrodes-1), save_th=0.1, init=True)
         currents.append(np_network_sim.return_output_values()[:,2])
-        
-    y           = np.mean(currents, axis=0)
-    res         = (I_to_U*y[:-1] - time_series[1:])**2
-    best_res    = res  
-    f_val       = 1.
     
-    for n in range(n_runs):
-        
-        voltages_new                                        = voltages.copy() 
-        voltages_new[:,1:(np_network_sim.N_electrodes-2)]   = np.tile(np.random.uniform(low=V_min, high=V_max, size=(np_network_sim.N_electrodes-2)), (n_runs,2))
-        voltages_new[:,-1]                                  = np.repeat(np.random.uniform(low=Vg_min, high=Vg_max, size=n_runs))
-        
-        currents = []
+    I_mean  = np.mean(currents, axis=0)
+    I_std   = np.std(currents, axis=0)/np.sqrt(stat_size)
+    res     = np.sum((I_to_U*I_mean[fit_after_n:] - voltages[fit_after_n+1:,0])**2)
 
-        for i in range(stat_size):
-        
-            np_network_sim.run_var_voltages(voltages=voltages_new, time_steps=time, target_electrode=(np_network_sim.N_electrodes-1), save_th=0.1, init=True)
-            currents.append(np_network_sim.return_output_values()[:,2])
-            
-        y       = np.mean(currents, axis=0)
-        y_u     = np.std(currents, axis=0)/np.sqrt(stat_size)
-        
-        res         = (I_to_U*y[:-1] - time_series[1:])**2
-        f_new       = 1. - np.exp(-gamma*(res-best_res))
-        delta_f     = f_new - f_val
+    return I_mean[fit_after_n:], I_std[fit_after_n:], res
+
+def metropolis_optimization(np_network_sim : nanonets.simulation, time : np.array, voltages : np.array, n_runs : int,
+                            gamma : float, beta : float, V_std=0.01, Vg_std=0.01, I_to_U=1e-4, stat_size=20, save_best_at=None, fit_after_n=0):
+
+    N_voltages          = voltages.shape[0]
+    current_voltages    = voltages
+    best_voltages       = voltages
+    new_voltages        = voltages
+    I_mean, I_std, res  = return_res(np_network_sim, time, current_voltages, stat_size, I_to_U, fit_after_n)
+    f_val               = 1.
+    best_res            = res
+
+    for i in range(n_runs):
+
+        V_sample                                            = np.tile(np.random.normal(loc=0, scale=V_std, size=(np_network_sim.N_electrodes-2)), (N_voltages,1))
+        Vg_sample                                           = np.repeat(np.random.normal(loc=0, scale=Vg_std), N_voltages)
+        new_voltages[:,1:(np_network_sim.N_electrodes-1)]   = current_voltages[:,1:(np_network_sim.N_electrodes-1)] + V_sample
+        new_voltages[:,-1]                                  = current_voltages[:,-1] + Vg_sample
+        I_mean, I_std, res                                  = return_res(np_network_sim, time, new_voltages, stat_size, I_to_U, fit_after_n)
+        f_val_new                                           = 1 - np.exp(-gamma*(res - best_res))
+        delta_f                                             = f_val_new - f_val
 
         if ((delta_f < 0) or (np.random.rand() < metropolis_criterion(delta_f, beta))):
 
-            voltages    = voltages_new
-            best_res    = res
-        
-    return None
+            current_voltages    = new_voltages
+            best_res            = res
+            best_voltages       = current_voltages
+            f_val               = f_val_new
+
+            if save_best_at != None:
+
+                np.savetxt(save_best_at+"best_volt_{i}.csv", best_voltages)
+                np.savetxt(save_best_at+"I_mean_{i}.csv", I_mean)
+                np.savetxt(save_best_at+"I_std_{i}.csv", I_std)
+
+    return best_voltages, best_res, I_mean, I_std
 
 def train_test_split(time, voltages, train_length, test_length, prediction_distance):
 

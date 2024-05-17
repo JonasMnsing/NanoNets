@@ -730,6 +730,82 @@ def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm
 
     return fig, ax
 
+def display_network_currents(path : str, row, N_electrodes : int, charge_landscape=False, pos=None, fig=None, ax=None,
+                             arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628', position_by_currents=False):
+
+    if fig == None:
+        fig = plt.figure()
+    if ax == None:
+        ax = fig.add_subplot()
+        
+    ax.axis('off')
+
+    df          = pd.read_csv(path)
+    values      = df.loc[row,:].values
+    junctions   = np.array([eval(val) for val in df.columns])
+
+    values_new      = []
+    junctions_new   = []
+
+    for n1, junction in enumerate(junctions):
+
+        i       = junction[0]
+        j       = junction[1]
+        val1    = values[n1]
+        n2      = np.where(((junctions[:,0]==j) & (junctions[:,1]==i)))[0][0]
+
+        if n2 > n1:
+            
+            val2  = values[n2]
+            values_new.append(np.abs(val2-val1))
+            
+            if val1 > val2:
+                junctions_new.append([i-N_electrodes,j-N_electrodes])
+            else:
+                junctions_new.append([j-N_electrodes,i-N_electrodes])
+
+    values_new = arrow_scale*(values_new - np.min(values_new))/(np.max(values_new) - np.min(values_new))
+
+    G = nx.DiGraph()
+    G.add_nodes_from(np.arange(np.min(junctions)-N_electrodes, np.max(junctions)+1-N_electrodes))
+
+    if charge_landscape:
+        states  = pd.read_csv(path.replace("net_currents", "mean_state")).loc[row,:].values
+        colors  = np.repeat(blue_color, len(G.nodes)-N_electrodes)
+        colors[np.where(states < 0)] = red_color
+        colors  = np.insert(colors, 0, np.repeat(blue_color, N_electrodes))
+        states  = np.abs(states)
+        states  = node_size*(states - np.min(states))/(np.max(states)-np.min(states))
+        states  = np.insert(states, 0, np.repeat(node_size, N_electrodes))
+    else:
+        states  = np.repeat(node_size, len(G.nodes))
+
+    for val, junction in zip(values_new, junctions_new):
+
+        G.add_edge(junction[0], junction[1], width=val)
+
+    widths = [G[u][v]['width'] for u, v in G.edges]
+
+    if pos == None:
+        if position_by_currents:
+            pos = nx.kamada_kawai_layout(G=G, weight='width')
+        else:
+            pos = nx.kamada_kawai_layout(G=G)
+    else:
+        keys        = [-i for i in range(1, N_electrodes+1)]
+        key_vals    = [pos[i] for i in keys]
+        new_keys    = keys[::-1]
+
+        for key in keys:
+            pos.pop(key)
+        
+        for i, key in enumerate(new_keys):
+            pos[key] = key_vals[i]
+
+    nx.draw(G=G, pos=pos, ax=ax, edge_color=widths, arrowsize=arrowsize, node_size=states, edge_cmap=plt.cm.Reds, node_color=colors)
+
+    return fig, ax
+
 def animate_landscape(landscape : np.array, Nx, Ny, N_rows=None, fig=None, ax=None, cmap='coolwarm', vmin=None, vmax=None,
                         x_label='$x_{NP}$', y_label='$y_{NP}$', interpolation=None, delay_between_frames=200, cbar_width=0.05, cbar_label='', plot_steps=False):
 
@@ -835,7 +911,7 @@ def return_res(np_network_sim : nanonets.simulation, time : np.array, voltages :
     currents = []
 
     for i in range(stat_size):
-        np_network_sim.run_var_voltages(voltages=voltages, time_steps=time, target_electrode=(np_network_sim.N_electrodes-1), save_th=0.1, init=True)
+        np_network_sim.run_var_voltages(voltages=voltages, time_steps=time, target_electrode=(np_network_sim.N_electrodes-1), save_th=0.1, init=True, eq_steps=0)
         currents.append(np_network_sim.return_output_values()[:,2])
     
     I_mean  = np.mean(currents, axis=0)

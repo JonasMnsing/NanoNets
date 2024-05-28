@@ -779,6 +779,8 @@ def display_network_currents(path : str, row, N_electrodes : int, charge_landsca
         states  = np.insert(states, 0, np.repeat(node_size, N_electrodes))
     else:
         states  = np.repeat(node_size, len(G.nodes))
+        colors  = np.repeat(blue_color, len(G.nodes))
+
 
     for val, junction in zip(values_new, junctions_new):
 

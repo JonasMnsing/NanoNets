@@ -301,13 +301,19 @@ class tunnel_class(electrostatic.electrostatic_class):
         return const_R, const_R_co1, const_R_co2
     
     def update_junction_resistances(self, resistance_arr, junctions : list, R=25)->np.array:
-
+        
         R_megaO = R*1e-12
 
         for junc in junctions:
 
-            a   = np.where(self.adv_index_rows == junc[0] - self.N_electrodes)[0]
-            b   = np.where(self.adv_index_cols == junc[1] - self.N_electrodes)[0]
+            a   = np.where(self.adv_index_rows == junc[0] + self.N_electrodes)[0]
+            b   = np.where(self.adv_index_cols == junc[1] + self.N_electrodes)[0]
+            idx = np.intersect1d(a,b)[0]
+
+            resistance_arr[idx] = R_megaO
+
+            a   = np.where(self.adv_index_cols == junc[0] + self.N_electrodes)[0]
+            b   = np.where(self.adv_index_rows == junc[1] + self.N_electrodes)[0]
             idx = np.intersect1d(a,b)[0]
 
             resistance_arr[idx] = R_megaO
@@ -338,9 +344,10 @@ class tunnel_class(electrostatic.electrostatic_class):
         for idx in nanoparticles:
 
             resistance_arr[np.where(self.adv_index_cols == idx + self.N_electrodes)[0]] = R_megaO
+            resistance_arr[np.where(self.adv_index_rows == idx + self.N_electrodes)[0]] = R_megaO
 
         return resistance_arr
-
+    
 ###########################################################################################################################
 ###########################################################################################################################
 

@@ -1177,6 +1177,9 @@ class simulation(tunneling.tunnel_class):
         self.average_jumps   = []
         self.average_cojumps = []
 
+        # self.charge_values_pos   = []
+        # self.charge_values_neg   = []
+
         for i, voltage_values in enumerate(voltages[:-1]):
             
             offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
@@ -1199,6 +1202,9 @@ class simulation(tunneling.tunnel_class):
             self.jumps_per_it.append(jump_dist_per_it)
             self.pot_per_it.append(landscape_per_it)
             self.time_values.append(time_vals)
+
+            # self.charge_values_pos.append(self.model.counter_output_jumps_pos)
+            # self.charge_values_neg.append(self.model.counter_output_jumps_neg)
             # self.pot_values.append()
 
             # Store Data

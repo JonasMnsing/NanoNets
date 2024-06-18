@@ -30,11 +30,8 @@ if __name__ == '__main__':
     folder      = "scripts/2_funding_period/WP2/step_input/1I_1O/"
     voltages    = np.loadtxt(folder+'volt.csv')
     time_steps  = np.loadtxt(folder+'time.csv')
-    stat_size   = 10
+    stat_size   = 100
     seed        = 0
-
-    # Set Seed
-    # np.random.seed(seed)
 
     N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th = nanonets_utils.load_time_params(folder=folder)
 

@@ -30,9 +30,10 @@ def parallel_code(thread, voltages, time_steps, topology_parameter, res_info, re
 if __name__ == '__main__':
 
     folder      = "scripts/2_funding_period/WP2/step_input/1I_1O_R_dis/"
+    # folder      = "/home/jonas/phd/data/1I_1O_R/"
     voltages    = np.loadtxt(folder+'volt.csv')
     time_steps  = np.loadtxt(folder+'time.csv')
-    stat_size   = 20
+    stat_size   = 100
 
     for seed in range(1,4):
 

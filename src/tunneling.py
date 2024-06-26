@@ -140,6 +140,16 @@ class tunnel_class(electrostatic.electrostatic_class):
         self.potential_vector                       = np.zeros(self.N_electrodes+self.N_particles)
         self.potential_vector[0:self.N_electrodes]  = voltage_values[:-1]
 
+    def np_target_electrode_electrostatic_properties(self, target_electrode : int)->None:
+
+        self.idx_np_target  = self.adv_index_cols[np.where(self.adv_index_rows == target_electrode)[0]]
+        self.C_np_target    = 0
+        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[self.idx_np_target])
+
+    def update_floating_electrode(self, target_electrode : int)->None:
+
+        self.potential_vector[target_electrode] = (self.C_np_target/self.C_np_self)*self.potential_vector[self.N_electrodes+self.self.idx_np_target]
+
     def init_const_capacitance_values(self)->None:
         """
         Initialize an array containing C_ii + C_jj + C_ij as parts from inverse capacitance matrix to calculate free energy

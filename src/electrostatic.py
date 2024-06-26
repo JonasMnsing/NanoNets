@@ -103,7 +103,8 @@ class electrostatic_class(topology.topology_class):
 
     def mutal_capacitance_adjacent_spheres(self, eps_r : float, np_radius1 : float, np_radius2 : float, np_distance : float)->float:
         """
-        Calculate capacitance in between a spherical conductors - insulator - spherical conductors setup
+        Calculate capacitance in between a spherical conductors - insulator - spherical conductors setup.
+        This is a first order Taylor Expansion based on the Image Charge method.
 
         Parameters
         ----------
@@ -148,7 +149,7 @@ class electrostatic_class(topology.topology_class):
         cap     = factor*np_radius
 
         return cap
-        
+    
     def init_nanoparticle_radius(self, mean_radius=10.0, std_radius=0.0)->None:
         """
         Sample radii for all nanoparticles from |Gaus(mean_radius,std_radius)|

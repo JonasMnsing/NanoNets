@@ -142,13 +142,18 @@ class tunnel_class(electrostatic.electrostatic_class):
 
     def np_target_electrode_electrostatic_properties(self, target_electrode : int)->None:
 
-        self.idx_np_target  = self.adv_index_cols[np.where(self.adv_index_rows == target_electrode)[0]]
-        self.C_np_target    = 0
-        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[self.idx_np_target])
+        self.idx_np_target  = self.adv_index_cols[target_electrode]
+        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[self.idx_np_target-self.N_electrodes])
+        self.C_np_target    = self.C_np_self # first order approx
+
+        # factor              = 4*3.14159265359*8.85418781762039*0.001*self.eps_s
+        # radius_val          = self.radius_vals[self.idx_np_target-self.N_electrodes]
+        # distance_val        = self.np_distance + radius_val
+        # self.C_np_target    = factor*radius_val*(1 + (radius_val/(2*distance_val)) + (radius_val/(2*distance_val))**2 + (radius_val/(2*distance_val))**3)
 
     def update_floating_electrode(self, target_electrode : int)->None:
 
-        self.potential_vector[target_electrode] = (self.C_np_target/self.C_np_self)*self.potential_vector[self.N_electrodes+self.self.idx_np_target]
+        self.potential_vector[target_electrode] = (self.C_np_target/self.C_np_self)*self.potential_vector[self.idx_np_target]
 
     def init_const_capacitance_values(self)->None:
         """

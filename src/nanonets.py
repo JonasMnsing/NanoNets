@@ -15,6 +15,8 @@ spec = [
     ('const_capacitance_values', float64[::1]),
     ('const_capacitance_values_co1', float64[::1]),
     ('const_capacitance_values_co2', float64[::1]),
+    ('C_np_target', float64),
+    ('C_np_self', float64),
     ('temperatures', float64[::1]),
     ('temperatures_co', float64[::1]),
     ('resistances', float64[::1]),
@@ -173,7 +175,7 @@ class model_class():
                 const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
                 temperatures, temperatures_co, resistances, resistances_co1,
                 resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1,
-                co_adv_index2, co_adv_index3, N_electrodes, N_particles):
+                co_adv_index2, co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self):
         
         # CONST
         self.ele_charge     = 0.160217662
@@ -186,6 +188,8 @@ class model_class():
         self.const_capacitance_values       = const_capacitance_values
         self.const_capacitance_values_co1   = const_capacitance_values_co1
         self.const_capacitance_values_co2   = const_capacitance_values_co2
+        self.C_np_target                    = C_np_target
+        self.C_np_self                      = C_np_self
         self.temperatures                   = temperatures
         self.temperatures_co                = temperatures_co
         self.resistances                    = resistances
@@ -257,7 +261,11 @@ class model_class():
         else:
             self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] + (self.inv_capacitance_matrix[:,np2]
                                                         - self.inv_capacitance_matrix[:,np1])*self.ele_charge
-            
+    
+    def update_floating_electrode(self, target_electrode : int, idx_np_target)->None:
+
+        self.potential_vector[target_electrode] = (self.C_np_target/self.C_np_self)*self.potential_vector[idx_np_target]
+
     def calc_tunnel_rates(self):
         """
         Compute tunnel rates
@@ -490,6 +498,72 @@ class model_class():
                 self.select_co_event(random_number1, random_number2)
             
         return n_jumps
+    
+    def insert_name_here(self, target_electrode : int, error_th=0.05, max_jumps=10000000, jumps_per_stat=1000):
+
+        count                   = 0
+        total_time              = 0
+        self.total_jumps        = 0
+        self.rel_error          = 1.0
+        self.jump_diff_mean     = 0.0
+        self.jump_diff_mean2    = 0.0
+        self.jump_diff_std      = 0.0
+        idx_np_target           = self.adv_index_cols[target_electrode]
+
+        # Initial potential landscape
+        self.calc_potentials()
+
+        # Until the desired relative error is reached or max_jumps is exceeded
+        while((self.rel_error > error_th) and (self.total_jumps < max_jumps)):
+
+            self.time           = 0.0
+            target_potentials   = np.zeros(jumps_per_stat)
+
+            for i in range(jumps_per_stat):
+
+                # KMC Iteration
+                random_number1  = np.random.rand()
+                random_number2  = np.random.rand()
+
+                if not(self.zero_T):
+                    self.calc_tunnel_rates()
+                else:
+                    self.calc_tunnel_rates_zero_T()
+
+                self.select_event(random_number1, random_number2)
+                self.jump_storage[self.jump] += 1
+
+                # Track charge and potential landscape
+                self.charge_mean    += self.charge_vector
+                self.potential_mean += self.potential_vector
+                
+                # Update potential of floating target electrode
+                self.update_floating_electrode(target_electrode, idx_np_target)
+                target_potentials[i] = self.potential_vector[target_electrode]
+            
+            # Update total time and jumps
+            total_time          += self.time
+            self.total_jumps    += jumps_per_stat
+
+            if self.time != 0:
+
+                # Calc new average electrode potential
+                jump_diff_new = np.mean(target_potentials)
+                self.jump_diff_mean, self.jump_diff_mean2, count = self.return_next_means(jump_diff_new, self.jump_diff_mean, self.jump_diff_mean2, count)
+
+            # Update realative error
+            if ((self.jump_diff_mean != 0) and (self.jump != -1)):
+
+                self.calc_rel_error(count)
+
+            elif ((self.jump_diff_mean == 0) and (self.jump != -1)):
+            
+                count -= 1
+
+            else:
+                
+                self.jump_diff_mean = 0.0
+                break
 
     def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000) -> int:
         """
@@ -702,8 +776,7 @@ class model_class():
         self.jump_diff_std              = 0.0
         np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]  
 
-        # beginne immer hier??? / fix potential landscape 
-        self.calc_potentials()        
+        self.calc_potentials()
 
         while((self.rel_error > error_th) and (self.total_jumps < max_jumps)):
 

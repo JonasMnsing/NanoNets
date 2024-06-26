@@ -149,7 +149,7 @@ class electrostatic_class(topology.topology_class):
         cap     = factor*np_radius
 
         return cap
-    
+        
     def init_nanoparticle_radius(self, mean_radius=10.0, std_radius=0.0)->None:
         """
         Sample radii for all nanoparticles from |Gaus(mean_radius,std_radius)|

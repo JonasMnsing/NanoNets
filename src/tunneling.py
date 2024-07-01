@@ -151,10 +151,6 @@ class tunnel_class(electrostatic.electrostatic_class):
         # distance_val        = self.np_distance + radius_val
         # self.C_np_target    = factor*radius_val*(1 + (radius_val/(2*distance_val)) + (radius_val/(2*distance_val))**2 + (radius_val/(2*distance_val))**3)
 
-    def update_floating_electrode(self, target_electrode : int)->None:
-
-        self.potential_vector[target_electrode] = (self.C_np_target/self.C_np_self)*self.potential_vector[self.idx_np_target]
-
     def init_const_capacitance_values(self)->None:
         """
         Initialize an array containing C_ii + C_jj + C_ij as parts from inverse capacitance matrix to calculate free energy
@@ -235,6 +231,10 @@ class tunnel_class(electrostatic.electrostatic_class):
         """
 
         return self.const_capacitance_values, self.const_capacitance_values_co1, self.const_capacitance_values_co2
+    
+    def return_output_electrostatics(self):
+
+        return self.idx_np_target, self.C_np_self, self.C_np_target
     
     def return_particle_electrode_count(self)->float:
         """

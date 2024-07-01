@@ -499,7 +499,7 @@ class model_class():
             
         return n_jumps
     
-    def insert_name_here(self, target_electrode : int, error_th=0.05, max_jumps=10000000, jumps_per_stat=1000):
+    def kmc_simulation_potential(self, target_electrode : int, error_th=0.05, max_jumps=10000000, jumps_per_stat=1000):
 
         count                   = 0
         total_time              = 0
@@ -517,7 +517,7 @@ class model_class():
         while((self.rel_error > error_th) and (self.total_jumps < max_jumps)):
 
             self.time           = 0.0
-            target_potentials   = np.zeros(jumps_per_stat)
+            target_potential    = 0.0
 
             for i in range(jumps_per_stat):
 
@@ -539,16 +539,16 @@ class model_class():
                 
                 # Update potential of floating target electrode
                 self.update_floating_electrode(target_electrode, idx_np_target)
-                target_potentials[i] = self.potential_vector[target_electrode]
-            
+                # target_potentials[i] = self.potential_vector[target_electrode]
+                target_potential += self.potential_vector[target_electrode]
+
             # Update total time and jumps
             total_time          += self.time
             self.total_jumps    += jumps_per_stat
 
             if self.time != 0:
-
                 # Calc new average electrode potential
-                jump_diff_new = np.mean(target_potentials)
+                jump_diff_new = target_potential/jumps_per_stat
                 self.jump_diff_mean, self.jump_diff_mean2, count = self.return_next_means(jump_diff_new, self.jump_diff_mean, self.jump_diff_mean2, count)
 
             # Update realative error
@@ -1126,7 +1126,7 @@ class simulation(tunneling.tunnel_class):
         self.average_jumps   = []
         self.average_cojumps = []
 
-    def run_const_voltages(self, voltages : np.array, target_electrode, T_val=0.0, sim_dic=None, save_th=10, tunnel_order=1):
+    def run_const_voltages(self, voltages : np.array, target_electrode, T_val=0.0, sim_dic=None, save_th=10, tunnel_order=1, jumps_per_stat=1000, output_potential=False):
 
         # Simulation Parameter
         if sim_dic != None:
@@ -1140,12 +1140,14 @@ class simulation(tunneling.tunnel_class):
 
         j = 0
 
+
         for i, voltage_values in enumerate(voltages):
             
             # Based on current voltages get charges and potentials
             self.init_charge_vector(voltage_values=voltage_values)
             self.init_potential_vector(voltage_values=voltage_values)
             self.init_const_capacitance_values()
+            self.np_target_electrode_electrostatic_properties(target_electrode)
 
             # Return Model Arguments
             inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
@@ -1156,6 +1158,8 @@ class simulation(tunneling.tunnel_class):
             adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
             resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
+            idx_np_target, C_np_self, C_np_target                                                   = self.return_output_electrostatics()
+
 
             if self.res_info2 != None:
                 resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
@@ -1163,7 +1167,7 @@ class simulation(tunneling.tunnel_class):
             # Pass all model arguments into Numba optimized Class
             model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
                                     temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                    co_adv_index3, N_electrodes, N_particles)
+                                    co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
 
             # Eqilibrate Potential Landscape
             # eq_jumps = model.reach_equilibrium()
@@ -1171,7 +1175,10 @@ class simulation(tunneling.tunnel_class):
 
             # Production Run until Current at target electrode is less than error_th or max_jumps was passed
             # model.kmc_simulation(target_electrode, error_th, max_jumps)
-            model.kmc_simulation_fixed(target_electrode, error_th, max_jumps)
+            if output_potential:
+                model.kmc_simulation_potential(target_electrode, error_th, max_jumps, jumps_per_stat)
+            else:
+                model.kmc_simulation_fixed(target_electrode, error_th, max_jumps, jumps_per_stat)
             jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
             
             # Append Results to Outputs

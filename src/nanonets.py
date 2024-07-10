@@ -564,84 +564,6 @@ class model_class():
                 
                 self.jump_diff_mean = 0.0
                 break
-
-    def reach_equilibrium(self, min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000) -> int:
-        """
-        Equilibrate the system
-
-        Parameters
-        ----------
-        min_jumps : int
-            Minimum amount of jumps in one equilibration step
-        max_steps : int
-            Maximum number of steps before min_jumps is increased
-        rel_error : float
-            Relative error to be achived for changes in nanoparticle potentials
-        min_nps_eq : float
-            Minimum amount of nanoparticles to be equilibrated so that the system is stated as euilibrated 
-        max_jumps : int
-            Maximum jumps in total before function ends
-        """
-
-        no_equilibrium      = True
-        self.total_jumps    = 0
-        counter             = 0
-        n_trys              = 0
-        N_particles         = len(self.potential_vector) - self.N_electrodes
-        self.time           = 0.0
-
-        mean_potentials_1   = np.zeros(N_particles)
-        mean_potentials_2   = np.zeros(N_particles)
-
-        self.calc_potentials()
-        while(no_equilibrium or (self.total_jumps < min_jumps)):
-
-            if (self.jump == -1):
-                break
-            
-            mean_potentials_1   +=  self.potential_vector[self.N_electrodes:]/max_steps
-            
-            random_number1  = np.random.rand()
-            random_number2  = np.random.rand()
-
-            if self.cotunneling == False:
-                if not(self.zero_T):
-                    self.calc_tunnel_rates()
-                else:
-                    self.calc_tunnel_rates_zero_T()
-                self.select_event(random_number1, random_number2)
-            else:
-                if not(self.zero_T):
-                    self.calc_tunnel_rates()
-                    self.calc_cotunnel_rates()
-                else:
-                    self.calc_tunnel_rates_zero_T()
-                    self.calc_cotunnel_rates_zero_T()
-                self.select_co_event(random_number1, random_number2)
-            
-            counter += 1
-
-            if (counter % max_steps == 0):
-
-                self.total_jumps    += max_steps
-                n_trys              += 1
-
-                if (n_trys % 10 == 0):
-                    max_steps = max_steps*2
-                if (self.total_jumps >= max_jumps):
-                    break
-
-                diff = 2*np.abs(np.abs(mean_potentials_1) - np.abs(mean_potentials_2))/(np.abs(mean_potentials_1) + np.abs(mean_potentials_2))
-                
-                if (np.sum(diff < rel_error)/N_particles >= min_nps_eq):
-                    no_equilibrium = False
-                    
-                mean_potentials_2   = mean_potentials_1
-                mean_potentials_1   = np.zeros(N_particles)
-
-                counter = 0
-        
-        return self.total_jumps
     
     def return_next_means(self, new_value, mean_value, mean_value2, count):
 
@@ -652,104 +574,7 @@ class model_class():
         mean_value2     +=  delta * delta2
 
         return mean_value, mean_value2, count
-    
-    def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=10000000):
-        """
-        Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
-        Tracks Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
-
-        Parameters
-        ----------
-        target_electrode : int
-            electrode index of which electric current is estimated
-        error_th : float
-            relative error in current to be achieved
-        max_jumps : int
-            maximum number of jumps before function ends
-        """
         
-        N_calculations                  = 0
-        self.total_jumps                = 0
-        self.time                       = 0.0
-        self.rel_error                  = 1.0
-        self.counter_output_jumps_pos   = 0
-        self.counter_output_jumps_neg   = 0
-        self.jump_diff_mean             = 0.0
-        self.jump_diff_mean2            = 0.0
-        self.jump_diff_std              = 0.0
-        np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]     
-        self.calc_potentials()
-
-        while(self.rel_error > error_th):
-
-            if ((self.total_jumps == max_jumps) or (self.jump == -1)):
-
-                break
-                        
-            # KMC Part
-            random_number1  = np.random.rand()
-            random_number2  = np.random.rand()
-
-            if self.cotunneling == False:
-                if not(self.zero_T):
-                    self.calc_tunnel_rates()
-                else:
-                    self.calc_tunnel_rates_zero_T()
-                self.select_event(random_number1, random_number2)
-
-                np1 = self.adv_index_rows[self.jump]
-                np2 = self.adv_index_cols[self.jump]
-                self.jump_storage[self.jump]    += 1
-
-            else:
-                
-                if not(self.zero_T):
-                    self.calc_tunnel_rates()
-                    self.calc_cotunnel_rates()
-                else:
-                    self.calc_tunnel_rates_zero_T()
-                    self.calc_cotunnel_rates_zero_T()
-
-                self.select_co_event(random_number1, random_number2)
-
-                if self.co_event_selected:
-                    np1 = self.co_adv_index1[self.jump]
-                    np2 = self.co_adv_index3[self.jump]
-                    self.jump_storage_co[self.jump] += 1
-                else:
-                    np1 = self.adv_index_rows[self.jump]
-                    np2 = self.adv_index_cols[self.jump]
-                    self.jump_storage[self.jump]    += 1
-
-            self.charge_mean    += self.charge_vector
-            self.potential_mean += self.potential_vector
-
-            # If jump from target electrode
-            if (np1 == target_electrode):
-                self.counter_output_jumps_neg += 1
-
-            # If jump towards target electrode
-            if (np2 == target_electrode):
-                self.counter_output_jumps_pos += 1
-                        
-            # Statistics
-            self.total_jumps        +=  1
-            new_value               =   (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
-            delta                   =   new_value - self.jump_diff_mean
-            self.jump_diff_mean     +=  delta/self.total_jumps           
-            delta2                  =   new_value - self.jump_diff_mean
-            self.jump_diff_mean2    +=  delta * delta2
-
-            # Update relative error and standard deviation if target electrode was involved
-            if ((np1 == target_electrode) or (np2 == target_electrode)):
-                N_calculations += 1
-                self.calc_rel_error(N_calculations)
-                
-        if (self.total_jumps < 10):
-            self.jump_diff_mean = 0.0
-
-        self.jump_storage = self.jump_storage/self.time
-    
     def kmc_simulation_fixed(self, target_electrode : int, error_th = 0.05, max_jumps=10000000, jumps_per_stat=1000):
         """
         Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
@@ -784,6 +609,7 @@ class model_class():
             self.counter_output_jumps_pos   = 0
             self.counter_output_jumps_neg   = 0
             self.time                       = 0.0
+            jump_storage_vals               = np.zeros(len(self.adv_index_rows))
 
             for i in range(jumps_per_stat):
             
@@ -801,7 +627,8 @@ class model_class():
 
                     np1 = self.adv_index_rows[self.jump]
                     np2 = self.adv_index_cols[self.jump]
-                    self.jump_storage[self.jump]    += 1
+                    # self.jump_storage[self.jump]    += 1
+                    jump_storage_vals[self.jump]    += 1
 
                 else:
                     
@@ -843,6 +670,8 @@ class model_class():
                 # Calc new average currents
                 jump_diff_new = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
                 self.jump_diff_mean, self.jump_diff_mean2, count = self.return_next_means(jump_diff_new, self.jump_diff_mean, self.jump_diff_mean2, count)
+                
+                self.jump_storage += jump_storage_vals/self.time
 
             # Update realative error
             if ((self.jump_diff_mean != 0) and (self.jump != -1)):
@@ -858,7 +687,7 @@ class model_class():
                 self.jump_diff_mean = 0.0
                 break
               
-        self.jump_storage = self.jump_storage/total_time
+        self.jump_storage = self.jump_storage/count
     
     def kmc_time_simulation(self, target_electrode : int, time_target : float, store_per_it_min=0, store_per_it_max=0):
         """
@@ -940,6 +769,135 @@ class model_class():
         else:
             self.jump_diff_mean = 0
 
+    
+    def logisticFunc(self,x,start,end,turnpoint=0.0,smoothness=1.0):
+        """
+        An inverse Sigmoid-Function
+        x: variable; start: value for -infinit, end: value for +infinit, 
+        turnpoint: Value of the turning point, smoothness: steepness around the turning point
+        """
+        yFactor = 1+np.exp((-1)*smoothness*turnpoint) #ensures that the function always has the value = start for x = 0
+        return yFactor*(start-end)/(1+np.exp(smoothness*(x-turnpoint))) + end
+    
+    def updateResistances(self,currents,smothnessfactor = 1,deltaR = 3):
+        
+        endpoint = 5
+        self.resistances = self.logisticFunc(x = currents,
+                                    start   =self.initialResistance,
+                                    end     =self.initialResistance/deltaR,
+                                    turnpoint   = 1.5*endpoint,
+                                    smoothness  = 4/endpoint*smothnessfactor)
+
+    def kmc_simulation_var_resistance(self, target_electrode : int, error_th = 0.05, max_jumps=10000000, jumps_per_stat=1000, smoothness = 1, tau_0 = 1, deltaR = 3, verbose=False):
+        
+        count                           = 0
+        total_time                      = 0
+        self.total_jumps                = 0
+        self.rel_error                  = 1.0
+        self.jump_diff_mean             = 0.0
+        self.jump_diff_mean2            = 0.0
+        self.jump_diff_std              = 0.0
+        np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]
+        I_tilde                         = np.zeros(len(self.adv_index_rows))
+
+        # For additional information and without time scale bins
+        if (verbose and (jumps_per_stat == max_jumps)):
+
+            self.landscape_per_it   = np.zeros((max_jumps, len(self.potential_vector)))
+            self.resistances_per_it = np.zeros((max_jumps, len(self.adv_index_rows)))
+            self.jump_dist_per_it   = np.zeros((max_jumps, len(self.adv_index_rows)))
+            self.time_vals          = np.zeros(max_jumps)
+        
+        self.calc_potentials()        
+
+        while((self.rel_error > error_th) and (self.total_jumps < max_jumps)):
+
+            # Reset tracked observables
+            self.counter_output_jumps_pos   = 0
+            self.counter_output_jumps_neg   = 0
+            self.time                       = 0.0
+            jump_storage_vals               = np.zeros(len(self.adv_index_rows))
+            
+            for i in range(jumps_per_stat):
+                
+                # Time before event
+                t1  = self.time
+                
+                # Select an event based on rates
+                random_number1  = np.random.rand()
+                random_number2  = np.random.rand()
+
+                if not(self.zero_T):
+                    self.calc_tunnel_rates()
+                else:
+                    self.calc_tunnel_rates_zero_T()
+                
+                self.select_event(random_number1, random_number2) 
+
+                # Selected event, i.e. nanoparticles
+                np1 = self.adv_index_rows[self.jump]
+                np2 = self.adv_index_cols[self.jump]
+                jump_storage_vals[self.jump]    += 1
+
+                # Time after event
+                t2                  = self.time
+                dt                  = t2 - t1
+                
+                # Current contribution to resistance
+                I_tilde             = I_tilde*np.exp(-dt/tau_0)
+                I_tilde[self.jump]  += 1
+
+                # New resistances
+                self.updateResistances(currents=I_tilde, smothnessfactor=smoothness, deltaR=deltaR)
+                
+                # If additional informations are required, track observables
+                if (verbose and (jumps_per_stat == max_jumps)):
+
+                    self.landscape_per_it[i,:]      = self.potential_vector
+                    self.resistances_per_it[i,:]    = self.resistances
+                    self.jump_dist_per_it[i,:]      = jump_storage_vals
+                    self.time_vals[i,:]             = t2
+                
+                # Update average charge and potential distribution
+                self.charge_mean    += self.charge_vector
+                self.potential_mean += self.potential_vector
+                
+                # If jump from target electrode
+                if (np1 == target_electrode):
+                    self.counter_output_jumps_neg += 1
+                    
+                # If jump towards target electrode
+                if (np2 == target_electrode):
+                    self.counter_output_jumps_pos += 1
+
+            self.total_jumps    += i+1
+            total_time          += self.time
+
+            if self.time != 0:
+
+                # Calc new average currents
+                jump_diff_new = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
+                self.jump_diff_mean, self.jump_diff_mean2, count = self.return_next_means(jump_diff_new, self.jump_diff_mean, self.jump_diff_mean2, count)
+
+                self.jump_storage += jump_storage_vals/self.time
+
+            # Update realative error
+            if ((self.jump_diff_mean != 0) and (self.jump != -1)):
+
+                self.calc_rel_error(count)
+
+            elif ((self.jump_diff_mean == 0) and (self.jump != -1)):
+
+                count -= 1
+
+            else:
+                
+                self.jump_diff_mean = 0.0
+                break
+
+        self.jump_storage = self.jump_storage/count
+    
+    
     def return_target_values(self):
         """
         Returns
@@ -1029,7 +987,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 class simulation(tunneling.tunnel_class):
 
     def __init__(self, network_topology : str, topology_parameter : dict, folder='', res_info=None, res_info2=None, np_info=None, np_info2=None,
-                        add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
+                    add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
 
         super().__init__(tunnel_order, seed)
 
@@ -1140,7 +1098,6 @@ class simulation(tunneling.tunnel_class):
 
         j = 0
 
-
         for i, voltage_values in enumerate(voltages):
             
             # Based on current voltages get charges and potentials
@@ -1160,7 +1117,7 @@ class simulation(tunneling.tunnel_class):
             resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
             idx_np_target, C_np_self, C_np_target                                                   = self.return_output_electrostatics()
 
-
+            
             if self.res_info2 != None:
                 resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
 
@@ -1170,15 +1127,14 @@ class simulation(tunneling.tunnel_class):
                                     co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
 
             # Eqilibrate Potential Landscape
-            # eq_jumps = model.reach_equilibrium()
             eq_jumps = model.run_equilibration_steps(eq_steps)
 
             # Production Run until Current at target electrode is less than error_th or max_jumps was passed
-            # model.kmc_simulation(target_electrode, error_th, max_jumps)
             if output_potential:
                 model.kmc_simulation_potential(target_electrode, error_th, max_jumps, jumps_per_stat)
             else:
                 model.kmc_simulation_fixed(target_electrode, error_th, max_jumps, jumps_per_stat)
+            
             jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
             
             # Append Results to Outputs

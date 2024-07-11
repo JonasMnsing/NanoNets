@@ -283,7 +283,7 @@ class model_class():
         
         self.tunnel_rates                   = np.zeros(self.N_rates)
         self.tunnel_rates[free_energy<0]    = -free_energy[free_energy<0]/self.resistances[free_energy<0]
-        
+
     def calc_cotunnel_rates(self):
         """
         Compute cotunnel rates
@@ -312,7 +312,7 @@ class model_class():
         val2[free_energy2<0]    = -free_energy2[free_energy2<0]**2
 
         self.co_tunnel_rates = factor*val1*val2
-            
+    
     def calc_rel_error(self, N_calculations):
         """
         Calculate relative error and standard deviation by welford one pass 
@@ -574,7 +574,7 @@ class model_class():
         mean_value2     +=  delta * delta2
 
         return mean_value, mean_value2, count
-        
+    
     def kmc_simulation_fixed(self, target_electrode : int, error_th = 0.05, max_jumps=10000000, jumps_per_stat=1000):
         """
         Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
@@ -768,27 +768,16 @@ class model_class():
 
         else:
             self.jump_diff_mean = 0
-
-    
-    def logisticFunc(self,x,start,end,turnpoint=0.0,smoothness=1.0):
-        """
-        An inverse Sigmoid-Function
-        x: variable; start: value for -infinit, end: value for +infinit, 
-        turnpoint: Value of the turning point, smoothness: steepness around the turning point
-        """
-        yFactor = 1+np.exp((-1)*smoothness*turnpoint) #ensures that the function always has the value = start for x = 0
-        return yFactor*(start-end)/(1+np.exp(smoothness*(x-turnpoint))) + end
-    
-    def updateResistances(self,currents,smothnessfactor = 1,deltaR = 3):
         
-        endpoint = 5
-        self.resistances = self.logisticFunc(x = currents,
-                                    start   =self.initialResistance,
-                                    end     =self.initialResistance/deltaR,
-                                    turnpoint   = 1.5*endpoint,
-                                    smoothness  = 4/endpoint*smothnessfactor)
+    def update_bimodal_resistance(self, I_tilde, slope : float, shift : float, R_max=30, R_min=20):
 
-    def kmc_simulation_var_resistance(self, target_electrode : int, error_th = 0.05, max_jumps=10000000, jumps_per_stat=1000, smoothness = 1, tau_0 = 1, deltaR = 3, verbose=False):
+        R1 = R_max*self.ele_charge*self.ele_charge*1e-12
+        R2 = R_min*self.ele_charge*self.ele_charge*1e-12
+
+        self.resistances = (R1 - R2)*(-np.tanh(slope*(I_tilde - shift)) + 1)/2 + R2
+
+    def kmc_simulation_var_resistance(self, target_electrode : int, error_th=0.05, max_jumps=10000000, jumps_per_stat=1000,
+                                      slope=1, shift=1, tau_0=1, R_max=30, R_min=20, verbose=False):
         
         count                           = 0
         total_time                      = 0
@@ -848,7 +837,7 @@ class model_class():
                 I_tilde[self.jump]  += 1
 
                 # New resistances
-                self.updateResistances(currents=I_tilde, smothnessfactor=smoothness, deltaR=deltaR)
+                self.update_bimodal_resistance(I_tilde, slope, shift, R_max, R_min)
                 
                 # If additional informations are required, track observables
                 if (verbose and (jumps_per_stat == max_jumps)):
@@ -1008,7 +997,8 @@ class simulation(tunneling.tunnel_class):
         if res_info == None:
             res_info = {
                 "mean_R"    : 25.0,
-                "std_R"     : 0.0    
+                "std_R"     : 0.0,  
+                "dynamic"   : False
             }
         
         self.res_info   = res_info

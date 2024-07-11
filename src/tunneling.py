@@ -302,11 +302,11 @@ class tunnel_class(electrostatic.electrostatic_class):
             Empty Array
         """
 
-        R_megaO     = R*1e-12
-        R_std_megaO = Rstd*1e-12
+        R_megaO     = R*self.ele_charge*self.ele_charge*1e-12
+        R_std_megaO = Rstd*self.ele_charge*self.ele_charge*1e-12
                 
         if self.tunnel_order >= 1:
-            const_R     = np.abs(self.rng.normal(R_megaO*self.ele_charge*self.ele_charge, R_std_megaO*self.ele_charge*self.ele_charge, size=len(self.adv_index_rows)))
+            const_R     = np.abs(self.rng.normal(R_megaO, R_std_megaO, size=len(self.adv_index_rows)))
             const_R_co1 = np.array([])
             const_R_co2 = np.array([])
 
@@ -317,7 +317,7 @@ class tunnel_class(electrostatic.electrostatic_class):
     
     def update_junction_resistances(self, resistance_arr, junctions : list, R=25)->np.array:
         
-        R_megaO = R*1e-12
+        R_megaO = R*self.ele_charge*self.ele_charge*1e-12
 
         for junc in junctions:
 
@@ -354,7 +354,7 @@ class tunnel_class(electrostatic.electrostatic_class):
             Resistances for each tunneling event
         """
 
-        R_megaO = R*1e-12
+        R_megaO = R*self.ele_charge*self.ele_charge*1e-12
         
         for idx in nanoparticles:
 

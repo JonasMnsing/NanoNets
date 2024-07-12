@@ -977,34 +977,68 @@ class simulation(tunneling.tunnel_class):
 
     def __init__(self, network_topology : str, topology_parameter : dict, folder='', res_info=None, res_info2=None, np_info=None, np_info2=None,
                     add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
+        """Defines network topology, electrostatic properties and tunneling junctions for a given type of topology. 
+
+        Parameters
+        ----------
+        network_topology : str
+            Type of network topology. Either use "cubic" to set up a lattice topology or "random" to set up a disordered network topology 
+        topology_parameter : dict
+            Dictonary including information about number of nanoparticles and electrode positions.
+        folder : str, optional
+            Folder where simulation results are saved, by default ''
+        res_info : dict, optional
+            Dictonary including information about resistance values for the first type of nanoparticles, by default None
+        res_info2 : dict, optional
+            Dictonary including information about resistance values for the second type of nanoparticles, by default None
+        np_info : dict, optional
+            Dictonary including information about the first type of nanoparticles, by default None
+        np_info2 : dict, optional
+            Dictonary including information about the second type of nanoparticles, by default None
+        add_to_path : str, optional
+            String which is extended to the file path, by default ""
+        del_n_junctions : int, optional
+            Randomly delete n junctions in a cubic network topology, by default 0
+        gate_nps : _type_, optional
+            Define which nanoparticles are affected by a gate electrode, by default None
+        tunnel_order : int, optional
+            Value either set 1 or 2 to specify whether the simulation considers only first order or also second order tunneling event, by default 1
+        seed : _type_, optional
+            Seed in use, when network properties are randomly sampled, by default None
+
+        Raises
+        ------
+        ValueError
+            _description_
+        """
 
         super().__init__(tunnel_order, seed)
 
         # Type of Network Topology:
         self.network_topology = network_topology
 
-        # NP Parameter of first NP Type
+        # Parameter of first nanoparticle type
         if np_info == None:
             np_info = {
-                "eps_r"         : 2.6,
-                "eps_s"         : 3.9,
-                "mean_radius"   : 10.0,
-                "std_radius"    : 0.0,
-                "np_distance"   : 1.0
+                "eps_r"         : 2.6,  # Permittivity of molecular junction 
+                "eps_s"         : 3.9,  # Permittivity of oxide layer
+                "mean_radius"   : 10.0, # average nanoparticle radius
+                "std_radius"    : 0.0,  # standard deviation of nanoparticle radius
+                "np_distance"   : 1.0   # spacing between nanoparticle shells
             }
 
-        # NP Resistances
+        # First type of nanoparticle resistances
         if res_info == None:
             res_info = {
-                "mean_R"    : 25.0,
-                "std_R"     : 0.0,  
-                "dynamic"   : False
+                "mean_R"    : 25.0, # Average resistance
+                "std_R"     : 0.0,  # Standard deviation of resistances
+                "dynamic"   : False # Dynamic or constant resistances
             }
         
         self.res_info   = res_info
         self.res_info2  = res_info2
 
-        # Set Type of Network Topology
+        # For a cubic topology
         if network_topology == "cubic":
 
             # Path variable
@@ -1026,8 +1060,10 @@ class simulation(tunneling.tunnel_class):
             if np_info2 != None:
                 self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
 
+            # Capacitance Matrix
             self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
 
+        # For a disordered topology
         elif network_topology == "random":
             
             # Path variable
@@ -1038,11 +1074,7 @@ class simulation(tunneling.tunnel_class):
             self.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
             self.graph_to_net_topology()
             self.attach_np_to_gate(gate_nps=gate_nps)
-            
-            # Delete Junctions if porvided
-            if del_n_junctions != 0:
-                self.delete_n_junctions(del_n_junctions)
-                
+                            
             # Electrostatic Properties
             self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
 
@@ -1050,6 +1082,7 @@ class simulation(tunneling.tunnel_class):
             if np_info2 != None:
                 self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
 
+            # Capacitance Matrix
             self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
         
         else:
@@ -1063,7 +1096,7 @@ class simulation(tunneling.tunnel_class):
         self.path2  = folder + 'mean_state_' + path_var
         self.path3  = folder + 'net_currents_' + path_var
 
-        # Output Lists
+        # Simulation Obseravles
         self.output_values   = []
         self.microstates     = []
         self.landscape       = []
@@ -1074,20 +1107,40 @@ class simulation(tunneling.tunnel_class):
         self.average_jumps   = []
         self.average_cojumps = []
 
-    def run_const_voltages(self, voltages : np.array, target_electrode, T_val=0.0, sim_dic=None, save_th=10, tunnel_order=1, jumps_per_stat=1000, output_potential=False):
+    def run_const_voltages(self, voltages : np.array, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, output_potential=False):
+        """Run a kinetic monte carlo simulation for constant electrode voltages to estimate either the constant electric current of
+        the target electrode at constant target electrode voltage or the constant potential of a floating target electrode.
+
+        Parameters
+        ----------
+        voltages : np.array
+            2D-Array of electrode voltages with one simulation per row, and columns defining the electrode indices.
+        target_electrode : int
+            Index of electrode for which the electric current or potential is estimated 
+        T_val : float, optional
+            Network temperature, by default 0.0
+        sim_dic : dict, optional
+            Dictonary including simulation information, by default None
+        save_th : int, optional
+            Store simulation results after each save_th set electrode voltage combinations, by default 10
+        output_potential : bool, optional
+            If true, target electrode is floating and the simulation estimates its potential instead of the electric current, by default False
+        """
 
         # Simulation Parameter
         if sim_dic != None:
-            error_th    = sim_dic['error_th']
-            max_jumps   = sim_dic['max_jumps']
-            eq_steps    = sim_dic['eq_steps']
+            error_th        = sim_dic['error_th']
+            max_jumps       = sim_dic['max_jumps']
+            eq_steps        = sim_dic['eq_steps']
+            jumps_per_stat  = sim_dic['jumps_per_stat']
         else:
-            error_th    = 0.05
-            max_jumps   = 10000000
-            eq_steps    = 100000
+            error_th        = 0.05
+            max_jumps       = 10000000
+            eq_steps        = 100000
+            jumps_per_stat  = 1000
 
         j = 0
-
+        
         for i, voltage_values in enumerate(voltages):
             
             # Based on current voltages get charges and potentials
@@ -1140,7 +1193,7 @@ class simulation(tunneling.tunnel_class):
                 save_target_currents(np.array(self.output_values), voltages[j:(i+1),:], self.path1)
                 save_mean_microstate(self.microstates, self.path2)
                 save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
-                if (tunnel_order != 1):
+                if (self.tunnel_order != 1):
                     save_cojump_storage(self.average_cojumps, co_adv_index1, co_adv_index3, self.path4)
                 self.output_values   = []
                 self.microstates     = []

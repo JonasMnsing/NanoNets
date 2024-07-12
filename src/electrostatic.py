@@ -64,9 +64,7 @@ class electrostatic_class(topology.topology_class):
         super().__init__(seed)
 
     def delete_n_junctions(self, n : int)->None:
-        """
-        Delete n junctions in network at random
-        !!! Auch besser via NetworkX und is_connected lösen !!!
+        """ Delete n junctions in network at random
 
         Parameters
         ----------
@@ -151,8 +149,7 @@ class electrostatic_class(topology.topology_class):
         return cap
         
     def init_nanoparticle_radius(self, mean_radius=10.0, std_radius=0.0)->None:
-        """
-        Sample radii for all nanoparticles from |Gaus(mean_radius,std_radius)|
+        """Sample radii for all nanoparticles from |Gaus(mean_radius,std_radius)|
 
         Parameters
         ----------
@@ -165,8 +162,7 @@ class electrostatic_class(topology.topology_class):
         self.radius_vals  = np.abs(self.rng.normal(loc=mean_radius, scale=std_radius, size=self.N_particles))
 
     def update_nanoparticle_radius(self, nanoparticles : list, mean_radius=10.0, std_radius=0.0)->None:
-        """
-        Sample new radii for given nanoparticles from |Gaus(mean_radius,std_radius)|
+        """Sample new radii for given nanoparticles from |Gaus(mean_radius,std_radius)|
 
         Parameters
         ----------
@@ -181,8 +177,7 @@ class electrostatic_class(topology.topology_class):
         self.radius_vals[nanoparticles] = np.abs(self.rng.normal(loc=mean_radius, scale=std_radius, size=len(nanoparticles)))
         
     def calc_capacitance_matrix(self, eps_r=2.6, eps_s=3.9, np_distance=1.0)->None:
-        """
-        Setup capacitance matrix.
+        """Calculate capacitance matrix.
 
         Parameters
         ----------
@@ -229,13 +224,12 @@ class electrostatic_class(topology.topology_class):
         self.inv_capacitance_matrix = np.linalg.inv(self.capacitance_matrix)
 
     def init_charge_vector(self, voltage_values : np.array)->None:
-        """
-        Initialize offset of charges put into the system by electrodes
+        """Initialize offset of charges put into the system by electrodes
 
         Parameters
         ----------
         voltage_values : array
-           Electrode voltages with [V_e1, V_e2, V_e3, ... V_G]
+           Electrode voltages as np.array([V_e1, V_e2, V_e3, ... V_G])
         """
 
         assert len(voltage_values) == self.N_electrodes + 1, "voltages_values has to have the same length as N_electrodes + 1"

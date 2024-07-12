@@ -73,6 +73,8 @@ class tunnel_class(electrostatic.electrostatic_class):
         self.kb         = 1.38064852e-5
 
     def init_adv_indices(self):
+        """For a given tunnel order, the tunnel junctions are defined
+        """
 
         if self.tunnel_order >= 1:
 
@@ -128,19 +130,25 @@ class tunnel_class(electrostatic.electrostatic_class):
         self.co_adv_index3  = np.array(self.co_adv_index3, dtype=int)
 
     def init_potential_vector(self, voltage_values : np.array)->None:
-        """
-        Initialize potential landscape via electrode voltages
+        """Initialize potential landscape via electrode voltages
 
         Parameters
         ----------
         voltage_values : array
-           Electrode voltages with [V_e1, V_e2, V_e3, ... V_G]
+           Electrode voltages as np.array([V_e1, V_e2, V_e3, ... V_G])
         """
 
         self.potential_vector                       = np.zeros(self.N_electrodes+self.N_particles)
         self.potential_vector[0:self.N_electrodes]  = voltage_values[:-1]
 
     def np_target_electrode_electrostatic_properties(self, target_electrode : int)->None:
+        """Defines electrostatic properties of the target electrode
+
+        Parameters
+        ----------
+        target_electrode : int
+            _description_
+        """
 
         self.idx_np_target  = self.adv_index_cols[target_electrode]
         self.C_np_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[self.idx_np_target-self.N_electrodes])
@@ -152,8 +160,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         # self.C_np_target    = factor*radius_val*(1 + (radius_val/(2*distance_val)) + (radius_val/(2*distance_val))**2 + (radius_val/(2*distance_val))**3)
 
     def init_const_capacitance_values(self)->None:
-        """
-        Initialize an array containing C_ii + C_jj + C_ij as parts from inverse capacitance matrix to calculate free energy
+        """For given tunnel order, initialize an array containing C_ii + C_jj + C_ij as parts from the inverse capacitance matrix to calculate free energy
         """
 
         if self.tunnel_order >= 1:

@@ -55,8 +55,7 @@ class topology_class:
         self.N_electrodes   = 0
 
     def cubic_network(self, N_x : int, N_y : int, N_z : int)->None:
-        """
-        Setup a regular cubic grid of nanoparticles
+        """Define a cubic lattice of nanoparticles
 
         Parameters
         ----------
@@ -67,7 +66,6 @@ class topology_class:
         N_z : int
             Number of nanoparticles in z-direction
         """
-
         self.N_particles    = N_x*N_y*N_z
         nano_particles_pos  = []
         n_NN                = 0
@@ -125,8 +123,7 @@ class topology_class:
             n_NN = 0
         
     def random_network(self, N_particles : int, N_junctions : int)->None:
-        """
-        Setup a random regular network of nanoparticles. The resulting network might be higher dimensional.
+        """Setup a random network of nanoparticles. The resulting network might be higher dimensional.
 
         Parameters
         ----------
@@ -152,11 +149,12 @@ class topology_class:
         self.pos = nx.spring_layout(self.G, pos=self.pos)
 
     def attach_np_to_gate(self, gate_nps=None)->None:
-        """
-        Attach NPs to gate electrode. If gate_nps==None, all NPs are attached
+        """ Attach NPs to gate electrode. If gate_nps==None, all NPs are attached
+        
+        Parameters
         ----------
         gate_nps : array
-            Nanoparticles capacitively couple to gate
+            Nanoparticles capacitively coupled to gate
         """
 
         if gate_nps == None:
@@ -165,13 +163,12 @@ class topology_class:
             self.gate_nps = gate_nps
 
     def add_electrodes_to_random_net(self, electrode_positions : List[List])->None:
-        """
-        Position electrodes to fixed spots (x,y) and attach them to closest nanoparticles
+        """Position electrodes to fixed spots (x,y) and attach them to closest nanoparticles
 
         Parameters
         ----------
         electrode_positions : list
-            List which contains electrode positions [x,y]. Nanoparticles sit inside a box of lengths [1,1].
+            List which contains electrode positions [x,y]. Nanoparticles sit inside a box of lengths [-1,1].
         """
 
         self.N_electrodes   = len(electrode_positions)
@@ -204,8 +201,7 @@ class topology_class:
             self.pos[-node-1] = e_pos
         
     def graph_to_net_topology(self)->None:
-        """
-        Transfer directed graph to net_topology array
+        """Transfer directed graph to net_topology array
         """
     
         net_topology = np.zeros(shape=(self.N_particles,self.N_junctions+1))
@@ -229,9 +225,7 @@ class topology_class:
         self.net_topology = net_topology
 
     def set_electrodes_based_on_pos(self, particle_pos : List[List], N_x : int, N_y : int)->None:
-        """
-        Attach electrode to spcific nanoparticle positions.
-        Only use this method for regular grid like networks
+        """Attach electrode to spcific nanoparticle positions. Only use this method for cubic lattice networks
 
         Parameters
         ----------
@@ -264,8 +258,7 @@ class topology_class:
                 self.pos[-1-n] = (pos[0],pos[1]+1)
 
     def set_electrodes_randomly(self, N_electrodes : int)->None:
-        """
-        Attache electrodes randomly to nanoparticles
+        """Attache electrodes randomly to nanoparticles
         
         Parameters
         ----------

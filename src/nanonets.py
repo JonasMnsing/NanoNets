@@ -38,6 +38,7 @@ spec = [
     ('jump_diff_mean', float64),
     ('jump_diff_mean2', float64),
     ('jump_diff_std', float64),
+    ('jump_diff_means', float64[::1]),
     ('total_jumps', int64),
     ('jump', int64),
     ('cotunneling', boolean),
@@ -575,7 +576,7 @@ class model_class():
 
         return mean_value, mean_value2, count
     
-    def kmc_simulation_fixed(self, target_electrode : int, error_th = 0.05, max_jumps=10000000, jumps_per_stat=1000):
+    def kmc_simulation_fixed(self, target_electrode : int, error_th = 0.05, max_jumps=10000000, jumps_per_stat=1000, kmc_counting=False):
         """
         Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
         Tracks Mean Current, Current standard deviation, average microstate (charge vector), average landscape (potential vector), contribution of each junction
@@ -599,19 +600,27 @@ class model_class():
         self.jump_diff_mean             = 0.0
         self.jump_diff_mean2            = 0.0
         self.jump_diff_std              = 0.0
-        np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]  
+        np1, np2                        = self.adv_index_cols[self.jump], self.adv_index_rows[self.jump]
+        rate_index1                     = np.where(self.adv_index_cols == target_electrode)[0][0]
+        rate_index2                     = np.where(self.adv_index_rows == target_electrode)[0][0]
+
+        self.jump_diff_means            = np.zeros(int(max_jumps/jumps_per_stat))
 
         self.calc_potentials()
 
-        while((self.rel_error > error_th) and (self.total_jumps < max_jumps)):
+        while(((self.rel_error > error_th) and (self.total_jumps < max_jumps)) or (count < 10)):
 
             # Reset tracked observables
             self.counter_output_jumps_pos   = 0
             self.counter_output_jumps_neg   = 0
             self.time                       = 0.0
             jump_storage_vals               = np.zeros(len(self.adv_index_rows))
+            time_values                     = np.zeros(jumps_per_stat)
+            rate_diffs                      = np.zeros(jumps_per_stat)
 
             for i in range(jumps_per_stat):
+
+                t1 = self.time
             
                 # KMC Part
                 random_number1  = np.random.rand()
@@ -623,6 +632,8 @@ class model_class():
                         self.calc_tunnel_rates()
                     else:
                         self.calc_tunnel_rates_zero_T()
+
+                    rate_diffs[i]   = self.tunnel_rates[rate_index1] - self.tunnel_rates[rate_index2]
                     self.select_event(random_number1, random_number2)
 
                     np1 = self.adv_index_rows[self.jump]
@@ -651,6 +662,9 @@ class model_class():
 
                     self.jump_storage[self.jump]    += 1
 
+                t2                  = self.time
+                time_values[i]      = t2-t1
+
                 self.charge_mean    += self.charge_vector
                 self.potential_mean += self.potential_vector
                 
@@ -668,8 +682,13 @@ class model_class():
             if self.time != 0:
 
                 # Calc new average currents
-                jump_diff_new = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
-                self.jump_diff_mean, self.jump_diff_mean2, count = self.return_next_means(jump_diff_new, self.jump_diff_mean, self.jump_diff_mean2, count)
+                if kmc_counting:
+                    jump_diff_new   = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
+                else:
+                    jump_diff_new   = (np.sum(rate_diffs*time_values)/np.sum(time_values))
+
+                self.jump_diff_means[count]                         = jump_diff_new
+                self.jump_diff_mean, self.jump_diff_mean2, count    = self.return_next_means(jump_diff_new, self.jump_diff_mean, self.jump_diff_mean2, count)
                 
                 self.jump_storage += jump_storage_vals/self.time
 
@@ -1098,6 +1117,7 @@ class simulation(tunneling.tunnel_class):
 
         # Simulation Obseravles
         self.output_values   = []
+        self.jump_diff_means = []
         self.microstates     = []
         self.landscape       = []
         self.pot_values      = []
@@ -1133,11 +1153,13 @@ class simulation(tunneling.tunnel_class):
             max_jumps       = sim_dic['max_jumps']
             eq_steps        = sim_dic['eq_steps']
             jumps_per_stat  = sim_dic['jumps_per_stat']
+            kmc_counting    = sim_dic['kmc_counting']
         else:
             error_th        = 0.05
             max_jumps       = 10000000
             eq_steps        = 100000
             jumps_per_stat  = 1000
+            kmc_counting    = False
 
         j = 0
         
@@ -1176,7 +1198,7 @@ class simulation(tunneling.tunnel_class):
             if output_potential:
                 model.kmc_simulation_potential(target_electrode, error_th, max_jumps, jumps_per_stat)
             else:
-                model.kmc_simulation_fixed(target_electrode, error_th, max_jumps, jumps_per_stat)
+                model.kmc_simulation_fixed(target_electrode, error_th, max_jumps, jumps_per_stat, kmc_counting)
             
             jump_diff_mean, jump_diff_std, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
             
@@ -1186,6 +1208,7 @@ class simulation(tunneling.tunnel_class):
             self.landscape.append(mean_potentials)
             self.average_jumps.append(executed_jumps)
             self.average_cojumps.append(executed_cojumps)
+            self.jump_diff_means.append(model.jump_diff_means)
 
             # Store Data
             if ((i+1) % save_th == 0):

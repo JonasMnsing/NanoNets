@@ -150,12 +150,12 @@ class tunnel_class(electrostatic.electrostatic_class):
             _description_
         """
 
-        self.idx_np_target  = self.adv_index_cols[target_electrode]
-        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[self.idx_np_target-self.N_electrodes])
+        idx_np_target       = self.adv_index_cols[target_electrode]
+        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[idx_np_target-self.N_electrodes])
         self.C_np_target    = self.C_np_self # first order approx
 
         # factor              = 4*3.14159265359*8.85418781762039*0.001*self.eps_s
-        # radius_val          = self.radius_vals[self.idx_np_target-self.N_electrodes]
+        # radius_val          = self.radius_vals[idx_np_target-self.N_electrodes]
         # distance_val        = self.np_distance + radius_val
         # self.C_np_target    = factor*radius_val*(1 + (radius_val/(2*distance_val)) + (radius_val/(2*distance_val))**2 + (radius_val/(2*distance_val))**3)
 
@@ -241,7 +241,7 @@ class tunnel_class(electrostatic.electrostatic_class):
     
     def return_output_electrostatics(self):
 
-        return self.idx_np_target, self.C_np_self, self.C_np_target
+        return self.C_np_self, self.C_np_target
     
     def return_particle_electrode_count(self)->float:
         """

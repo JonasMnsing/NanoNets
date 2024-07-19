@@ -39,6 +39,7 @@ spec = [
     ('I_target_mean2', float64),
     ('I_target_error', float64),
     ('I_target_values', float64[::1]),
+    ('time_values', float64[::1]),
     ('total_jumps', int64),
     ('jump', int64),
     ('cotunneling', boolean),
@@ -319,12 +320,10 @@ class model_class():
         Calculate relative error and standard deviation by welford one pass 
         """
 
-        # if (self.I_target_mean != 0.0):
         if N_calculations >= 2:
 
-            self.I_target_error   = np.sqrt(np.abs(self.I_target_mean2) / (N_calculations - 1))/np.sqrt(N_calculations)
-            # self.I_target_error   = np.sqrt(np.abs(self.I_target_mean2) / self.total_jumps)/np.sqrt(N_calculations)
-            self.I_target_error_rel       = self.I_target_error/np.abs(self.I_target_mean)
+            self.I_target_error     = np.sqrt(np.abs(self.I_target_mean2) / (N_calculations - 1))/np.sqrt(N_calculations)
+            self.I_target_error_rel = self.I_target_error/np.abs(self.I_target_mean)
     
     def select_event(self, random_number1 : float, random_number2 : float):
         """
@@ -552,19 +551,26 @@ class model_class():
                 I_target = target_potential/jumps_per_batch
                 self.I_target_mean, self.I_target_mean2, count = self.return_next_means(I_target, self.I_target_mean, self.I_target_mean2, count)
 
-            # Update realative error
-            if ((self.I_target_mean != 0) and (self.jump != -1)):
+            if (self.jump == -1):
+                break
+
+            if (self.I_target_mean != 0):
 
                 self.calc_rel_error(count)
 
-            elif ((self.I_target_mean == 0) and (self.jump != -1)):
-            
-                count -= 1
+            # # Update realative error
+            # if ((self.I_target_mean != 0) and (self.jump != -1)):
 
-            else:
+            #     self.calc_rel_error(count)
+
+            # elif ((self.I_target_mean == 0) and (self.jump != -1)):
+            
+            #     count -= 1
+
+            # else:
                 
-                self.I_target_mean = 0.0
-                break
+            #     self.I_target_mean = 0.0
+            #     break
     
     def return_next_means(self, new_value, mean_value, mean_value2, count):
 
@@ -615,7 +621,8 @@ class model_class():
 
         # For addition informations, track batched electric currents
         if verbose:
-            self.I_target_values = np.zeros(int(max_jumps/jumps_per_batch))
+            self.I_target_values    = np.zeros(int(max_jumps/jumps_per_batch))
+            self.time_values        = np.zeros(int(max_jumps/jumps_per_batch))
 
         count       = 0     # Number of while loops
         time_total  = 0.0   # Total time passed
@@ -624,7 +631,7 @@ class model_class():
         self.calc_potentials()
 
         # While relative error or maximum amount of KMC steps not reached
-        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps))):
+        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < 50)):
 
             # Counting or not
             if kmc_counting:
@@ -713,7 +720,7 @@ class model_class():
                 else:
                     rate_diffs += (rate1 - rate2)*(t2-t1)
 
-            time_total += self.time
+            time_total              +=  self.time
 
             # Update total jumps, average charges, and average potentials
             self.total_jumps    += i+1
@@ -729,21 +736,30 @@ class model_class():
                     I_target   = rate_diffs/self.time
 
                 if verbose:
-                    self.I_target_values[count]                 = I_target
+                    self.I_target_values[count] = I_target
+                    self.time_values[count]     = self.time
+
 
                 self.I_target_mean, self.I_target_mean2, count  = self.return_next_means(I_target, self.I_target_mean, self.I_target_mean2, count)
                 self.I_network                                  += jump_storage_vals/self.time
 
-            # Update realative error
-            if ((self.I_target_mean != 0) and (self.jump != -1)):
-                self.calc_rel_error(count)
-
-            elif ((self.I_target_mean == 0) and (self.jump != -1)):
-                count -= 1
-
-            else:
+            if (self.jump == -1):
                 self.I_target_mean = 0.0
                 break
+
+            if (self.I_target_mean != 0):
+                self.calc_rel_error(count)
+
+            # # Update realative error
+            # if ((self.I_target_mean != 0) and (self.jump != -1)):
+            #     self.calc_rel_error(count)
+
+            # elif ((self.I_target_mean == 0) and (self.jump != -1)):
+            #     count -= 1
+
+            # else:
+            #     self.I_target_mean = 0.0
+            #     break
         
         if count != 0:
             self.I_network      = self.I_network/count
@@ -1251,6 +1267,7 @@ class simulation(tunneling.tunnel_class):
 
             if verbose:
                 self.I_target_values.append(self.ele_charge*model.I_target_values*10**(-6))
+                self.time_values.append(model.time_values)
 
             # Store Data
             if ((i+1) % save_th == 0):

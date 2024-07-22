@@ -631,7 +631,7 @@ class model_class():
         self.calc_potentials()
 
         # While relative error or maximum amount of KMC steps not reached
-        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < 50)):
+        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps))):
 
             # Counting or not
             if kmc_counting:

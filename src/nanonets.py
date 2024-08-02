@@ -669,6 +669,8 @@ class model_class():
         if verbose:
             self.I_target_values    = np.zeros(int(max_jumps/jumps_per_batch))
             self.time_values        = np.zeros(int(max_jumps/jumps_per_batch))
+            self.landscape_per_it   = np.zeros((int(max_jumps/jumps_per_batch), len(self.potential_vector)))
+            self.jump_dist_per_it   = np.zeros((int(max_jumps/jumps_per_batch), len(self.adv_index_rows)))
 
         count       = 0     # Number of while loops
         time_total  = 0.0   # Total time passed
@@ -677,7 +679,7 @@ class model_class():
         self.calc_potentials()
 
         # While relative error or maximum amount of KMC steps not reached
-        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps))):
+        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < 10000)):
 
             # Counting or not
             if kmc_counting:
@@ -781,8 +783,10 @@ class model_class():
                     I_target   = rate_diffs/self.time
 
                 if verbose:
-                    self.I_target_values[count] = I_target
-                    self.time_values[count]     = self.time
+                    self.I_target_values[count]     = I_target
+                    self.time_values[count]         = self.time
+                    self.landscape_per_it[count,:]  = potential_values/self.time
+                    self.jump_dist_per_it[count,:]  = jump_storage_vals
 
 
                 self.I_target_mean, self.I_target_mean2, count  = self.return_next_means(I_target, self.I_target_mean, self.I_target_mean2, count)
@@ -1477,6 +1481,9 @@ class simulation(tunneling.tunnel_class):
             if verbose:
                 self.I_target_values.append(self.ele_charge*model.I_target_values*10**(-6))
                 self.time_values.append(model.time_values)
+                self.pot_per_it.append(landscape_per_it)
+                self.jumps_per_it.append(jump_dist_per_it)
+                
 
             # Store Data
             if ((i+1) % save_th == 0):

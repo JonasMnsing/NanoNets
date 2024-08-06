@@ -668,6 +668,7 @@ class model_class():
         # For addition informations, track batched electric currents
         if verbose:
             self.I_target_values    = np.zeros(int(max_jumps/jumps_per_batch))
+            self.landscape_per_it   = np.zeros((int(max_jumps/jumps_per_batch), len(self.potential_vector)))
             self.time_values        = np.zeros(int(max_jumps/jumps_per_batch))
 
         count       = 0     # Number of while loops
@@ -781,8 +782,9 @@ class model_class():
                     I_target   = rate_diffs/self.time
 
                 if verbose:
-                    self.I_target_values[count] = I_target
-                    self.time_values[count]     = self.time
+                    self.I_target_values[count]     = I_target
+                    self.time_values[count]         = self.time
+                    self.landscape_per_it[count,:]  = potential_values/self.time
 
 
                 self.I_target_mean, self.I_target_mean2, count  = self.return_next_means(I_target, self.I_target_mean, self.I_target_mean2, count)
@@ -1477,6 +1479,7 @@ class simulation(tunneling.tunnel_class):
             if verbose:
                 self.I_target_values.append(self.ele_charge*model.I_target_values*10**(-6))
                 self.time_values.append(model.time_values)
+                self.pot_per_it.append(landscape_per_it)
 
             # Store Data
             if ((i+1) % save_th == 0):

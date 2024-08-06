@@ -1511,7 +1511,8 @@ class simulation(tunneling.tunnel_class):
                 self.average_cojumps = []
                 j                    = i+1
 
-    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, eq_steps=10000, save_th=10, output_potential=False, init=True):
+    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, eq_steps=10000, save_th=10,
+                         output_potential=False, init=True, verbose=False):
         """Run a kinetic monte carlo simulation for time dependent electrode voltages to estimate either the electric current of
         the target electrode at variable target electrode voltage or the variable potential of a floating target electrode.
 
@@ -1605,6 +1606,9 @@ class simulation(tunneling.tunnel_class):
         self.average_jumps      = []
         self.average_cojumps    = []
         j                       = 0
+
+        # Store equilibrated charge distribution
+        q_eq = self.model.charge_vector.copy()
 
         # For each time step, i.e. voltage
         for i, voltage_values in enumerate(voltages[:-1]):

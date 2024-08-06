@@ -52,6 +52,7 @@ spec = [
     ('I_network_co', float64[::1]),
     ('I_tilde', float64[::1]),
     ('jump_dist_per_it', float64[:,::1]),
+    ('resistances_per_it', float64[:,::1]),
     ('landscape_per_it', float64[:,::1]),
     ('time_vals', float64[::1]),
     ('N_rates', int64),
@@ -670,6 +671,8 @@ class model_class():
             self.I_target_values    = np.zeros(int(max_jumps/jumps_per_batch))
             self.landscape_per_it   = np.zeros((int(max_jumps/jumps_per_batch), len(self.potential_vector)))
             self.time_values        = np.zeros(int(max_jumps/jumps_per_batch))
+            self.landscape_per_it   = np.zeros((int(max_jumps/jumps_per_batch), len(self.potential_vector)))
+            self.jump_dist_per_it   = np.zeros((int(max_jumps/jumps_per_batch), len(self.adv_index_rows)))
 
         count       = 0     # Number of while loops
         time_total  = 0.0   # Total time passed
@@ -678,7 +681,7 @@ class model_class():
         self.calc_potentials()
 
         # While relative error or maximum amount of KMC steps not reached
-        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps))):
+        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < 10000)):
 
             # Counting or not
             if kmc_counting:
@@ -785,6 +788,7 @@ class model_class():
                     self.I_target_values[count]     = I_target
                     self.time_values[count]         = self.time
                     self.landscape_per_it[count,:]  = potential_values/self.time
+                    self.jump_dist_per_it[count,:]  = jump_storage_vals
 
 
                 self.I_target_mean, self.I_target_mean2, count  = self.return_next_means(I_target, self.I_target_mean, self.I_target_mean2, count)
@@ -1021,6 +1025,9 @@ class model_class():
         if verbose:
             self.I_target_values    = np.zeros(int(max_jumps/jumps_per_batch))
             self.time_values        = np.zeros(int(max_jumps/jumps_per_batch))
+            self.landscape_per_it   = np.zeros((int(max_jumps/jumps_per_batch), len(self.potential_vector)))
+            self.jump_dist_per_it   = np.zeros((int(max_jumps/jumps_per_batch), len(self.adv_index_rows)))
+            self.resistances_per_it = np.zeros((int(max_jumps/jumps_per_batch), len(self.adv_index_rows)))
 
         # # For additional information and without time scale bins
         # if (verbose and (jumps_per_batch == max_jumps)):
@@ -1037,7 +1044,7 @@ class model_class():
         self.calc_potentials()        
 
         # While relative error or maximum amount of KMC steps not reached
-        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps) or count < 400)):
+        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps) or (count < 10000))):
 
             # Counting or not
             if kmc_counting:
@@ -1048,6 +1055,7 @@ class model_class():
 
             # Reset Array to track occured jumps
             jump_storage_vals   = np.zeros(len(self.adv_index_rows))
+            resistance_vals     = np.zeros(len(self.adv_index_rows))
             time_values         = np.zeros(jumps_per_batch)
             charge_values       = np.zeros(self.N_particles)
             potential_values    = np.zeros(self.N_particles+self.N_electrodes)
@@ -1097,6 +1105,7 @@ class model_class():
 
                 # New resistances
                 self.update_bimodal_resistance(slope, shift, R_max, R_min)
+                resistance_vals += self.resistances*(t2-t1)
 
                 if kmc_counting:
                     # If jump from target electrode
@@ -1132,9 +1141,11 @@ class model_class():
                     I_target   = rate_diffs/self.time
 
                 if verbose:
-                    self.I_target_values[count] = I_target
-                    self.time_values[count]     = self.time
-
+                    self.I_target_values[count]         = I_target
+                    self.time_values[count]             = self.time
+                    self.landscape_per_it[count,:]      = potential_values/self.time
+                    self.jump_dist_per_it[count,:]      = jump_storage_vals
+                    self.resistances_per_it[count,:]    = resistance_vals   
 
                 self.I_target_mean, self.I_target_mean2, count  = self.return_next_means(I_target, self.I_target_mean, self.I_target_mean2, count)
                 self.I_network                                  += jump_storage_vals/self.time
@@ -1367,6 +1378,7 @@ class simulation(tunneling.tunnel_class):
         self.pot_per_it      = []
         self.average_jumps   = []
         self.average_cojumps = []
+        self.res_per_it      = []
 
     def run_const_voltages(self, voltages : np.array, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, output_potential=False, verbose=False):
         """Run a kinetic monte carlo simulation for constant electrode voltages to estimate either the constant electric current of
@@ -1480,6 +1492,9 @@ class simulation(tunneling.tunnel_class):
                 self.I_target_values.append(self.ele_charge*model.I_target_values*10**(-6))
                 self.time_values.append(model.time_values)
                 self.pot_per_it.append(landscape_per_it)
+                self.jumps_per_it.append(jump_dist_per_it)
+                self.res_per_it.append(model.resistances_per_it)
+                
 
             # Store Data
             if ((i+1) % save_th == 0):

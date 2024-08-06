@@ -8,15 +8,12 @@ For a given network of nanoparticles (NPs) with an evolving charge distribution 
     with $t_n$ as the time passed in batch $n$. The issue in this method is the strong dependence of $I_{batch}$ from $N_{batch}$ as small values in $N_{batch}$ might even lead to zero jumps at all for the consider node-to-node junction. Additionaly, if $N_{batch}$ is large we might average over changes in $\vec{q}(t)$ or $\vec{\phi}(t)$ occuring on smaller time frames. Therefore this mehod is only suited for estimating $I$ of the steady network state at large $N_{batch}$ values.  
 2. **$\Gamma$-Method:**
     For a given time $t$ the electric current in between node $i$ and node $j$ can be defined as $I(t) = e \cdot (\Gamma_+(t) - \Gamma_-(t))$ with $\Gamma_+(t)$ as the rate for a charge jumping event from $i$ to $j$ and $\Gamma_-(t)$ as the rate for a charge jumping event from $j$ to $i$. The average electric current for a batch, can then be calculated as
-    \begin{equation}
     $$ I_{batch,n} = \frac{e}{t_n} \sum_{m=0}^{N_{batch}} (\Gamma_+(t_m) - \Gamma_-(t_m)) \cdot t_m $$
     with $t_n$ as the total time passed in batch $n$ and $t_m$ as the time passed for single jump $m$. Here we have the major advantage compared to **Counting-Method** that there is an electric current $I(t_m)$ in each time step $t_m$. This allows us to also cover smaller $N_{batch}$ values, especially suited for time dependent simulations or whenever the network states $\vec{q}(t)$ or $\vec{\phi}(t)$ are non steady on small time frames.
 
 Eventually, as soon as one of those two methods calculated a couple of batched electric currents, for a steady state the final average electric current estimate is given as
-\begin{equation}
 $$ I = \frac{1}{N} \sum_{n=0}^{N} I_{batch,n} $$
 with $N$ as the number of batches. Here we assume that in all batches about the same time $t_1 \approx t_2 \approx ... \approx t_n$ passed. Otherwise we would use
-\begin{equation}
 $$ I = \frac{1}{T} \sum_{n=0}^{N} I_{batch,n} \cdot t_n $$
 The error of our estimated mean is given as 
 $$ e_I = \frac{\sigma}{\sqrt{N}} $$

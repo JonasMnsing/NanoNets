@@ -1181,7 +1181,29 @@ class model_class():
             Number of total jumps
         """
 
-        return self.ele_charge*self.I_target_mean*10**(-6), self.ele_charge*self.I_target_error*10**(-6), self.charge_mean, self.potential_mean, self.ele_charge*self.I_network*10**(-6), self.ele_charge*self.I_network_co*10**(-6), self.landscape_per_it, self.jump_dist_per_it, self.time_vals, self.total_jumps
+        return self.ele_charge*self.I_target_mean*10**(-6), self.ele_charge*self.I_target_error*10**(-6), self.total_jumps
+
+    def return_average_charges(self):
+        return self.charge_mean
+    
+    def return_average_potentials(self):
+        return self.potential_mean
+    
+    def return_network_currents(self):
+        return self.ele_charge*self.I_network*10**(-6)
+    
+    def return_average_resistances(self):
+        return self.resistance_mean
+    
+    def return_landscape_per_it(self):
+        return self.landscape_per_it
+    
+    def return_jump_dist_per_it(self):
+        return self.jump_dist_per_it
+    
+    def return_time_vals(self):
+        return self.time_vals
+
 
 ###################################################################################################
 # FUNCTIONS
@@ -1366,20 +1388,6 @@ class simulation(tunneling.tunnel_class):
         self.path2  = folder + 'mean_state_' + path_var
         self.path3  = folder + 'net_currents_' + path_var
 
-        # Simulation Obseravles
-        self.output_values   = []
-        self.I_target_values = []
-        self.microstates     = []
-        self.landscape       = []
-        self.resistance_mean = []
-        self.pot_values      = []
-        self.jumps_per_it    = []
-        self.time_values     = []
-        self.pot_per_it      = []
-        self.average_jumps   = []
-        self.average_cojumps = []
-        self.res_per_it      = []
-
     def run_const_voltages(self, voltages : np.array, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, output_potential=False, verbose=False):
         """Run a kinetic monte carlo simulation for constant electrode voltages to estimate either the constant electric current of
         the target electrode at constant target electrode voltage or the constant potential of a floating target electrode.
@@ -1415,6 +1423,20 @@ class simulation(tunneling.tunnel_class):
             eq_steps        = 100000
             jumps_per_batch = 1000
             kmc_counting    = False
+
+        # Simulation Obseravles
+        self.output_values   = []
+        self.I_target_values = []
+        self.microstates     = []
+        self.landscape       = []
+        self.resistance_mean = []
+        self.pot_values      = []
+        self.jumps_per_it    = []
+        self.time_values     = []
+        self.pot_per_it      = []
+        self.average_jumps   = []
+        self.average_cojumps = []
+        self.res_per_it      = []
 
         j = 0
         
@@ -1479,23 +1501,21 @@ class simulation(tunneling.tunnel_class):
                 else:
                     model.kmc_simulation_fixed(target_electrode, error_th, max_jumps, jumps_per_batch, kmc_counting, verbose)
             
-            I_target_mean, I_target_error, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = model.return_target_values()
+            I_target_mean, I_target_error, total_jumps = model.return_target_values()
             
             # Append Results to Outputs
             self.output_values.append(np.array([eq_jumps, total_jumps, I_target_mean, I_target_error]))
-            self.microstates.append(mean_state)
-            self.landscape.append(mean_potentials)
-            self.average_jumps.append(executed_jumps)
-            self.average_cojumps.append(executed_cojumps)
+            self.microstates.append(self.model.return_average_charges())
+            self.landscape.append(self.model.return_average_potentials())
+            self.average_jumps.append(self.model.return_network_currents())
 
             if verbose:
                 self.I_target_values.append(self.ele_charge*model.I_target_values*10**(-6))
-                self.time_values.append(model.time_values)
-                self.pot_per_it.append(landscape_per_it)
-                self.jumps_per_it.append(jump_dist_per_it)
+                self.time_values.append(self.model.return_time_vals())
+                self.pot_per_it.append(self.model.return_landscape_per_it())
+                self.jumps_per_it.append(self.model.return_jump_dist_per_it())
                 self.res_per_it.append(model.resistances_per_it)
                 
-
             # Store Data
             if ((i+1) % save_th == 0):
                 
@@ -1511,8 +1531,8 @@ class simulation(tunneling.tunnel_class):
                 self.average_cojumps = []
                 j                    = i+1
 
-    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, eq_steps=10000, save_th=10,
-                         output_potential=False, init=True, verbose=False):
+    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, eq_steps=10000, save=True,
+                         stat_size=50, output_potential=False, init=True, verbose=False):
         """Run a kinetic monte carlo simulation for time dependent electrode voltages to estimate either the electric current of
         the target electrode at variable target electrode voltage or the variable potential of a floating target electrode.
 
@@ -1584,7 +1604,7 @@ class simulation(tunneling.tunnel_class):
                 eq_jumps = self.model.run_equilibration_steps(eq_steps)
 
             # Initial time and Jumps towards and from target electrode
-            self.model.time                     = 0.0
+            self.model.time = 0.0
             
             # Subtract charges induces by initial electrode voltages
             offset                      = self.get_charge_vector_offset(voltage_values=voltages[0])
@@ -1595,70 +1615,68 @@ class simulation(tunneling.tunnel_class):
             eq_jumps = 0
             
         # Reset Obseravles
-        self.output_values      = []
-        self.microstates        = []
-        self.landscape          = []
-        self.resistance_mean    = []
-        self.pot_values         = []
-        self.jumps_per_it       = []
-        self.time_values        = []
-        self.pot_per_it         = []
-        self.average_jumps      = []
-        self.average_cojumps    = []
-        j                       = 0
+        self.output_values      = np.zeros(shape=(voltages.shape[0], 4))
+        self.microstates        = np.zeros(shape=(voltages.shape[0], self.model.N_particles))
+        self.landscape          = np.zeros(shape=(voltages.shape[0], self.model.N_particles+self.model.N_electrodes))
+        self.average_jumps      = np.zeros(shape=(voltages.shape[0], len(self.model.adv_index_rows)))
 
+        if verbose:
+            self.resistance_mean    = np.zeros(shape=(voltages.shape[0], len(self.model.adv_index_rows)))
+        
         # Store equilibrated charge distribution
-        q_eq = self.model.charge_vector.copy()
+        currents    = np.zeros(shape=(stat_size, len(voltages)))
+        q_eq        = self.model.charge_vector.copy()
 
-        # For each time step, i.e. voltage
-        for i, voltage_values in enumerate(voltages[:-1]):
+        for s in range(stat_size):
             
-            # Add charging state electrode voltage
-            offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
-            self.model.charge_vector    = self.model.charge_vector + offset
-            
-            # Define given time and time target
-            self.model.time = time_steps[i]
-            time_target     = time_steps[i+1]
-
-            # Update Electrode Potentials
-            self.model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
-            
-            if self.res_info['dynamic']:
-                self.model.kmc_time_simulation_var_resistance(target_electrode, time_target, slope, shift, tau_0, R_max, R_min)
-            else:
-                self.model.kmc_time_simulation(target_electrode, time_target)
-
-            # Return observables
-            I_target_mean, I_target_error, mean_state, mean_potentials, executed_jumps, executed_cojumps, landscape_per_it, jump_dist_per_it, time_vals, total_jumps = self.model.return_target_values()
-            
-            # Append observables to outputs
-            self.output_values.append(np.array([eq_jumps, total_jumps, I_target_mean, I_target_error]))
-            self.microstates.append(mean_state)
-            self.landscape.append(mean_potentials)
-            self.resistance_mean.append(self.model.resistance_mean)
-            self.average_jumps.append(executed_jumps)
-            self.average_cojumps.append(executed_cojumps)
-            self.jumps_per_it.append(jump_dist_per_it)
-            self.pot_per_it.append(landscape_per_it)
-            self.time_values.append(time_vals)
-
-            # Store Data
-            if ((i+1) % save_th == 0):
+            self.model.charge_vector = q_eq
+        
+            # For each time step, i.e. voltage
+            for i, voltage_values in enumerate(voltages[:-1]):
                 
-                save_target_currents(np.array(self.output_values), voltages[j:(i+1),:], self.path1)
-                save_mean_microstate(self.microstates, self.path2)
-                save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
-                self.output_values      = []
-                self.microstates        = []
-                self.landscape          = []
-                self.average_jumps      = []
-                self.average_cojumps    = []
-                j                       = i+1
-            
-            # Subtract past charging state voltage contribution
-            offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
-            self.model.charge_vector    = self.model.charge_vector - offset
+                # Add charging state electrode voltage
+                offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
+                self.model.charge_vector    = self.model.charge_vector + offset
+                
+                # Define given time and time target
+                self.model.time = time_steps[i]
+                time_target     = time_steps[i+1]
+
+                # Update Electrode Potentials
+                self.model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
+                
+                if self.res_info['dynamic']:
+                    self.model.kmc_time_simulation_var_resistance(target_electrode, time_target, slope, shift, tau_0, R_max, R_min)
+                else:
+                    self.model.kmc_time_simulation(target_electrode, time_target)
+
+                # Return observables
+                I_target_mean, I_target_error, total_jumps = self.model.return_target_values()
+                
+                # Add observables to outputs
+                currents[s,i]           =  I_target_mean           
+                self.output_values[i,:] += np.array([eq_jumps, total_jumps, 0.0, 0.0])/stat_size
+                self.microstates[i,:]   += self.model.return_average_charges()/stat_size
+                self.landscape[i,:]     += self.model.return_average_potentials()/stat_size
+                self.average_jumps[i,:] += self.model.return_network_currents()/stat_size
+                
+                if verbose:
+                    self.resistance_mean += self.model.return_average_resistances()/stat_size
+                
+                # Subtract past charging state voltage contribution
+                offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
+                self.model.charge_vector    = self.model.charge_vector - offset
+
+        # correaltaion_lag1       = np.clip(np.array([np.corrcoef(currents[:-1,i], currents[1:,i])[0,1] for i in range(len(voltages))]), -0.99, 0.99)
+        # auto_correction         = np.sqrt((1+correaltaion_lag1)/(1-correaltaion_lag1))
+        self.output_values[:,2] = np.mean(currents, axis=0)
+        self.output_values[:,3] = np.std(currents, axis=0, ddof=1)/np.sqrt(stat_size)
+        self.output_values      = np.delete(self.output_values,-1,axis=0)
+
+        if save:
+            save_target_currents(self.output_values, voltages, self.path1)
+            save_mean_microstate(self.microstates, self.path2)
+            save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
 
     def clear_outputs(self):
 

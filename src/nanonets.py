@@ -1669,9 +1669,26 @@ class simulation(tunneling.tunnel_class):
 
         # correaltaion_lag1       = np.clip(np.array([np.corrcoef(currents[:-1,i], currents[1:,i])[0,1] for i in range(len(voltages))]), -0.99, 0.99)
         # auto_correction         = np.sqrt((1+correaltaion_lag1)/(1-correaltaion_lag1))
+
+        # n_bootstraps    = 10000
+        # bootstrap_means = np.zeros((n_bootstraps, len(voltages)))
+
+        # for i in range(n_bootstraps):
+
+        #     bootstrap_sample        = np.random.choice(currents.shape[0], size=currents.shape[0], replace=True)
+        #     bootstrap_means[i,:]    = np.mean(currents[bootstrap_sample,:], axis=0)
+        
+        # self.output_values[:,2] = np.mean(bootstrap_means, axis=0)
+        # self.output_values[:,3] = np.percentile(bootstrap_means, 2.5, axis=0)
+        # self.output_values[:,4] = np.percentile(bootstrap_means, 97.5, axis=0)
         self.output_values[:,2] = np.mean(currents, axis=0)
-        self.output_values[:,3] = np.std(currents, axis=0, ddof=1)/np.sqrt(stat_size)
+        self.output_values[:,3] = 1.96*np.std(currents, axis=0, ddof=1)/np.sqrt(stat_size)
+
+        # Delte last row
         self.output_values      = np.delete(self.output_values,-1,axis=0)
+        self.microstates        = np.delete(self.microstates,-1,axis=0)
+        self.landscape          = np.delete(self.landscape,-1,axis=0)
+        self.average_jumps      = np.delete(self.average_jumps,-1,axis=0)
 
         if save:
             save_target_currents(self.output_values, voltages, self.path1)

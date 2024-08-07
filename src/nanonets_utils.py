@@ -714,9 +714,13 @@ def display_network(np_network_sim : nanonets.simulation, fig=None, ax=None, blu
     return fig, ax
 
 def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm', vmin=None, vmax=None,
-                        x_label='$x_{NP}$', y_label='$x_{NP}$'):
+                        x_label='$x_{NP}$', y_label='$y_{NP}$', colorbar=False, interpolation=None, cbar_label=''):
 
-    arr = pd.read_csv(path).loc[row,:].values
+    if type(path) == str:
+        arr = pd.read_csv(path).loc[row,:].values
+    else:
+        arr = path.loc[row,:].values
+    
     arr = arr.reshape(Nx, Ny)
     
     if fig == None:
@@ -724,9 +728,12 @@ def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm
     if ax == None:
         ax = fig.add_subplot()
     
-    ax.imshow(arr, cmap=cmap, vmin=vmin, vmax=vmax, origin='lower')
+    im = ax.imshow(arr, cmap=cmap, vmin=vmin, vmax=vmax, origin='lower', interpolation=interpolation)
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
+
+    if colorbar:
+        fig.colorbar(im, label=cbar_label)
 
     return fig, ax
 

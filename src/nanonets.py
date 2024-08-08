@@ -1218,8 +1218,8 @@ def save_target_currents(output_values : List[np.array], voltages : np.array, pa
     df          = pd.DataFrame(data)
     df.columns  = columns
 
-    df['Current']   = df['Current']*10**(-6)
-    df['Error']   = df['Error']*10**(-6)
+    df['Current']   = df['Current']
+    df['Error']   = df['Error']
 
     if (os.path.isfile(path)):
 
@@ -1243,7 +1243,7 @@ def save_jump_storage(average_jumps : List[np.array], adv_index_rows : np.array,
     avg_j_cols                  = [(adv_index_rows[i],adv_index_cols[i]) for i in range(len(adv_index_rows))]
     average_jumps_df            = pd.DataFrame(average_jumps)
     average_jumps_df.columns    = avg_j_cols
-    average_jumps_df            = average_jumps_df*10**(-6)
+    average_jumps_df            = average_jumps_df
 
     if (os.path.isfile(path)):
         average_jumps_df.to_csv(path, mode='a', header=False, index=False)
@@ -1255,7 +1255,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
     avg_j_cols                  = [(co_adv_index1[i],co_adv_index3[i]) for i in range(len(co_adv_index1))]
     average_jumps_df            = pd.DataFrame(average_cojumps)
     average_jumps_df.columns    = avg_j_cols
-    average_jumps_df            = average_jumps_df*10**(-6)
+    average_jumps_df            = average_jumps_df
 
     if (os.path.isfile(path)):
         average_jumps_df.to_csv(path, mode='a', header=False, index=False)
@@ -1691,7 +1691,7 @@ class simulation(tunneling.tunnel_class):
         self.average_jumps      = np.delete(self.average_jumps,-1,axis=0)
 
         if save:
-            save_target_currents(self.output_values, voltages, self.path1)
+            save_target_currents(self.output_values, np.delete(voltages,-1,axis=0), self.path1)
             save_mean_microstate(self.microstates, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
 

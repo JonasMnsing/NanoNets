@@ -16,5 +16,5 @@ voltages    = np.zeros(shape=(N_voltages,3))
 voltages[:,0]           = np.repeat(off_state, N_voltages)
 voltages[on_t1:on_t2,0] = on_state
 
-np.savetxt("scripts/2_funding_period/WP2/step_input/1I_1O_radius_dis/volt.csv", voltages)
-np.savetxt("scripts/2_funding_period/WP2/step_input/1I_1O_radius_dis/time.csv", time)
+np.savetxt("scripts/2_funding_period/WP2/step_input/1I_1O/volt.csv", voltages)
+np.savetxt("scripts/2_funding_period/WP2/step_input/1I_1O/time.csv", time)

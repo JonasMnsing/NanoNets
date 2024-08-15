@@ -2,7 +2,7 @@ import numpy as np
 
 # Time Scale
 step_size   = 1e-10
-amplitude   = 0.2
+amplitude   = 1.0
 freq1       = 2e8
 freq2       = 7e8
 N_voltages  = 2000
@@ -15,5 +15,5 @@ voltages    = np.zeros(shape=(N_voltages,4))
 voltages[:,0] = amplitude*np.cos(freq1*time)
 voltages[:,1] = amplitude*np.cos(freq2*time)
 
-np.savetxt("scripts/2_funding_period/WP2/freq_double/uniform/volt.csv", voltages)
-np.savetxt("scripts/2_funding_period/WP2/freq_double/uniform/time.csv", time)
+np.savetxt("scripts/2_funding_period/WP2/freq_double/uniform_high/volt.csv", voltages)
+np.savetxt("scripts/2_funding_period/WP2/freq_double/uniform_high/time.csv", time)

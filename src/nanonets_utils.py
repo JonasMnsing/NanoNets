@@ -912,6 +912,14 @@ def return_ndr(arr : np.array)->np.array:
 def return_nls(df : pd.DataFrame, ml_col='Ml', mr_col='Mr', x_col='X', bins=1000)->np.array:
     return expected_value(df[x_col].values, order=2, bins=bins)/(expected_value(df[ml_col].values, order=2, bins=bins) + expected_value(df[mr_col].values, order=2, bins=bins))
 
+def fft(signal, dt, n=None, norm=None):
+
+    n_0         = int(signal.shape[-1]/2)
+    signal_fft  = np.fft.fft(signal, n=n, norm=norm)
+    freq        = 2 * np.pi * np.fft.fftfreq(signal.shape[-1]) / dt
+
+    return freq[:n_0]*1e-9, np.abs(signal_fft[:n_0])
+
 def metropolis_criterion(delta_func, beta):
     return np.exp(-beta * delta_func)
 

@@ -18,24 +18,23 @@ def run_simulation(voltages, time_steps, network_topology, topology_parameter, e
 if __name__ == '__main__':
 
     # Parameter
-    folder              = "scripts/2_funding_period/WP2/freq_double/uniform_high/"
-    stat_size           = 1000
+    folder              = "scripts/2_funding_period/WP2/freq_double/high_F/"
+    stat_size           = 5000
     eq_steps            = 1000000
     network_topology    = "cubic"
     seed                = 0
+    N                   = 7
 
-    for N in range(3,9):
+    # Network Topology
+    topology_parameter  = {
+        "Nx"    :   N,
+        "Ny"    :   N,
+        "Nz"    :   1,
+        "e_pos" :   [[int((N-1)/2),0,0],[0,int((N-1)/2),0],[N-1,N-1,0]],
+    }
 
-        # Network Topology
-        topology_parameter  = {
-            "Nx"    :   N,
-            "Ny"    :   N,
-            "Nz"    :   1,
-            "e_pos" :   [[int((N-1)/2),0,0],[0,int((N-1)/2),0],[N-1,N-1,0]],
-        }
+    # Time / Voltage Values    
+    voltages    = np.loadtxt(folder+'volt.csv')
+    time_steps  = np.loadtxt(folder+'time.csv')
 
-        # Time / Voltage Values    
-        voltages    = np.loadtxt(folder+'volt.csv')
-        time_steps  = np.loadtxt(folder+'time.csv')
-
-        run_simulation(voltages, time_steps, network_topology, topology_parameter, eq_steps, folder, stat_size, seed)
+    run_simulation(voltages, time_steps, network_topology, topology_parameter, eq_steps, folder, stat_size, seed)

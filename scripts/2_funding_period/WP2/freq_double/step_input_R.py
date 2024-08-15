@@ -28,12 +28,11 @@ if __name__ == '__main__':
 
     # Parameter
     folder              = "scripts/2_funding_period/WP2/freq_double/R_dis/"
-    stat_size           = 500
     eq_steps            = 1000000
     network_topology    = "cubic"
     voltages            = np.loadtxt(folder+'volt.csv')
     time_steps          = np.loadtxt(folder+'time.csv')
-    stat_size           = 500
+    stat_size           = 1000
     N                   = 7
 
     # Network Topology

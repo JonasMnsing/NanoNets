@@ -6,6 +6,7 @@ import networkx as nx
 import nanonets
 import scienceplots
 from typing import Union, Tuple, List
+from scipy.signal.windows import hann
 
 blue_color  = '#348ABD'
 red_color   = '#A60628'
@@ -912,13 +913,30 @@ def return_ndr(arr : np.array)->np.array:
 def return_nls(df : pd.DataFrame, ml_col='Ml', mr_col='Mr', x_col='X', bins=1000)->np.array:
     return expected_value(df[x_col].values, order=2, bins=bins)/(expected_value(df[ml_col].values, order=2, bins=bins) + expected_value(df[mr_col].values, order=2, bins=bins))
 
-def fft(signal, dt, n=None, norm=None):
+def fft(signal, dt, n_padded=0, use_hann=True):
+
+    if use_hann:
+
+        bm          = hann(len(signal))
+        signal_w    = signal*bm
+    else:
+        signal_w    = signal.copy()
+    
+    if n_padded != 0:
+        signal_p    = np.pad(signal_w, (0, n_padded - len(signal_w)), 'constant')
+    else:
+        signal_p    = signal_w.copy()
 
     n_0         = int(signal.shape[-1]/2)
-    signal_fft  = np.fft.fft(signal, n=n, norm=norm)
-    freq        = 2 * np.pi * np.fft.fftfreq(signal.shape[-1]) / dt
+    signal_fft  = np.fft.fft(signal_p)
 
-    return freq[:n_0]*1e-9, np.abs(signal_fft[:n_0])
+    if n_padded == 0:
+        freq    = 2 * np.pi * np.fft.fftfreq(signal.shape[-1]) / dt
+
+    else:
+        freq    = 2 * np.pi * np.fft.fftfreq(n_padded) / dt
+
+    return freq[:len(freq)//2]*1e-9, np.abs(signal_fft[:len(freq)//2])
 
 def metropolis_criterion(delta_func, beta):
     return np.exp(-beta * delta_func)

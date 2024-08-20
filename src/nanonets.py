@@ -805,8 +805,7 @@ class model_class():
             self.I_network      = self.I_network/count
             self.charge_mean    = self.charge_mean/time_total
             self.potential_mean = self.potential_mean/time_total
-
-    
+ 
     def kmc_time_simulation(self, target_electrode : int, time_target : float):
         """
         Runs KMC until KMC time exceeds a target value
@@ -1161,8 +1160,7 @@ class model_class():
             self.I_network      = self.I_network/count
             self.charge_mean    = self.charge_mean/time_total
             self.potential_mean = self.potential_mean/time_total
-    
-    
+      
     def return_target_values(self):
         """
         Returns
@@ -1621,7 +1619,7 @@ class simulation(tunneling.tunnel_class):
         self.average_jumps      = np.zeros(shape=(voltages.shape[0], len(self.model.adv_index_rows)))
 
         if verbose:
-            self.resistance_mean    = np.zeros(shape=(voltages.shape[0], len(self.model.adv_index_rows)))
+            self.resistance_mean = np.zeros(shape=(voltages.shape[0], len(self.model.adv_index_rows)))
         
         # Store equilibrated charge distribution
         currents    = np.zeros(shape=(stat_size, len(voltages)))

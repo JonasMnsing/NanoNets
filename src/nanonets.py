@@ -681,7 +681,7 @@ class model_class():
         self.calc_potentials()
 
         # While relative error or maximum amount of KMC steps not reached
-        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < 10000)):
+        while((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)):
 
             # Counting or not
             if kmc_counting:
@@ -1043,7 +1043,7 @@ class model_class():
         self.calc_potentials()        
 
         # While relative error or maximum amount of KMC steps not reached
-        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps) or (count < 10000))):
+        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps))):
 
             # Counting or not
             if kmc_counting:
@@ -1503,15 +1503,15 @@ class simulation(tunneling.tunnel_class):
             
             # Append Results to Outputs
             self.output_values.append(np.array([eq_jumps, total_jumps, I_target_mean, I_target_error]))
-            self.microstates.append(self.model.return_average_charges())
-            self.landscape.append(self.model.return_average_potentials())
-            self.average_jumps.append(self.model.return_network_currents())
+            self.microstates.append(model.return_average_charges())
+            self.landscape.append(model.return_average_potentials())
+            self.average_jumps.append(model.return_network_currents())
 
             if verbose:
                 self.I_target_values.append(self.ele_charge*model.I_target_values*10**(-6))
-                self.time_values.append(self.model.return_time_vals())
-                self.pot_per_it.append(self.model.return_landscape_per_it())
-                self.jumps_per_it.append(self.model.return_jump_dist_per_it())
+                self.time_values.append(model.return_time_vals())
+                self.pot_per_it.append(model.return_landscape_per_it())
+                self.jumps_per_it.append(model.return_jump_dist_per_it())
                 self.res_per_it.append(model.resistances_per_it)
                 
             # Store Data

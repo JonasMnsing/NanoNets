@@ -35,7 +35,7 @@ if __name__ == '__main__':
     time_steps          = np.loadtxt(folder+'time.csv')
     stat_size           = 500
     N                   = 7
-
+    
     # Network Topology
     topology_parameter  = {
         "Nx"    :   N,

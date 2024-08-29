@@ -749,7 +749,11 @@ def display_network_currents(path : str, row, N_electrodes : int, charge_landsca
     ax.axis('off')
 
     df          = pd.read_csv(path)
-    values      = df.loc[row,:].values
+
+    if type(row) != int:
+        values  = df.loc[row[0]:row[1],:].mean().values
+    else:
+        values  = df.loc[row,:].values
     junctions   = np.array([eval(val) for val in df.columns])
 
     values_new      = []
@@ -778,7 +782,11 @@ def display_network_currents(path : str, row, N_electrodes : int, charge_landsca
     G.add_nodes_from(np.arange(np.min(junctions)-N_electrodes, np.max(junctions)+1-N_electrodes))
 
     if charge_landscape:
-        states  = pd.read_csv(path.replace("net_currents", "mean_state")).loc[row,:].values
+
+        if type(row) != int:
+            states  = pd.read_csv(path.replace("net_currents", "mean_state")).loc[row[0]:row[1],:].mean().values
+        else:
+            states  = pd.read_csv(path.replace("net_currents", "mean_state")).loc[row,:].values
         colors  = np.repeat(blue_color, len(G.nodes)-N_electrodes)
         colors[np.where(states < 0)] = red_color
         colors  = np.insert(colors, 0, np.repeat(blue_color, N_electrodes))

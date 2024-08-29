@@ -15,9 +15,9 @@ with electric current standard deviation $\sigma_I$.
 
 ### Uniform Networks:
 <p align='center'>
-    a) <img src=../nbk/plots/network.png width="43%"/>
+    a) <img src=../nbk/plots/network.png width="30%"/>
     &nbsp;
-    b) <img src=../nbk/plots/I_O.png width="47%"/>
+    b) <img src=../nbk/plots/I_O.png width="66%"/>
     a) Network with 49 NPs and two electrodes marked red. b) Output electric current response for variable network sizes. The input electrode voltage signal is marked blue. 
 </p>
 

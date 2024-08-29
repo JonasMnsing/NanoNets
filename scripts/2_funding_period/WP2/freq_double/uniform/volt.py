@@ -2,7 +2,7 @@ import numpy as np
 
 # Time Scale
 step_size   = 1e-10
-amplitude   = 0.2
+amplitude   = 0.5
 freq1       = 2e8
 freq2       = 7e8
 N_voltages  = 2000

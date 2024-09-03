@@ -1,48 +1,50 @@
-"""
-Run KMC Code for const set of voltages with fixed parameters defined in "params.csv" @ folder.
-Output Electrode @ last position in topology_parameter key "pos"
-"""
-
 import numpy as np
 import sys
-import time
 
 # Add to path
 sys.path.append("/home/jonas/phd/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 
 import nanonets
-import nanonets_utils
-import multiprocessing
 
 # Simulation Function
-def parallel_code(thread, voltages, time_steps, topology_parameter, res_info, eq_steps, folder, np_info, T_val, save_th, stat_size, seed):
+def run_simulation(voltages, time_steps, network_topology, topology_parameter, eq_steps, folder, stat_size, seed, freq):
 
     target_electrode = len(topology_parameter["e_pos"]) - 1
     
-    for s in range(stat_size):
-
-        sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter,
-                                        folder=folder+"data/f2/", res_info=res_info, np_info=np_info,
-                                        add_to_path=f'_t{thread}_s{s}', seed=seed)
-        sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
-                                   eq_steps=eq_steps, T_val=T_val, save_th=save_th)
+    sim_class = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, folder=folder+"data/", seed=seed, add_to_path=f'_{np.round(freq,2)}')
+    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, eq_steps=eq_steps, stat_size=stat_size)
 
 if __name__ == '__main__':
 
-    folder      = "scripts/2_funding_period/WP2/cos_input/1I_1O/"
-    voltages    = np.loadtxt(folder+'volt.csv')
-    time_steps  = np.loadtxt(folder+'time.csv')
-    stat_size   = 10
-    seed        = 0
+    # Parameter
+    folder              = "scripts/2_funding_period/WP2/cos_input/uniform/"
+    stat_size           = 1000
+    eq_steps            = 1000000
+    network_topology    = "cubic"
+    seed                = 0
+    N                   = 7
 
-    # Set Seed
-    # np.random.seed(seed)
+    # Network Topology
+    topology_parameter  = {
+        "Nx"    :   N,
+        "Ny"    :   N,
+        "Nz"    :   1,
+        "e_pos" :   [[0,0,0],[N-1,N-1,0]],
+    }
 
-    N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th = nanonets_utils.load_time_params(folder=folder)
+    # Time Scale
+    step_size   = 1e-10
+    N_voltages  = 10000
+    time        = step_size*np.arange(N_voltages)
+    amplitude   = 0.2
+    
+    # Voltages
+    voltages    = np.zeros(shape=(N_voltages,3))
 
-    for i in range(N_processes):
+    for freq in np.arange(0.1,4,0.2):
 
-        process = multiprocessing.Process(target=parallel_code, args=(i, voltages, time_steps, topology_parameter, res_info, eq_steps, folder,
-                                                                      np_info, T_val, save_th, stat_size, seed))
-        process.start()
+        # Input Electrode
+        voltages[:,0] = amplitude*np.cos(freq*time*1e8)
+
+        run_simulation(voltages, time, network_topology, topology_parameter, eq_steps, folder, stat_size, seed, freq)

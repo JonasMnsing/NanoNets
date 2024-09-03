@@ -739,7 +739,7 @@ def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm
     return fig, ax
 
 def display_network_currents(path : str, row, N_electrodes : int, charge_landscape=False, pos=None, fig=None, ax=None,
-                             arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628', position_by_currents=False):
+                             arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628', position_by_currents=False, display_path=None):
 
     if fig == None:
         fig = plt.figure()

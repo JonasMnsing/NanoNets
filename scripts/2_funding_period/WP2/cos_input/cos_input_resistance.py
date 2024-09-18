@@ -6,14 +6,10 @@ sys.path.append("/home/jonas/phd/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 
 import nanonets
-import multiprocessing
 
 # Simulation Function
-def run_simulation(freq, time_steps, network_topology, topology_parameter, eq_steps, folder, stat_size, seed, amplitude, N_voltages):
+def run_simulation(voltages, time_steps, network_topology, topology_parameter, eq_steps, folder, stat_size, seed, freq):
 
-    voltages        = np.zeros(shape=(N_voltages,3))
-    voltages[:,0]   = amplitude*np.cos(freq*time_steps*1e8)
-    
     target_electrode = len(topology_parameter["e_pos"]) - 1
     
     sim_class = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, folder=folder+"data/", seed=seed, add_to_path=f'_{np.round(freq,2)}')
@@ -42,21 +38,13 @@ if __name__ == '__main__':
     N_voltages  = 10000
     time        = step_size*np.arange(N_voltages)
     amplitude   = 0.2
-
-    # Parameter
-    frequencies = np.arange(0.1,2,0.2)
-    # frequencies = np.arange(0.2,2.1,0.2)
-    # frequencies = np.arange(2.1,4,0.2)
-    # frequencies = np.arange(2.2,4.1,0.2)
-    N_processes = len(frequencies)
-
-    procs = []
-    for i in range(N_processes):
-
-        process = multiprocessing.Process(target=run_simulation, args=(frequencies[i], time, network_topology, topology_parameter,
-                                                                       eq_steps, folder, stat_size, seed, amplitude, N_voltages))
-        process.start()
-        procs.append(process)
     
-    for p in procs:
-        p.join()
+    # Voltages
+    voltages    = np.zeros(shape=(N_voltages,3))
+
+    for freq in np.arange(0.1,4,0.2):
+
+        # Input Electrode
+        voltages[:,0] = amplitude*np.cos(freq*time*1e8)
+
+        run_simulation(voltages, time, network_topology, topology_parameter, eq_steps, folder, stat_size, seed, freq)

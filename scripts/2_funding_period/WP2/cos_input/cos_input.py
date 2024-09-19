@@ -44,10 +44,12 @@ if __name__ == '__main__':
     amplitude   = 0.2
 
     # Parameter
-    frequencies = np.arange(0.1,2,0.2)
+    # frequencies = np.arange(0.1,2,0.2)
     # frequencies = np.arange(0.2,2.1,0.2)
     # frequencies = np.arange(2.1,4,0.2)
     # frequencies = np.arange(2.2,4.1,0.2)
+    # frequencies = np.arange(4.1,6,0.2)
+    frequencies = np.arange(4.2,6.1,0.2)
     N_processes = len(frequencies)
 
     procs = []

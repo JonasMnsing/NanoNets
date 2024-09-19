@@ -44,7 +44,7 @@ if __name__ == '__main__':
     time        = step_size*np.arange(N_voltages)
     amplitude   = 0.2
 
-    for R_val in [50,100,200,400,800]:
+    for R_val in [50,100,200]:
 
         for seed in range(10):
 
@@ -58,18 +58,31 @@ if __name__ == '__main__':
             frequencies = np.arange(0.1,2,0.2)
             N_processes = len(frequencies)
 
-            procs = []
-            for i in range(N_processes):
+            # procs = []
+            # for i in range(N_processes):
 
-                process = multiprocessing.Process(target=run_simulation, args=(frequencies[i], time, network_topology, topology_parameter,
-                                                                            eq_steps, folder, stat_size, seed, amplitude, N_voltages, R_val, res_info2))
-                process.start()
-                procs.append(process)
+            #     process = multiprocessing.Process(target=run_simulation, args=(frequencies[i], time, network_topology, topology_parameter,
+            #                                                                 eq_steps, folder, stat_size, seed, amplitude, N_voltages, R_val, res_info2))
+            #     process.start()
+            #     procs.append(process)
             
-            for p in procs:
-                p.join()
+            # for p in procs:
+            #     p.join()
 
-            frequencies = np.arange(2.1,4,0.2)
+            # frequencies = np.arange(2.1,4,0.2)
+
+            # procs = []
+            # for i in range(N_processes):
+
+            #     process = multiprocessing.Process(target=run_simulation, args=(frequencies[i], time, network_topology, topology_parameter,
+            #                                                                 eq_steps, folder, stat_size, seed, amplitude, N_voltages, R_val, res_info2))
+            #     process.start()
+            #     procs.append(process)
+            
+            # for p in procs:
+            #     p.join()
+
+            frequencies = np.arange(4.1,6,0.2)
 
             procs = []
             for i in range(N_processes):

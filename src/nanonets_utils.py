@@ -739,7 +739,8 @@ def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm
     return fig, ax
 
 def display_network_currents(path : str, row, N_electrodes : int, charge_landscape=False, pos=None, fig=None, ax=None,
-                             arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628', position_by_currents=False, display_path=None):
+                             arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628',
+                             position_by_currents=False, display_path=None, edge_vmin=0, edge_vmax=1):
 
     if fig == None:
         fig = plt.figure()
@@ -820,7 +821,7 @@ def display_network_currents(path : str, row, N_electrodes : int, charge_landsca
         for i, key in enumerate(new_keys):
             pos[key] = key_vals[i]
 
-    nx.draw(G=G, pos=pos, ax=ax, edge_color=widths, arrowsize=arrowsize, node_size=states, edge_cmap=plt.cm.Reds, node_color=colors)
+    nx.draw(G=G, pos=pos, ax=ax, edge_color=widths, arrowsize=arrowsize, node_size=states, edge_cmap=plt.cm.Reds, node_color=colors, edge_vmin=edge_vmin, edge_vmax=edge_vmax)
 
     return fig, ax
 

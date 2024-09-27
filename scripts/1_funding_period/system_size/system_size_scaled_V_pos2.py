@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     # Maximum absolute voltage values
     Vc  = 0.05
-    Vg  = 0.1
+    Vg  = 0.0 #0.1
     Vi  = 0.01
 
     # Generate voltage values      
@@ -64,7 +64,8 @@ if __name__ == '__main__':
     v_gates     = np.repeat(np.random.uniform(low=-Vg, high=Vg, size=int(N_voltages/4)),4)
     i1          = np.tile([0.0,0.0,Vi,Vi], int(N_voltages/4))
     i2          = np.tile([0.0,Vi,0.0,Vi], int(N_voltages/4))
-    scales      = [0.69, 0.77, 0.84, 0.92, 1., 1.08, 1.16, 1.23, 1.31, 1.39, 1.47, 1.55, 1.62, 1.7, 1.78, 1.86]
+    # scales      = [0.69, 0.77, 0.84, 0.92, 1., 1.08, 1.16, 1.23, 1.31, 1.39, 1.47, 1.55, 1.62, 1.7, 1.78, 1.86]
+    scales      = [0.75, 0.82, 0.89, 0.96, 1. , 1.06, 1.11, 1.17, 1.22, 1.28, 1.33, 1.41, 1.5 , 1.62, 1.85, 2.13]
 
     # Simulated rows for each process
     index   = [i for i in range(N_voltages)]
@@ -72,9 +73,12 @@ if __name__ == '__main__':
 
     # Simulation Parameter
     sim_dic = {
-        'error_th'  :   0.05,
-        'max_jumps' :   10000000,
-        'eq_steps'  :   100000
+        'error_th'          :   0.05,
+        'max_jumps'         :   10000000,
+        'eq_steps'          :   100000,
+        'jumps_per_batch'   :   1000,
+        'kmc_counting'      :   False,
+        'min_batches'       :   10
     }
 
     # Save Folder

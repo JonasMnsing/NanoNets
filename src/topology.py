@@ -3,6 +3,7 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 from typing import List
+from scipy.spatial import Delaunay
 
 class topology_class:
     """
@@ -135,18 +136,46 @@ class topology_class:
         
         self.N_particles    = N_particles
         self.N_junctions    = N_junctions
-        not_connected       = True
+
+        if N_junctions == 0:
         
-        # Generate random graphs until a graph is connected
-        while not_connected:
+            # Node positions
+            angles  = self.rng.uniform(0,2*np.pi, self.N_particles)
+            radii   = np.sqrt(self.rng.uniform(0, 1, self.N_particles))
+            pos     = [(r * np.cos(a), r * np.sin(a)) for r, a in zip(radii, angles)]
 
-            self.G          = nx.random_regular_graph(N_junctions, self.N_particles)
-            not_connected   = not(nx.is_connected(self.G))
+            self.G  = nx.Graph()
 
-        # Make graph directed and position nanoparticles
-        self.G   = self.G.to_directed()
-        self.pos = nx.kamada_kawai_layout(self.G)
-        self.pos = nx.spring_layout(self.G, pos=self.pos)
+            for i, p in enumerate(pos):
+                self.G.add_node(i, pos=p)
+
+            tri     = Delaunay(pos)
+            edges   = set()
+            for simplex in tri.simplices:
+                for i in range(3):
+                    edge = tuple(sorted([simplex[i], simplex[(i+1) % 3]]))
+                    edges.add(edge)
+            
+            edges = list(edges)
+            self.G.add_edges_from(edges)
+            self.pos = {i : p for i, p in enumerate(pos)}
+
+            self.N_junctions = np.max([val for (node, val) in self.G.degree()])
+
+        else:
+
+            not_connected       = True
+            
+            # Generate random graphs until a graph is connected
+            while not_connected:
+
+                self.G          = nx.random_regular_graph(N_junctions, self.N_particles)
+                not_connected   = not(nx.is_connected(self.G))
+
+            # Make graph directed and position nanoparticles
+            self.G   = self.G.to_directed()
+            self.pos = nx.kamada_kawai_layout(self.G)
+            self.pos = nx.spring_layout(self.G, pos=self.pos)
 
     def attach_np_to_gate(self, gate_nps=None)->None:
         """ Attach NPs to gate electrode. If gate_nps==None, all NPs are attached

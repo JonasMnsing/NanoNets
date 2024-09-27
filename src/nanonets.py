@@ -630,7 +630,7 @@ class model_class():
         return mean_value, mean_value2, count
     
     def kmc_simulation_fixed(self, target_electrode : int, error_th = 0.05, max_jumps=10000000,
-                             jumps_per_batch=1000, kmc_counting=True, verbose=False):
+                             jumps_per_batch=1000, kmc_counting=False, min_batches=10, verbose=False):
         """Runs kinetic Monte Carlo simulation until target electrode electric current reached desired relative error or
         maximum number of steps is exceeded. This algorithm calculates an electric current for fixed batches (number of jumps) and
         updates the average and standard error of the electric current according to those batches.     
@@ -647,6 +647,8 @@ class model_class():
             Number of KMC steps per batch, by default 1000
         kmc_counting : bool, optional
             If True, electric current is calculated based on counting jumps. If False, based on tunnel rates, by default False
+        min_batches : int, optional
+            Minimum number of baatches for statistics, by default 10
         verbose : bool, optional
             If True, simulation tracks additional observables, by default False
         """
@@ -681,7 +683,7 @@ class model_class():
         self.calc_potentials()
 
         # While relative error or maximum amount of KMC steps not reached
-        while((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)):
+        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < min_batches)):
 
             # Counting or not
             if kmc_counting:
@@ -1415,12 +1417,14 @@ class simulation(tunneling.tunnel_class):
             eq_steps        = sim_dic['eq_steps']           # Equilibration Steps
             jumps_per_batch = sim_dic['jumps_per_batch']    # Number of Jumps per batch
             kmc_counting    = sim_dic['kmc_counting']       # Current calculation based on counting jumps
+            min_batches     = sim_dic['min_batches']        # Minimum number of batches 
         else:
             error_th        = 0.05      
             max_jumps       = 10000000
             eq_steps        = 100000
             jumps_per_batch = 1000
             kmc_counting    = False
+            min_batches     = 10
 
         # Simulation Obseravles
         self.output_values   = []
@@ -1497,7 +1501,7 @@ class simulation(tunneling.tunnel_class):
                 if output_potential:
                     model.kmc_simulation_potential(target_electrode, error_th, max_jumps, jumps_per_batch)
                 else:
-                    model.kmc_simulation_fixed(target_electrode, error_th, max_jumps, jumps_per_batch, kmc_counting, verbose)
+                    model.kmc_simulation_fixed(target_electrode, error_th, max_jumps, jumps_per_batch, kmc_counting, min_batches, verbose)
             
             I_target_mean, I_target_error, total_jumps = model.return_target_values()
             

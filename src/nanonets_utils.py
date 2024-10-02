@@ -186,6 +186,7 @@ def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list],
                 df  = pd.read_csv(folder+f"Np={i}_Nj=4_Ne={N_e}.csv")
             else:
                 df  = pd.read_csv(folder+f"Nx={i}_Ny={i}_Nz=1_Ne={N_e}.csv")
+                
             df          = df.round(4)
             df.columns  = columns
             df          = df[new_cols]

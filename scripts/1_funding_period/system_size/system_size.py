@@ -49,7 +49,7 @@ if __name__ == '__main__':
 
     # N_p x N_p Values for Network Size 
     N_p_min = 3
-    N_p_max = 18
+    N_p_max = 16
 
     # Number of voltages and CPU processes
     N_voltages  = 80000 #80640

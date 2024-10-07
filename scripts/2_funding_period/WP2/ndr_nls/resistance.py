@@ -26,17 +26,38 @@ def parallel_code(thread, rows, voltages, topology_parameter, folder, np_info, r
 
 if __name__ == '__main__':
 
-    folder      = "scripts/2_funding_period/WP2/ndr_nls/resistance/"
-    voltages    = np.loadtxt(folder+'volt.csv')
-    N_voltages  = voltages.shape[0]
+    # Number of voltages and CPU processes
+    N_voltages  = 80640
+    N_processes = 36
 
-    N_processes         = 10
+    # Maximum absolute voltage values
+    Vc  = 0.05
+    Vg  = 0#0.2
+    Vi  = 0.01
+
+    # Generate voltage values      
+    v_rand      = np.repeat(np.random.uniform(low=-Vc, high=Vc, size=((int(N_voltages/4),5))), 4, axis=0)
+    v_gates     = np.repeat(np.random.uniform(low=-Vg, high=Vg, size=int(N_voltages/4)),4)
+    i1          = np.tile([0.0,0.0,Vi,Vi], int(N_voltages/4))
+    i2          = np.tile([0.0,Vi,0.0,Vi], int(N_voltages/4))
+
+    # Voltages
+    voltages        = np.zeros(shape=(N_voltages,9))
+    voltages[:,0]   = v_rand[:,0]
+    voltages[:,1]   = i1
+    voltages[:,2]   = v_rand[:,1]
+    voltages[:,3]   = i2
+    voltages[:,4]   = v_rand[:,2]
+    voltages[:,5]   = v_rand[:,3]
+    voltages[:,6]   = v_rand[:,4]
+    voltages[:,-1]  = v_gates
+
     topology_parameter  = {
         "Nx"    :   7,
         "Ny"    :   7,
         "Nz"    :   1,
         "e_pos" :   [[0,0,0],[3,0,0],[6,0,0],[0,3,0],[0,6,0],[6,3,0],[3,6,0],[6,6,0]],
-    } 
+    }
     np_info = {
         "eps_r"         : 2.6,
         "eps_s"         : 3.9,
@@ -50,7 +71,8 @@ if __name__ == '__main__':
         "dynamic"   : False
     }
 
-    rows = [np.arange(j*N_voltages/N_processes,(j+1)*N_voltages/N_processes, dtype=int) for j in range(N_processes)]
+    folder  = "/scratch/tmp/j_mens07/data/ndr_nls_disorder/resistance/"
+    rows    = [np.arange(j*N_voltages/N_processes,(j+1)*N_voltages/N_processes, dtype=int) for j in range(N_processes)]
 
     for i in range(N_processes):
 

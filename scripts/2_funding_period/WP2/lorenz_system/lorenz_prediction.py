@@ -1,53 +1,128 @@
+import multiprocessing
 import numpy as np
 import sys
-sys.path.append("src/")
+
+# Add to path
+sys.path.append("/home/jonas/phd/NanoNets/src/")
+sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 
 # NanoNets Simulation Tool
 import nanonets
-import nanonets_utils
 
-import multiprocessing
+def estimate_z(voltages, time_steps, network_topology, topology_parameter, stat_size, eq_steps):
 
-def parallel_code(thread, time_steps, network_topology, topology_parameter,  np_info, folder, R, Rstd):
-
-    rng         = np.random.default_rng()
-    N_steps     = len(time_steps)
-    input_volt  = rng.normal(0.0,1.0,N_steps)
-
-    # Voltage Array
-    voltages        = np.zeros((N_steps, 9))
-    voltages        = np.zeros((N_steps, 9))
-    voltages[:,0]   = input_volt
-
-    for rem_d in np.arange(0,26,1):
-
-        nanonets_utils.memory_capacity_simulation(time_steps, voltages, train_length=5000, test_length=5000,
-                                                remember_distance=rem_d, folder=folder, np_info=np_info,
-                                                network_topology=network_topology, topology_parameter=topology_parameter,
-                                                save_th=0.1, path_info=f'_{thread}', R=R, Rstd=Rstd)
-        
-if __name__ == '__main__':
-
-    # Define Time Scale
-    step_size   = 1.5e-9
-    max_time    = 1e-4
-    time_steps  = np.arange(0,max_time,step_size)
+    target_electrode = len(topology_parameter["e_pos"]) - 1
     
-    # Network Style
-    network_topology    = "cubic"
-    N_d                 = 7
-    topology_parameter  = {
-        "Nx"    : N_d,
-        "Ny"    : N_d,
-        "Nz"    : 1,
-        "e_pos" : [[0,0,0],[3,0,0],[0,3,0],[6,0,0],[0,6,0],[6,3,0],[3,6,0],[6,6,0]]
-    }
+    sim_class = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter)
+    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, eq_steps=eq_steps, stat_size=stat_size, save=False)
+    output_values = sim_class.return_output_values()
 
-    # Simulation Parameter
-    N_processes = 10
-    folder      = "scripts/ipynb/memory_capacity/data/lattice_without_disorder/"
+    return output_values[:,2]
 
-    for i in range(N_processes):
+def estimate_z_parallel(thread, return_dic, voltages, time_steps, network_topology, topology_parameter, stat_size, eq_steps):
 
-        process = multiprocessing.Process(target=parallel_code, args=(i,time_steps,network_topology,topology_parameter,None,folder,25,0))
+    target_electrode = len(topology_parameter["e_pos"]) - 1
+    
+    sim_class = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter)
+    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, eq_steps=eq_steps, stat_size=stat_size, save=False)
+    output_values = sim_class.return_output_values()
+
+    return_dic[thread]  = output_values[:,2]
+
+def loss_function(z_pred, z_real, transient=1000):
+    
+    return np.mean((z_pred[transient:]-z_real[transient:])**2)
+
+def return_voltage_array(x_vals, control_voltages, N_voltages, topology_parameter):
+
+    voltages            = np.zeros(shape=(N_voltages, len(topology_parameter["e_pos"])+1))
+    voltages[:,0]       = x_vals
+    voltages[:,1:-2]    = np.tile(control_voltages, (N_voltages,1))
+    
+    return voltages
+
+# Parameter
+N_epochs            = 1000
+transient_steps     = 4000
+stat_size           = 1000
+eq_steps            = 0
+folder              = "scripts/2_funding_period/WP2/lorenz_system/"
+network_topology    = 'cubic'
+epsilon             = 0.001
+learning_rate       = 0.01
+
+# Network Topology
+topology_parameter  = {
+    "Nx"    : 7,
+    "Ny"    : 7,
+    "Nz"    : 1,
+    "e_pos" : [[0,0,0],[3,0,0],[0,3,0],[6,0,0],[0,6,0],[6,3,0],[3,6,0],[6,6,0]]
+}
+
+# x_vals and z_vals
+max_input   = 0.2
+max_control = 0.2
+x_vals      = np.loadtxt(f"{folder}x_vals.csv")
+z_vals      = np.loadtxt(f"{folder}z_vals.csv")
+x_vals      = 2*max_input*(x_vals - np.min(x_vals))/(np.max(x_vals) - np.min(x_vals)) - max_input
+z_vals      = 2*max_input*(z_vals - np.min(z_vals))/(np.max(z_vals) - np.min(z_vals)) - max_input
+
+# Time Vals
+step_size   = 1e-10
+N_voltages  = len(x_vals)
+N_controls  = len(topology_parameter["e_pos"]) - 2
+time_steps  = step_size*np.arange(N_voltages)
+
+# Initial control voltages
+control_voltages = np.random.uniform(-max_control, max_control, int(N_controls))
+
+# Multiprocessing Manager
+manager     = multiprocessing.Manager()
+return_dic  = manager.dict()
+
+# Optimization
+for epoch in range(N_epochs):
+
+    print(f'Run : {epoch}')
+    print(f'U_C : {control_voltages}')
+    
+    # For current set of controls run simulation and estimate error
+    voltages        = return_voltage_array(x_vals, control_voltages, N_voltages, topology_parameter)
+    voltages_list   = []
+    voltages_list.append(voltages)
+
+    for i in range(N_controls):
+        voltages_tmp        = voltages.copy()
+        voltages_tmp[:,i+1] += epsilon
+        voltages_list.append(voltages_tmp)
+    
+    # Container for processes and results
+    # manager     = multiprocessing.Manager()
+    # return_dic  = manager.dict()
+    procs       = []
+
+    for thread in range(N_controls+1):
+
+        process = multiprocessing.Process(target=estimate_z_parallel, args=(thread, return_dic, voltages_list[thread], time_steps, network_topology, topology_parameter, stat_size, eq_steps))
         process.start()
+        procs.append(process)
+    
+    for p in procs:
+        p.join()
+
+    # Current prediction and loss
+    z_pred          = return_dic[0]
+    gradients       = np.zeros_like(control_voltages)
+    current_loss    = loss_function(z_pred=z_pred, z_real=z_vals[1:], transient=transient_steps)
+
+    # Calculate gradients
+    for i in range(1, N_controls+1):
+
+        z_pred_eps      = return_dic[i]
+        perturbed_loss  = loss_function(z_pred=z_pred_eps, z_real=z_vals[1:], transient=transient_steps)
+        gradients[i-1]  = (perturbed_loss - current_loss) / epsilon
+
+    # Now update control voltages given the gradients
+    control_voltages -= learning_rate * gradients
+
+    print(f'Error : {current_loss}\n')

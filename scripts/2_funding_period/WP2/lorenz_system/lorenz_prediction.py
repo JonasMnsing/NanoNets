@@ -44,12 +44,14 @@ def return_voltage_array(x_vals, control_voltages, N_voltages, topology_paramete
 # Parameter
 N_epochs            = 1000
 transient_steps     = 4000
-stat_size           = 1000
+stat_size           = 20
 eq_steps            = 0
 folder              = "scripts/2_funding_period/WP2/lorenz_system/"
+save_folder         = "scripts/2_funding_period/WP2/lorenz_system/data/"
 network_topology    = 'cubic'
 epsilon             = 0.001
 learning_rate       = 0.01
+save_nth_epoch      = 1
 
 # Network Topology
 topology_parameter  = {
@@ -60,12 +62,12 @@ topology_parameter  = {
 }
 
 # x_vals and z_vals
-max_input   = 0.2
 max_control = 0.2
+std_input   = 0.2
 x_vals      = np.loadtxt(f"{folder}x_vals.csv")
 z_vals      = np.loadtxt(f"{folder}z_vals.csv")
-x_vals      = 2*max_input*(x_vals - np.min(x_vals))/(np.max(x_vals) - np.min(x_vals)) - max_input
-z_vals      = 2*max_input*(z_vals - np.min(z_vals))/(np.max(z_vals) - np.min(z_vals)) - max_input
+x_vals      = std_input*(x_vals - np.mean(x_vals)) / np.std(x_vals)
+z_vals      = (z_vals - np.mean(z_vals)) / np.std(z_vals)
 
 # Time Vals
 step_size   = 1e-10
@@ -91,38 +93,56 @@ for epoch in range(N_epochs):
     voltages_list   = []
     voltages_list.append(voltages)
 
+    # Append to list
     for i in range(N_controls):
+
         voltages_tmp        = voltages.copy()
         voltages_tmp[:,i+1] += epsilon
         voltages_list.append(voltages_tmp)
+
+        voltages_tmp        = voltages.copy()
+        voltages_tmp[:,i+1] -= epsilon
+        voltages_list.append(voltages_tmp)
     
-    # Container for processes and results
-    # manager     = multiprocessing.Manager()
-    # return_dic  = manager.dict()
-    procs       = []
+    # Container for processes
+    procs   = []
 
-    for thread in range(N_controls+1):
+    # Run parallel simulation
+    for thread in range(2*N_controls+1):
 
-        process = multiprocessing.Process(target=estimate_z_parallel, args=(thread, return_dic, voltages_list[thread], time_steps, network_topology, topology_parameter, stat_size, eq_steps))
+        process = multiprocessing.Process(target=estimate_z_parallel, args=(thread, return_dic, voltages_list[thread], time_steps,
+                                                                            network_topology, topology_parameter, stat_size, eq_steps))
         process.start()
         procs.append(process)
     
+    # Wait for all threads
     for p in procs:
         p.join()
 
-    # Current prediction and loss
-    z_pred          = return_dic[0]
-    gradients       = np.zeros_like(control_voltages)
-    current_loss    = loss_function(z_pred=z_pred, z_real=z_vals[1:], transient=transient_steps)
+    # Gradient Container
+    gradients = np.zeros_like(control_voltages)
 
     # Calculate gradients
-    for i in range(1, N_controls+1):
+    for i in np.arange(1,2*N_controls+1,2):
 
-        z_pred_eps      = return_dic[i]
-        perturbed_loss  = loss_function(z_pred=z_pred_eps, z_real=z_vals[1:], transient=transient_steps)
-        gradients[i-1]  = (perturbed_loss - current_loss) / epsilon
+        z_pred_eps_pos          = return_dic[i]
+        z_pred_eps_neg          = return_dic[i+1]
+        z_pred_eps_pos          = (z_pred_eps_pos - np.mean(z_pred_eps_pos)) / np.std(z_pred_eps_pos)
+        z_pred_eps_neg          = (z_pred_eps_neg - np.mean(z_pred_eps_neg)) / np.std(z_pred_eps_neg)
+        perturbed_loss_pos      = loss_function(z_pred=z_pred_eps_pos, z_real=z_vals[1:], transient=transient_steps)
+        perturbed_loss_neg      = loss_function(z_pred=z_pred_eps_neg, z_real=z_vals[1:], transient=transient_steps)
+        gradients[int((i-1)/2)] = (perturbed_loss_pos - perturbed_loss_neg) / (2*epsilon)
+
+    # Current prediction and loss
+    z_pred  = return_dic[0]
+    z_pred  = (z_pred - np.mean(z_pred)) / np.std(z_pred)
+    loss    = loss_function(z_pred=z_pred, z_real=z_vals[1:], transient=transient_steps)
 
     # Now update control voltages given the gradients
     control_voltages -= learning_rate * gradients
 
-    print(f'Error : {current_loss}\n')
+    print(f"Loss : {loss}")
+
+    # Save prediction
+    if epoch % save_nth_epoch == 0:
+        np.savetxt(fname=f"{save_folder}z_pred_{epoch}.csv", X=z_pred)

@@ -288,7 +288,6 @@ class electrostatic_class(topology.topology_class):
                     offset[i] = voltage_values[-1]*C_self
 
                 else:
-
                     offset[i] = 0.0
 
             else:

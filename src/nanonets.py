@@ -271,7 +271,9 @@ class model_class():
     
     def update_floating_electrode(self, target_electrode : int, idx_np_target)->None:
 
-        self.potential_vector[target_electrode] = (self.C_np_target/self.C_np_self)*self.potential_vector[idx_np_target]
+        self.charge_vector[idx_np_target-self.N_electrodes] -=  self.C_np_target*self.potential_vector[target_electrode]
+        self.potential_vector[target_electrode]             =   (self.C_np_target/self.C_np_self)*self.potential_vector[idx_np_target]
+        self.charge_vector[idx_np_target-self.N_electrodes] +=  self.C_np_target*self.potential_vector[target_electrode]
 
     def calc_tunnel_rates(self):
         """
@@ -604,7 +606,7 @@ class model_class():
                 # Add charge and potential vector
                 charge_values       += self.charge_vector*(t2-t1)
                 potential_values    += self.potential_vector*(t2-t1)
-                
+
                 # Update potential of floating target electrode
                 self.update_floating_electrode(target_electrode, idx_np_target)
                 target_potential += self.potential_vector[target_electrode]*(t2-t1)
@@ -1688,7 +1690,7 @@ class simulation(tunneling.tunnel_class):
                     self.resistance_mean += self.model.return_average_resistances()/stat_size
                 
                 # Subtract past charging state voltage contribution
-                offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
+                # offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
                 self.model.charge_vector    = self.model.charge_vector - offset
 
         # correaltaion_lag1       = np.clip(np.array([np.corrcoef(currents[:-1,i], currents[1:,i])[0,1] for i in range(len(voltages))]), -0.99, 0.99)

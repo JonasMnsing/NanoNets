@@ -546,27 +546,41 @@ class model_class():
 
         return n_jumps
     
-    def kmc_simulation_potential(self, target_electrode : int, error_th=0.05, max_jumps=10000000, jumps_per_batch=1000):
+    def kmc_simulation_potential(self, target_electrode : int, error_th=0.05, max_jumps=10000000,
+                                 jumps_per_batch=1000, min_batches=10):
 
-        count                   = 0
-        total_time              = 0
         self.total_jumps        = 0
-        self.I_target_error_rel          = 1.0
-        self.I_target_mean     = 0.0
-        self.I_target_mean2    = 0.0
-        self.I_target_error      = 0.0
+        self.I_target_error_rel = 1.0
+        self.I_target_mean      = 0.0
+        self.I_target_mean2     = 0.0
+        self.I_target_error     = 0.0
         idx_np_target           = self.adv_index_cols[target_electrode]
+
+        self.charge_mean        = np.zeros(len(self.charge_vector))
+        self.potential_mean     = np.zeros(len(self.potential_vector))
+        self.I_network          = np.zeros(len(self.adv_index_rows))
+
+        count       = 0
+        time_total  = 0
 
         # Initial potential landscape
         self.calc_potentials()
 
         # Until the desired relative error is reached or max_jumps is exceeded
-        while((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)):
+        while(((self.I_target_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < min_batches)):
 
+            # Reset Array to track occured jumps
+            jump_storage_vals   = np.zeros(len(self.adv_index_rows))
+            time_values         = np.zeros(jumps_per_batch)
+            charge_values       = np.zeros(self.N_particles)
+            potential_values    = np.zeros(self.N_particles+self.N_electrodes)
+            
             self.time           = 0.0
             target_potential    = 0.0
 
             for i in range(jumps_per_batch):
+
+                t1 = self.time
 
                 # KMC Iteration
                 random_number1  = np.random.rand()
@@ -578,47 +592,49 @@ class model_class():
                     self.calc_tunnel_rates_zero_T()
 
                 self.select_event(random_number1, random_number2)
-                self.I_network[self.jump] += 1
+                jump_storage_vals[self.jump]    += 1
 
                 # Track charge and potential landscape
                 self.charge_mean    += self.charge_vector
                 self.potential_mean += self.potential_vector
                 
+                t2              = self.time
+                time_values[i]  = t2-t1
+
+                # Add charge and potential vector
+                charge_values       += self.charge_vector*(t2-t1)
+                potential_values    += self.potential_vector*(t2-t1)
+                
                 # Update potential of floating target electrode
                 self.update_floating_electrode(target_electrode, idx_np_target)
-                # target_potentials[i] = self.potential_vector[target_electrode]
-                target_potential += self.potential_vector[target_electrode]
+                target_potential += self.potential_vector[target_electrode]*(t2-t1)
 
-            # Update total time and jumps
-            total_time          += self.time
-            self.total_jumps    += jumps_per_batch
-
+            # Update total jumps, average charges, and average potentials
+            self.total_jumps    += i+1
+            self.charge_mean    += charge_values
+            self.potential_mean += potential_values
+            time_total          += self.time
+            
             if self.time != 0:
+
                 # Calc new average electrode potential
-                I_target = target_potential/jumps_per_batch
-                self.I_target_mean, self.I_target_mean2, count = self.return_next_means(I_target, self.I_target_mean, self.I_target_mean2, count)
+                I_target                                        = target_potential/self.time
+                self.I_target_mean, self.I_target_mean2, count  = self.return_next_means(I_target, self.I_target_mean, self.I_target_mean2, count)
+                self.I_network                                  += jump_storage_vals/self.time
 
             if (self.jump == -1):
+                # self.I_target_mean = 0.0
                 break
 
             if (self.I_target_mean != 0):
 
                 self.calc_rel_error(count)
 
-            # # Update realative error
-            # if ((self.I_target_mean != 0) and (self.jump != -1)):
-
-            #     self.calc_rel_error(count)
-
-            # elif ((self.I_target_mean == 0) and (self.jump != -1)):
-            
-            #     count -= 1
-
-            # else:
-                
-            #     self.I_target_mean = 0.0
-            #     break
-    
+        if count != 0:
+            self.I_network      = self.I_network/count
+            self.charge_mean    = self.charge_mean/time_total
+            self.potential_mean = self.potential_mean/time_total
+ 
     def return_next_means(self, new_value, mean_value, mean_value2, count):
 
         count           +=  1
@@ -1163,7 +1179,7 @@ class model_class():
             self.charge_mean    = self.charge_mean/time_total
             self.potential_mean = self.potential_mean/time_total
       
-    def return_target_values(self):
+    def return_target_values(self, output_potential=False):
         """
         Returns
         -------
@@ -1181,7 +1197,12 @@ class model_class():
             Number of total jumps
         """
 
-        return self.ele_charge*self.I_target_mean*10**(-6), self.ele_charge*self.I_target_error*10**(-6), self.total_jumps
+        if output_potential:
+
+            return self.I_target_mean, self.I_target_error, self.total_jumps
+
+        else:
+            return self.ele_charge*self.I_target_mean*10**(-6), self.ele_charge*self.I_target_error*10**(-6), self.total_jumps
 
     def return_average_charges(self):
         return self.charge_mean
@@ -1500,11 +1521,12 @@ class simulation(tunneling.tunnel_class):
                 # Production Run until Current at target electrode is less than error_th or max_jumps was passed
                 if output_potential:
                     model.kmc_simulation_potential(target_electrode, error_th, max_jumps, jumps_per_batch)
+                
                 else:
                     model.kmc_simulation_fixed(target_electrode, error_th, max_jumps, jumps_per_batch, kmc_counting, min_batches, verbose)
             
-            I_target_mean, I_target_error, total_jumps = model.return_target_values()
-            
+            I_target_mean, I_target_error, total_jumps = model.return_target_values(output_potential)
+
             # Append Results to Outputs
             self.output_values.append(np.array([eq_jumps, total_jumps, I_target_mean, I_target_error]))
             self.microstates.append(model.return_average_charges())

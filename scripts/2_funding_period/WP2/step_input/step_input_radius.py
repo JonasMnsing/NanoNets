@@ -9,6 +9,7 @@ import sys
 # Add to path
 sys.path.append("/home/jonas/phd/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
+sys.path.append("/home/j/j_mens07/phd/NanoNets/src/")
 
 import nanonets
 import nanonets_utils

@@ -4,6 +4,7 @@ import sys
 # Add to path
 sys.path.append("/home/jonas/phd/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
+sys.path.append("/home/j/j_mens07/phd/NanoNets/src/")
 
 import nanonets
 
@@ -23,8 +24,7 @@ if __name__ == '__main__':
     eq_steps            = 1000000
     network_topology    = "cubic"
     seed                = 0
-    scale               = np.array([0.7658, 0.7883, 0.8914, 0.9488, 1.    , 1.0621, 1.1702, 1.1536,
-                                    1.2635, 1.2949])
+    scale               = np.array([0.75, 0.82, 0.89, 0.96, 1.  , 1.06, 1.11, 1.17, 1.22, 1.28, 1.33, 1.41, 1.5 , 1.62, 1.85, 2.13])
 
     for i,N in enumerate(range(3,13)):
 

@@ -9,6 +9,7 @@ import sys
 # Add to path
 sys.path.append("/home/jonas/phd/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
+sys.path.append("/home/j/j_mens07/phd/NanoNets/src/")
 
 import nanonets
 import nanonets_utils
@@ -44,7 +45,7 @@ if __name__ == '__main__':
         "e_pos" :   [[0,0,0],[N-1,N-1,0]],
     }
 
-    for R_val in [50,100,200,400,800,1600,3200,6400,12800]:
+    for R_val in [50,100,200,400,800,1600,3200,6400]:
 
         procs = []
         for seed in range(10):

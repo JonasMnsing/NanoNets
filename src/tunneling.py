@@ -153,13 +153,10 @@ class tunnel_class(electrostatic.electrostatic_class):
         idx_np_target       = self.adv_index_cols[target_electrode]
         radius              = self.radius_vals[idx_np_target-self.N_electrodes]
         self.C_np_self      = self.self_capacitance_sphere(self.eps_s, radius)
-        self.C_np_target    = self.mutal_capacitance_adjacent_spheres(self.eps_r, radius, radius, self.np_distance, N_vals=N_vals)
-        # self.C_np_target    = self.C_np_self # first order approx
+        # self.C_np_target    = self.mutal_capacitance_adjacent_spheres(self.eps_r, radius, radius, self.np_distance, N_vals=N_vals)
+        self.C_np_target    = self.mutal_capacitance_sphere_plane(self.eps_r, radius, self.np_distance)
 
-        # factor              = 4*3.14159265359*8.85418781762039*0.001*self.eps_s
-        # radius_val          = self.radius_vals[idx_np_target-self.N_electrodes]
-        # distance_val        = self.np_distance + radius_val
-        # self.C_np_target    = factor*radius_val*(1 + (radius_val/(2*distance_val)) + (radius_val/(2*distance_val))**2 + (radius_val/(2*distance_val))**3)
+        # self.C_np_target    = self.C_np_self # first order approx
 
     def init_const_capacitance_values(self)->None:
         """For given tunnel order, initialize an array containing C_ii + C_jj + C_ij as parts from the inverse capacitance matrix to calculate free energy

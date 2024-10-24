@@ -141,7 +141,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         self.potential_vector                       = np.zeros(self.N_electrodes+self.N_particles)
         self.potential_vector[0:self.N_electrodes]  = voltage_values[:-1]
 
-    def np_target_electrode_electrostatic_properties(self, target_electrode : int)->None:
+    def np_target_electrode_electrostatic_properties(self, target_electrode : int, N_vals=100)->None:
         """Defines electrostatic properties of the target electrode
 
         Parameters
@@ -151,8 +151,10 @@ class tunnel_class(electrostatic.electrostatic_class):
         """
 
         idx_np_target       = self.adv_index_cols[target_electrode]
-        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[idx_np_target-self.N_electrodes])
-        self.C_np_target    = self.C_np_self # first order approx
+        radius              = self.radius_vals[idx_np_target-self.N_electrodes]
+        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, radius)
+        self.C_np_target    = self.mutal_capacitance_adjacent_spheres(self.eps_r, radius, radius, self.np_distance, N_vals=N_vals)
+        # self.C_np_target    = self.C_np_self # first order approx
 
         # factor              = 4*3.14159265359*8.85418781762039*0.001*self.eps_s
         # radius_val          = self.radius_vals[idx_np_target-self.N_electrodes]

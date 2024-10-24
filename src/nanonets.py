@@ -272,7 +272,7 @@ class model_class():
     def update_floating_electrode(self, target_electrode : int, idx_np_target)->None:
 
         self.charge_vector[idx_np_target-self.N_electrodes] -=  self.C_np_target*self.potential_vector[target_electrode]
-        self.potential_vector[target_electrode]             =   (self.C_np_target/self.C_np_self)*self.potential_vector[idx_np_target]
+        self.potential_vector[target_electrode]             =   (self.C_np_target/(self.C_np_self+self.C_np_target))*self.potential_vector[idx_np_target]
         self.charge_vector[idx_np_target-self.N_electrodes] +=  self.C_np_target*self.potential_vector[target_electrode]
 
     def calc_tunnel_rates(self):

@@ -56,7 +56,7 @@ class tunnel_class(electrostatic.electrostatic_class):
     -------
     """
 
-    def __init__(self, tunnel_order=1, seed=None)->None:
+    def __init__(self, electrode_type, tunnel_order=1, seed=None)->None:
         """
         Parameters
         ----------
@@ -64,7 +64,7 @@ class tunnel_class(electrostatic.electrostatic_class):
             Consider either next neighbor hopping (tunnel_order=1) or also second neighbor hopping (tunnel_order=1)
         """
 
-        super().__init__(seed)
+        super().__init__(electrode_type, seed)
         
         self.tunnel_order = tunnel_order
 
@@ -141,7 +141,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         self.potential_vector                       = np.zeros(self.N_electrodes+self.N_particles)
         self.potential_vector[0:self.N_electrodes]  = voltage_values[:-1]
 
-    def np_target_electrode_electrostatic_properties(self, target_electrode : int, N_vals=100)->None:
+    def np_target_electrode_electrostatic_properties(self)->None:
         """Defines electrostatic properties of the target electrode
 
         Parameters
@@ -149,13 +149,19 @@ class tunnel_class(electrostatic.electrostatic_class):
         target_electrode : int
             _description_
         """
-
-        idx_np_target       = self.adv_index_cols[target_electrode]
-        radius              = self.radius_vals[idx_np_target-self.N_electrodes]
-        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, radius)
+        
+        # Select radius of NPs adjacent to electrodes
+        np_indices          = self.adv_index_cols[np.arange(self.N_electrodes)]
+        radius_vals         = self.radius_vals[np_indices-self.N_electrodes]
+        
+        # Capacitance between electrodes and NPs
+        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, radius_vals)
         # self.C_np_target    = self.mutal_capacitance_adjacent_spheres(self.eps_r, radius, radius, self.np_distance, N_vals=N_vals)
-        self.C_np_target    = self.mutal_capacitance_sphere_plane(self.eps_r, radius, self.np_distance)
+        self.C_np_target    = self.mutal_capacitance_sphere_plane(self.eps_r, radius_vals)
 
+        # If Electrode is constant, Capacitance not needed
+        self.C_np_self[self.electrode_type != 'floating']    = 0.0
+        self.C_np_target[self.electrode_type != 'floating']  = 1.0
         # self.C_np_target    = self.C_np_self # first order approx
 
     def init_const_capacitance_values(self)->None:
@@ -377,6 +383,7 @@ if __name__ == "__main__":
     # Parameter
     N_x, N_y, N_z       = 3,3,1
     electrode_pos       = [[0,0,0],[2,0,0],[0,2,0],[2,2,0]]
+    electrode_type      = ['constant','floating','floating','constant']
     radius, radius_std  = 10.0, 0.0
     eps_r, eps_s        = 2.6, 3.9
     np_distance         = 1
@@ -384,7 +391,7 @@ if __name__ == "__main__":
     tunnel_order        = 1
 
     # Network Initialization
-    cubic_system  = tunnel_class(tunnel_order)
+    cubic_system  = tunnel_class(electrode_type, tunnel_order)
     cubic_system.cubic_network(N_x, N_y, N_z)
     cubic_system.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
     cubic_system.attach_np_to_gate()
@@ -392,6 +399,7 @@ if __name__ == "__main__":
     cubic_system.calc_capacitance_matrix(eps_r, eps_s, np_distance)
     cubic_system.init_charge_vector(voltage_values)
     cubic_system.init_adv_indices()
+    cubic_system.np_target_electrode_electrostatic_properties()
 
     # Return Class Attributes
     topology_arr            = cubic_system.return_net_topology()
@@ -410,3 +418,8 @@ if __name__ == "__main__":
 
     print("Tunnel Origins:\n", adv_index_rows)
     print("Tunnel Targets:\n", adv_index_cols)
+
+    C_np_self, C_np_target  = cubic_system.return_output_electrostatics()
+
+    print("Self Capacitance for floating Electrodes:\n", C_np_self)
+    print("Mutual Capacitance for floating Electrodes:\n", C_np_target)

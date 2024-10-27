@@ -59,9 +59,10 @@ class electrostatic_class(topology.topology_class):
     return_inv_capacitance_matrix()
     """
     
-    def __init__(self, seed=None)->None:
+    def __init__(self, electrode_type, seed=None)->None:
 
         super().__init__(seed)
+        self.electrode_type = np.array(electrode_type)
 
     def delete_n_junctions(self, n : int)->None:
         """ Delete n junctions in network at random
@@ -99,7 +100,7 @@ class electrostatic_class(topology.topology_class):
             self.net_topology[np1,np2]          = -100
             self.net_topology[np1_2,np2_2+1]    = -100
 
-    def mutal_capacitance_sphere_plane(self, eps_r : float, np_radius : float, np_distance : float)->float:
+    def mutal_capacitance_sphere_plane(self, eps_r : float, np_radius : float)->float:
 
         cap = 2*3.14159265359*8.85418781762039*0.001*eps_r*np_radius
 
@@ -219,7 +220,7 @@ class electrostatic_class(topology.topology_class):
 
                     if (j == 0):
 
-                        C_sum += self.mutal_capacitance_sphere_plane(eps_r, self.radius_vals[i], np_distance) # self.C_lead[i,j] 
+                        C_sum += self.mutal_capacitance_sphere_plane(eps_r, self.radius_vals[i]) # self.C_lead[i,j] 
                         # C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[i], np_distance) # self.C_lead[i,j] 
 
                     else:
@@ -267,12 +268,12 @@ class electrostatic_class(topology.topology_class):
                 electrode_index = int(self.net_topology[i,0] - 1)
                 
                 if self.gate_nps[i] == 1:
-                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
+                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i])
                     # C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
                     C_self  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
                     self.charge_vector[i] = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
                 else:
-                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
+                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i])
                     # C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
                     self.charge_vector[i] = voltage_values[electrode_index]*C_lead
 
@@ -311,12 +312,12 @@ class electrostatic_class(topology.topology_class):
                 electrode_index = int(self.net_topology[i,0] - 1)
                 
                 if self.gate_nps[i] == 1:
-                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
+                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i])
                     # C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
                     C_self  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
                     offset[i] = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
                 else:
-                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
+                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i])
                     # C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
                     offset[i] = voltage_values[electrode_index]*C_lead
 
@@ -369,15 +370,16 @@ class electrostatic_class(topology.topology_class):
 if __name__ == '__main__':
 
     # Parameter
-    N_x, N_y, N_z       = 5,5,1
-    electrode_pos       = [[0,0,0],[4,4,0]]
+    N_x, N_y, N_z       = 3,3,1
+    electrode_pos       = [[0,0,0],[N_x-1,0,0],[0,N_y-1,0],[N_x-1,N_y-1,0]]
     radius, radius_std  = 10.0, 0.0
     eps_r, eps_s        = 2.6, 3.9
     np_distance         = 1
-    voltage_values      = [0.0,0.0,0.0]
+    voltage_values      = [0.1,0.2,-0.1,0.3,0.0]
+    electrode_type      = ['constant','floating','floating','floating']
 
     # Electrostatic
-    cubic_electrostatic = electrostatic_class()
+    cubic_electrostatic = electrostatic_class(electrode_type)
     cubic_electrostatic.cubic_network(N_x, N_y, N_z)
     cubic_electrostatic.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
     cubic_electrostatic.attach_np_to_gate()
@@ -393,5 +395,5 @@ if __name__ == '__main__':
     print("Inverse Capacitance Matrix:\n", inv_capacitance_matrix)
     print("Initial Charge Vector:\n", charge_vector)
 
-
+    
 

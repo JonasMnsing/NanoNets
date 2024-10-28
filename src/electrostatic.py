@@ -100,9 +100,13 @@ class electrostatic_class(topology.topology_class):
             self.net_topology[np1,np2]          = -100
             self.net_topology[np1_2,np2_2+1]    = -100
 
-    def mutal_capacitance_sphere_plane(self, eps_r : float, np_radius : float)->float:
+    def mutal_capacitance_sphere_plane(self, eps_r : float, np_radius : float, np_distance : float)->float:
 
-        cap = 2*3.14159265359*8.85418781762039*0.001*eps_r*np_radius
+        # cap = 2*3.14159265359*8.85418781762039*0.001*eps_r*np_radius
+
+        d       = (np_radius + np_distance)
+        cap     = 4*3.14159265359*8.85418781762039*0.001*eps_r*np_radius/d
+        # sum_val = 1 + np.sum([(np_radius**n+np_radius2**n)/(d**n) for n in range(N_vals)])
 
         return cap
 
@@ -220,7 +224,7 @@ class electrostatic_class(topology.topology_class):
 
                     if (j == 0):
 
-                        C_sum += self.mutal_capacitance_sphere_plane(eps_r, self.radius_vals[i]) # self.C_lead[i,j] 
+                        C_sum += self.mutal_capacitance_sphere_plane(eps_r, self.radius_vals[i], np_distance) # self.C_lead[i,j] 
                         # C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[i], np_distance) # self.C_lead[i,j] 
 
                     else:
@@ -268,12 +272,12 @@ class electrostatic_class(topology.topology_class):
                 electrode_index = int(self.net_topology[i,0] - 1)
                 
                 if self.gate_nps[i] == 1:
-                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i])
+                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
                     # C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
                     C_self  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
                     self.charge_vector[i] = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
                 else:
-                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i])
+                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
                     # C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
                     self.charge_vector[i] = voltage_values[electrode_index]*C_lead
 
@@ -312,12 +316,12 @@ class electrostatic_class(topology.topology_class):
                 electrode_index = int(self.net_topology[i,0] - 1)
                 
                 if self.gate_nps[i] == 1:
-                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i])
+                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
                     # C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
                     C_self  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
                     offset[i] = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
                 else:
-                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i])
+                    C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
                     # C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
                     offset[i] = voltage_values[electrode_index]*C_lead
 

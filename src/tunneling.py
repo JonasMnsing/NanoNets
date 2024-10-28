@@ -157,7 +157,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         # Capacitance between electrodes and NPs
         self.C_np_self      = self.self_capacitance_sphere(self.eps_s, radius_vals)
         # self.C_np_target    = self.mutal_capacitance_adjacent_spheres(self.eps_r, radius, radius, self.np_distance, N_vals=N_vals)
-        self.C_np_target    = self.mutal_capacitance_sphere_plane(self.eps_r, radius_vals)
+        self.C_np_target    = self.mutal_capacitance_sphere_plane(self.eps_r, radius_vals, self.np_distance)
 
         # If Electrode is constant, Capacitance not needed
         self.C_np_self[self.electrode_type != 'floating']    = 0.0

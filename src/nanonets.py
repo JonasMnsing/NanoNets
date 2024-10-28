@@ -281,7 +281,8 @@ class model_class():
         """
 
         self.charge_vector[idx_np_target-self.N_electrodes] -=  self.C_np_target*self.potential_vector[self.floating_electrodes]
-        self.potential_vector[self.floating_electrodes]     =   (self.C_np_target/(self.C_np_self+self.C_np_target))*self.potential_vector[idx_np_target]
+        self.potential_vector[self.floating_electrodes]     =   self.potential_vector[idx_np_target]
+        # self.potential_vector[self.floating_electrodes]     =   (self.C_np_target/(self.C_np_self+self.C_np_target))*self.potential_vector[idx_np_target]
         self.charge_vector[idx_np_target-self.N_electrodes] +=  self.C_np_target*self.potential_vector[self.floating_electrodes]
 
     def calc_tunnel_rates(self):
@@ -562,6 +563,8 @@ class model_class():
 
         for i in range(n_jumps):
 
+            self.update_bimodal_resistance(slope, shift, R_max, R_min)
+            
             t1 = self.time
 
             if (self.jump == -1):
@@ -591,7 +594,6 @@ class model_class():
             self.I_tilde             = self.I_tilde*np.exp(-dt/tau_0)
             self.I_tilde[self.jump]  += 1
 
-            self.update_bimodal_resistance(slope, shift, R_max, R_min)
 
         return n_jumps
     
@@ -884,7 +886,8 @@ class model_class():
                 self.I_network                                                      += jump_storage_vals/self.time
 
             if (self.jump == -1):
-                self.target_observable_mean = 0.0
+                if not(output_potential):
+                    self.target_observable_mean = 0.0
                 break
 
             if (self.target_observable_mean != 0):
@@ -1922,46 +1925,29 @@ class simulation(tunneling.tunnel_class):
 
 if __name__ == '__main__':
 
-    # Voltage Sweep
-    N_voltages          = 4#80028
-    N_processes         = 4
-    v_rand              = np.repeat(np.random.uniform(low=-0.05, high=0.05, size=((int(N_voltages/4),5))), 4, axis=0)
-    v_gates             = np.repeat(np.random.uniform(low=-0.1, high=0.1, size=int(N_voltages/4)),4)
-    i1                  = np.tile([0.0,0.0,0.01,0.01], int(N_voltages/4))
-    i2                  = np.tile([0.0,0.01,0.0,0.01], int(N_voltages/4))
-    voltages            = pd.DataFrame(np.zeros((N_voltages,9)))
-    voltages.iloc[:,0]  = v_rand[:,0]
-    voltages.iloc[:,2]  = v_rand[:,1]
-    voltages.iloc[:,4]  = v_rand[:,2]
-    voltages.iloc[:,5]  = v_rand[:,3]
-    voltages.iloc[:,6]  = v_rand[:,4]
-    voltages.iloc[:,1]  = i1
-    voltages.iloc[:,3]  = i2
-    voltages.iloc[:,-1] = v_gates
-    print(voltages)
 
-    # folder                      = ""
-    # topology_parameter          = {}
-    # topology_parameter["Nx"]    = 3
-    # topology_parameter["Ny"]    = 3
-    # topology_parameter["Nz"]    = 1
-    # topology_parameter["e_pos"] = [[0,0,0],[2,0,0],[0,2,0],[2,2,0]]
-    # target_electrode            = len(topology_parameter['e_pos'])-1
-        
-    # sim_dic                 = {}
-    # sim_dic['error_th']     = 0.05
-    # sim_dic['max_jumps']    = 5000000
+    # Parameter
+    N_x, N_y, N_z   = 3,3,1
+    N_jumps         = 1000
+    topology        = {
+        "Nx"                : N_x,
+        "Ny"                : N_y,
+        "Nz"                : N_z,
+        "e_pos"             :  [[0,0,0],[int((N_x-1)/2),0,0],[N_x-1,0,0],[0,int((N_y-1)/2),0],[0,N_y-1,0],
+                                [int((N_x-1)/2),N_y-1,0],[N_x-1,int((N_y-1)/2),0],[N_x-1,N_y-1,0]],
+        "electrode_type"    : ['constant','floating','floating','floating','floating','floating','floating','floating']
+    }
+    sim_dic         = {
+        "error_th"        : 0.0,      
+        "max_jumps"       : N_jumps,
+        "eq_steps"        : 10000,
+        "jumps_per_batch" : 1,
+        "kmc_counting"    : False,
+        "min_batches"     : 1
+    }
+    
+    voltages            = np.array([[0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]])
+    target_electrode    = len(topology['e_pos'])-1
 
-    # sim_class = simulation("", voltages=voltages.values, topology_parameter=topology_parameter)
-    # sim_class.run_const_voltages(3, sim_dic=sim_dic, save_th=1)
-
-    folder = ""
-    topology_parameter          = {}
-    topology_parameter["Np"]    = 20
-    topology_parameter["Nj"]    = 4
-    topology_parameter["e_pos"] = [[-1.5,-1.5],[0,-1.5],[1.5,-1.5],[-1.5,0],[-1.5,1.5],[1.5,0],[0,1.5],[1.5,1.5]]
-    target_electrode            = len(topology_parameter['e_pos'])-1
-
-    sim_class = simulation(voltages=voltages.values)
-    sim_class.init_random(folder=folder, topology_parameter=topology_parameter)
-    sim_class.run_const_voltages(target_electrode=target_electrode, save_th=1)
+    sim_class = simulation(network_topology='cubic', topology_parameter=topology)
+    sim_class.run_const_voltages(voltages=voltages, target_electrode=target_electrode, save_th=0.1)

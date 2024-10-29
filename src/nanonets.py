@@ -516,10 +516,6 @@ class model_class():
 
         for i in range(n_jumps):
 
-            # charge_offset   = self.C_np_target*self.potential_vector[self.floating_electrodes]
-            # self.update_floating_electrode(idx_np_target)
-            # charge_offset2  = self.C_np_target*self.potential_vector[self.floating_electrodes]
-
             if (self.jump == -1):
                 break
             
@@ -541,7 +537,7 @@ class model_class():
                     self.calc_cotunnel_rates_zero_T()
                 self.select_co_event(random_number1, random_number2)
             
-            # self.charge_vector[idx_np_target-self.N_electrodes] = self.charge_vector[idx_np_target-self.N_electrodes] + charge_offset2 - charge_offset
+            self.update_floating_electrode(idx_np_target)
             
         return n_jumps
     
@@ -652,10 +648,6 @@ class model_class():
 
             for i in range(jumps_per_batch):
 
-                charge_offset   = self.C_np_target*self.potential_vector[self.floating_electrodes]
-                self.update_floating_electrode(idx_np_target)
-                charge_offset2  = self.C_np_target*self.potential_vector[self.floating_electrodes]
-
                 t1 = self.time
 
                 # KMC Iteration
@@ -684,8 +676,6 @@ class model_class():
                 # Update potential of floating target electrode
                 self.update_floating_electrode(idx_np_target)
                 target_potential += self.potential_vector[target_electrode]*(t2-t1)
-
-                self.charge_vector[idx_np_target-self.N_electrodes] = self.charge_vector[idx_np_target-self.N_electrodes] + charge_offset2 - charge_offset
 
             # Update total jumps, average charges, and average potentials
             self.total_jumps    += i+1

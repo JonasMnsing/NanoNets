@@ -888,7 +888,7 @@ class model_class():
         self.charge_mean    = np.zeros(len(self.charge_vector))
         self.potential_mean = np.zeros(len(self.potential_vector))
         self.I_network      = np.zeros(len(self.adv_index_rows))
-        idx_np_target       = self.adv_index_cols[np.arange(self.N_electrodes)]
+        idx_np_target       = self.adv_index_cols[self.floating_electrodes]
 
         inner_time          = self.time
         last_time           = 0.0        
@@ -1767,7 +1767,8 @@ class simulation(tunneling.tunnel_class):
         self.average_jumps      = np.delete(self.average_jumps,-1,axis=0)
 
         if save:
-            save_target_currents(self.output_values, np.delete(voltages,-1,axis=0), self.path1)
+            # save_target_currents(self.output_values, np.delete(voltages,-1,axis=0), self.path1)
+            save_target_currents(self.output_values, self.landscape[:,:N_electrodes], self.path1)
             save_mean_microstate(self.microstates, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
 

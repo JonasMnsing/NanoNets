@@ -16,7 +16,7 @@ folder = "scripts/2_funding_period/WP2/delta_peak/uniform/"
 
 # Network Parameter
 N_electrodes    = 8
-N_particles     = 7
+N_particles     = 9
 topology        = {
     "Nx"                : N_particles,
     "Ny"                : N_particles,
@@ -31,8 +31,8 @@ N_voltages              = 2000
 min_val                 = 0.1
 max_val                 = 0.2
 delta_pos               = 200
-voltages                = np.zeros(shape=(N_voltages,N_electrodes+1)) + min_val
-voltages[:,-1]          = 0
+voltages                = np.zeros(shape=(N_voltages,N_electrodes+1))
+voltages[:,0]           = min_val
 voltages[delta_pos,0]   = max_val
 
 # Time Values
@@ -42,7 +42,7 @@ time        = step_size*np.arange(N_voltages)
 procs = []
 for target_electrode in range(1,8):
 
-    process = multiprocessing.Process(target=run_simulation, args=(voltages, time, target_electrode, topology))
+    process     = multiprocessing.Process(target=run_simulation, args=(voltages, time, target_electrode, topology))
     process.start()
     procs.append(process)
 

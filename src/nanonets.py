@@ -939,13 +939,17 @@ class model_class():
 
         if (last_time-inner_time) != 0:
             
-            self.target_observable_mean = target_potential/(time_target-inner_time)
+            self.target_observable_mean = target_potential/(last_time-inner_time)
             self.I_network              = self.I_network/self.total_jumps
-            self.charge_mean            = self.charge_mean/(time_target-inner_time)
-            self.potential_mean         = self.potential_mean/(time_target-inner_time)
-
+            self.charge_mean            = self.charge_mean/(last_time-inner_time)
+            self.potential_mean         = self.potential_mean/(last_time-inner_time)
+            
         else:
-            self.target_observable_mean = 0
+            self.target_observable_mean = self.potential_vector[target_electrode]
+            self.I_network              = self.I_network
+            self.charge_mean            = self.charge_vector
+            self.potential_mean         = self.potential_vector
+        
 
     def kmc_time_simulation_var_resistance(self, target_electrode : int, time_target : float, slope=0.8,
                             shift=7.5, tau_0=1e-8, R_max=25, R_min=10):
@@ -1697,8 +1701,12 @@ class simulation(tunneling.tunnel_class):
             self.resistance_mean = np.zeros(shape=(voltages.shape[0], len(self.model.adv_index_rows)))
         
         # Store equilibrated charge distribution
-        currents    = np.zeros(shape=(stat_size, len(voltages)))
-        q_eq        = self.model.charge_vector.copy()
+        currents            = np.zeros(shape=(stat_size, len(voltages)))
+        q_eq                = self.model.charge_vector.copy()
+        
+        # Electrode indices with const voltages
+        const_electrodes    = [i for i in range(N_electrodes) if i not in self.model.floating_electrodes]
+        # print(const_electrodes)
 
         for s in range(stat_size):
             
@@ -1716,7 +1724,8 @@ class simulation(tunneling.tunnel_class):
                 time_target     = time_steps[i+1]
 
                 # Update Electrode Potentials
-                self.model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
+                # self.model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
+                self.model.potential_vector[const_electrodes]  = voltage_values[const_electrodes]
                 
                 if self.res_info['dynamic']:
                     self.model.kmc_time_simulation_var_resistance(target_electrode, time_target, slope, shift, tau_0, R_max, R_min)
@@ -1730,12 +1739,12 @@ class simulation(tunneling.tunnel_class):
                         target_observable_mean, target_observable_error, total_jumps = self.model.return_target_values()
                 
                 # Add observables to outputs
-                currents[s,i]           =  target_observable_mean           
+                currents[s,i]           =  target_observable_mean
                 self.output_values[i,:] += np.array([eq_jumps, total_jumps, 0.0, 0.0])/stat_size
                 self.microstates[i,:]   += self.model.return_average_charges()/stat_size
                 self.landscape[i,:]     += self.model.return_average_potentials()/stat_size
                 self.average_jumps[i,:] += self.model.return_network_currents()/stat_size
-                
+
                 if verbose:
                     self.resistance_mean += self.model.return_average_resistances()/stat_size
                 
@@ -1743,20 +1752,6 @@ class simulation(tunneling.tunnel_class):
                 # offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
                 self.model.charge_vector    = self.model.charge_vector - offset
 
-        # correaltaion_lag1       = np.clip(np.array([np.corrcoef(currents[:-1,i], currents[1:,i])[0,1] for i in range(len(voltages))]), -0.99, 0.99)
-        # auto_correction         = np.sqrt((1+correaltaion_lag1)/(1-correaltaion_lag1))
-
-        # n_bootstraps    = 10000
-        # bootstrap_means = np.zeros((n_bootstraps, len(voltages)))
-
-        # for i in range(n_bootstraps):
-
-        #     bootstrap_sample        = np.random.choice(currents.shape[0], size=currents.shape[0], replace=True)
-        #     bootstrap_means[i,:]    = np.mean(currents[bootstrap_sample,:], axis=0)
-        
-        # self.output_values[:,2] = np.mean(bootstrap_means, axis=0)
-        # self.output_values[:,3] = np.percentile(bootstrap_means, 2.5, axis=0)
-        # self.output_values[:,4] = np.percentile(bootstrap_means, 97.5, axis=0)
         self.output_values[:,2] = np.mean(currents, axis=0)
         self.output_values[:,3] = 1.96*np.std(currents, axis=0, ddof=1)/np.sqrt(stat_size)
 

@@ -18,11 +18,12 @@ folder = "scripts/2_funding_period/WP2/delta_peak/uniform/"
 N_electrodes    = 8
 N_particles     = 7
 topology        = {
-    "Nx"    : N_particles,
-    "Ny"    : N_particles,
-    "Nz"    : 1,
-    "e_pos" :  [[0,0,0],[int((N_particles-1)/2),0,0],[N_particles-1,0,0],[0,int((N_particles-1)/2),0],[0,N_particles-1,0],
-                [int((N_particles-1)/2),N_particles-1,0],[N_particles-1,int((N_particles-1)/2),0],[N_particles-1,N_particles-1,0]]
+    "Nx"                : N_particles,
+    "Ny"                : N_particles,
+    "Nz"                : 1,
+    "e_pos"             :  [[0,0,0],[int((N_particles-1)/2),0,0],[N_particles-1,0,0],[0,int((N_particles-1)/2),0],[0,N_particles-1,0],
+                            [int((N_particles-1)/2),N_particles-1,0],[N_particles-1,int((N_particles-1)/2),0],[N_particles-1,N_particles-1,0]],
+    "electrode_type"    : ['constant','floating','floating','floating','floating','floating','floating','constant']
 }
 
 # Voltage Values

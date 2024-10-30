@@ -280,20 +280,9 @@ class model_class():
             Indices of nanoparticles adjacent to electrodes  
         """
 
-        # print(self.potential_vector[self.floating_electrodes])
-        # print(self.charge_vector[idx_np_target-self.N_electrodes]/self.C_np_target)
-
-        # charge_offset                                       =   self.C_np_target*self.potential_vector[self.floating_electrodes]
-        self.potential_vector[self.floating_electrodes]     =   self.potential_vector[idx_np_target] - self.charge_vector[idx_np_target-self.N_electrodes]/self.C_np_target
-        # charge_offset2                                      =   self.C_np_target*self.potential_vector[self.floating_electrodes]
-        # self.charge_vector[idx_np_target-self.N_electrodes] =   self.charge_vector[idx_np_target-self.N_electrodes] + charge_offset2 - charge_offset
-            
-        # print(self.potential_vector[self.floating_electrodes])
-        # self.charge_vector[idx_np_target-self.N_electrodes] -=  self.C_np_target*self.potential_vector[self.floating_electrodes]
-        # self.potential_vector[self.floating_electrodes]     =   self.potential_vector[idx_np_target]
-        # self.potential_vector[self.floating_electrodes]     =   (self.C_np_target/(self.C_np_self+self.C_np_target))*self.potential_vector[idx_np_target]
-        # self.charge_vector[idx_np_target-self.N_electrodes] +=  self.C_np_target*self.potential_vector[self.floating_electrodes]
-
+        self.potential_vector[self.floating_electrodes] = self.potential_vector[idx_np_target]
+        # self.potential_vector[self.floating_electrodes] = self.charge_vector[idx_np_target-self.N_electrodes]/self.C_np_target
+        
     def calc_tunnel_rates(self):
         """Compute tunneling rates
         """
@@ -605,110 +594,7 @@ class model_class():
 
 
         return n_jumps
-    
-    def kmc_simulation_potential(self, target_electrode : int, error_th=0.05, max_jumps=10000000,
-                                 jumps_per_batch=1000, min_batches=10, verbose=False):
-    
-        self.total_jumps                    = 0
-        self.target_observable_error_rel    = 1.0
-        self.target_observable_mean         = 0.0
-        self.target_observable_mean2        = 0.0
-        self.target_observable_error        = 0.0
-        idx_np_target                       = self.adv_index_cols[np.arange(self.N_electrodes)]
-
-        self.charge_mean        = np.zeros(len(self.charge_vector))
-        self.potential_mean     = np.zeros(len(self.potential_vector))
-        self.I_network          = np.zeros(len(self.adv_index_rows))
-
-        # For addition informations, track batched electric currents
-        if verbose:
-            self.target_observable_values   = np.zeros(int(max_jumps/jumps_per_batch))
-            self.landscape_per_it           = np.zeros((int(max_jumps/jumps_per_batch), len(self.potential_vector)))
-            self.time_values                = np.zeros(int(max_jumps/jumps_per_batch))
-            self.landscape_per_it           = np.zeros((int(max_jumps/jumps_per_batch), len(self.potential_vector)))
-            self.jump_dist_per_it           = np.zeros((int(max_jumps/jumps_per_batch), len(self.adv_index_rows)))
-
-        count       = 0 # Number of while loops
-        time_total  = 0 # Total time passed
-
-        # Initial potential landscape
-        self.calc_potentials()
-
-        # Until the desired relative error is reached or max_jumps is exceeded
-        while(((self.target_observable_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < min_batches)):
-
-            # Reset Array to track occured jumps
-            jump_storage_vals   = np.zeros(len(self.adv_index_rows))
-            time_values         = np.zeros(jumps_per_batch)
-            charge_values       = np.zeros(self.N_particles)
-            potential_values    = np.zeros(self.N_particles+self.N_electrodes)
-            
-            self.time           = 0.0
-            target_potential    = 0.0
-
-            for i in range(jumps_per_batch):
-
-                t1 = self.time
-
-                # KMC Iteration
-                random_number1  = np.random.rand()
-                random_number2  = np.random.rand()
-
-                if not(self.zero_T):
-                    self.calc_tunnel_rates()
-                else:
-                    self.calc_tunnel_rates_zero_T()
-
-                self.select_event(random_number1, random_number2)
-                jump_storage_vals[self.jump]    += 1
-
-                # Track charge and potential landscape
-                self.charge_mean    += self.charge_vector
-                self.potential_mean += self.potential_vector
-                
-                t2              = self.time
-                time_values[i]  = t2-t1
-
-                # Add charge and potential vector
-                charge_values       += self.charge_vector*(t2-t1)
-                potential_values    += self.potential_vector*(t2-t1)
-
-                # Update potential of floating target electrode
-                self.update_floating_electrode(idx_np_target)
-                target_potential += self.potential_vector[target_electrode]*(t2-t1)
-
-            # Update total jumps, average charges, and average potentials
-            self.total_jumps    += i+1
-            self.charge_mean    += charge_values
-            self.potential_mean += potential_values
-            time_total          += self.time
-            
-            if self.time != 0:
-
-                # Calc new average electrode potential
-                target_observable                                                   = target_potential/self.time
-                self.target_observable_mean, self.target_observable_mean2, count    = self.return_next_means(target_observable, self.target_observable_mean, self.target_observable_mean2, count)
-                self.I_network                                                      += jump_storage_vals/self.time
-
-                if verbose:
-                    self.target_observable_values[count]    = target_observable
-                    self.time_values[count]                 = self.time
-                    self.landscape_per_it[count,:]          = potential_values/self.time
-                    self.jump_dist_per_it[count,:]          = jump_storage_vals
-
-            if (self.jump == -1):
-                # self.target_observable_mean = 0.0
-                break
-
-            if (self.target_observable_mean != 0):
-
-                self.calc_rel_error(count)
-
-        if count != 0:
-            self.I_network      = self.I_network/count
-            self.charge_mean    = self.charge_mean/time_total
-            self.potential_mean = self.potential_mean/time_total
- 
+     
     def return_next_means(self, new_value, mean_value, mean_value2, count):
 
         count           +=  1
@@ -897,6 +783,8 @@ class model_class():
             if (self.jump == -1):
                 if not(output_potential):
                     self.target_observable_mean = 0.0
+                else:
+                    self.target_observable_mean = self.potential_vector[target_electrode]
                 break
 
             if (self.target_observable_mean != 0):
@@ -1047,7 +935,7 @@ class model_class():
             self.total_jumps            += 1           
         
         if (self.jump == -1):
-            self.target_observable_mean  = 0.0
+            self.target_observable_mean  = self.potential_vector[target_electrode]
 
         if (last_time-inner_time) != 0:
             

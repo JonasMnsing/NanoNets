@@ -19,12 +19,12 @@ def estimate_z(voltages, time_steps, network_topology, topology_parameter, stat_
 
     return output_values[:,2]
 
-def estimate_z_parallel(thread, return_dic, voltages, time_steps, network_topology, topology_parameter, stat_size, eq_steps):
+def estimate_z_parallel(thread, return_dic, voltages, time_steps, network_topology, topology_parameter, stat_size, eq_steps, np_info):
 
     target_electrode = len(topology_parameter["e_pos"]) - 1
     
-    sim_class = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter)
-    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, eq_steps=eq_steps, stat_size=stat_size, save=False)
+    sim_class = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, np_info=np_info, seed=4)
+    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, eq_steps=eq_steps, stat_size=stat_size, save=False, output_potential=True)
     output_values = sim_class.return_output_values()
 
     return_dic[thread]  = output_values[:,2]
@@ -50,20 +50,28 @@ folder              = "scripts/2_funding_period/WP2/lorenz_system/"
 save_folder         = "scripts/2_funding_period/WP2/lorenz_system/data/"
 network_topology    = 'cubic'
 epsilon             = 0.001
-learning_rate       = 0.01
+learning_rate       = 0.0001
 save_nth_epoch      = 1
 
 # Network Topology
 topology_parameter  = {
-    "Nx"    : 7,
-    "Ny"    : 7,
-    "Nz"    : 1,
-    "e_pos" : [[0,0,0],[3,0,0],[0,3,0],[6,0,0],[0,6,0],[6,3,0],[3,6,0],[6,6,0]]
+    "Nx"                : 7,
+    "Ny"                : 7,
+    "Nz"                : 1,
+    "e_pos"             : [[0,0,0],[3,0,0],[0,3,0],[6,0,0],[0,6,0],[6,3,0],[3,6,0],[6,6,0]],
+    "electrode_type"    : ['constant','constant','constant','constant','constant','constant','constant','floating']
+}
+np_info = {
+    "eps_r"         : 2.6,  # Permittivity of molecular junction 
+    "eps_s"         : 3.9,  # Permittivity of oxide layer
+    "mean_radius"   : 10.0, # average nanoparticle radius
+    "std_radius"    : 2.0,  # standard deviation of nanoparticle radius
+    "np_distance"   : 1.0   # spacing between nanoparticle shells
 }
 
 # x_vals and z_vals
-max_control = 0.2
-std_input   = 0.2
+max_control = 0.05
+std_input   = 0.05
 x_vals      = np.loadtxt(f"{folder}x_vals.csv")
 z_vals      = np.loadtxt(f"{folder}z_vals.csv")
 x_vals      = std_input*(x_vals - np.mean(x_vals)) / np.std(x_vals)
@@ -111,7 +119,7 @@ for epoch in range(N_epochs):
     for thread in range(2*N_controls+1):
 
         process = multiprocessing.Process(target=estimate_z_parallel, args=(thread, return_dic, voltages_list[thread], time_steps,
-                                                                            network_topology, topology_parameter, stat_size, eq_steps))
+                                                                            network_topology, topology_parameter, stat_size, eq_steps, np_info))
         process.start()
         procs.append(process)
     

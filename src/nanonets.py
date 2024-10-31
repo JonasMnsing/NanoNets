@@ -60,7 +60,7 @@ spec = [
     ('N_corates', int64),
 ]
 
-# @jitclass(spec)
+@jitclass(spec)
 class model_class():
     """
     Numba optimized class to run the KMC procedure

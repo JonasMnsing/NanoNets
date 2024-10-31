@@ -6,17 +6,17 @@ sys.path.append("src/")
 import nanonets
 
 
-def run_simulation(voltages, time_steps, target_electrode, topology):
-
-    sim_class   = nanonets.simulation(network_topology='cubic', topology_parameter=topology, folder=folder+"data/",add_to_path=f'_{target_electrode}')
-    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, output_potential=True, eq_steps=0, stat_size=500)
+def run_simulation(voltages, time_steps, topology, res_info, seed):
+    r_Std       = res_info["std_R"]
+    sim_class   = nanonets.simulation(network_topology='cubic', topology_parameter=topology, folder=folder+"data/",add_to_path=f'_{r_Std}_{seed}', res_info=res_info, seed=seed)
+    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=6, output_potential=True, eq_steps=0, stat_size=500)
 
 # Path
-folder = "scripts/2_funding_period/WP2/delta_peak/uniform/"
+folder = "scripts/2_funding_period/WP2/delta_peak/res/"
 
 # Network Parameter
 N_electrodes    = 8
-N_particles     = 9
+N_particles     = 7
 topology        = {
     "Nx"                : N_particles,
     "Ny"                : N_particles,
@@ -40,13 +40,23 @@ voltages[delta_pos:delta_pos2,0]    = max_val
 step_size   = 1e-10
 time        = step_size*np.arange(N_voltages)
 
-procs = []
-for target_electrode in range(1,8):
+for r_std in [1.25,2.5,3.75,5.]:
 
-    process     = multiprocessing.Process(target=run_simulation, args=(voltages, time, target_electrode, topology))
-    process.start()
-    procs.append(process)
+    procs = []
 
-for p in procs:
-    p.join()
+    for seed in range(10):
+
+        rs      = np.random.RandomState(seed=seed)
+        res_info = {
+            "mean_R"    : 25.0, # Average resistance
+            "std_R"     : 0.0,  # Standard deviation of resistances
+            "dynamic"   : False # Dynamic or constant resistances
+        }
+
+        process     = multiprocessing.Process(target=run_simulation, args=(voltages, time, topology, res_info, seed))
+        process.start()
+        procs.append(process)
+
+    for p in procs:
+        p.join()
 

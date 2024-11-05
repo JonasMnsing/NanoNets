@@ -281,7 +281,6 @@ class model_class():
         """
 
         self.potential_vector[self.floating_electrodes] = self.potential_vector[idx_np_target]
-        # self.potential_vector[self.floating_electrodes] = self.charge_vector[idx_np_target-self.N_electrodes]/self.C_np_target
         
     def calc_tunnel_rates(self):
         """Compute tunneling rates

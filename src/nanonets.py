@@ -527,7 +527,7 @@ class model_class():
             
             self.update_floating_electrode(idx_np_target)
             
-        return n_jumps
+        return i
     
     def run_equilibration_steps_var_resistance(self, n_jumps=10000, slope=0.8, shift=7.5,
                                                tau_0=1e-8, R_max=25, R_min=10):
@@ -679,6 +679,9 @@ class model_class():
 
             # KMC Run for a batch
             for i in range(jumps_per_batch):
+
+                if (self.jump == -1):
+                    break
                 
                 # Start time
                 t1 = self.time
@@ -1766,7 +1769,7 @@ class simulation(tunneling.tunnel_class):
 
         if save:
             # save_target_currents(self.output_values, np.delete(voltages,-1,axis=0), self.path1)
-            save_target_currents(self.output_values, self.landscape[:,:N_electrodes], self.path1)
+            save_target_currents(self.output_values, np.hstack([self.landscape[:,:N_electrodes], voltages[:-1,-1][:,np.newaxis]]), self.path1)
             save_mean_microstate(self.microstates, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
 

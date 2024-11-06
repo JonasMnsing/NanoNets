@@ -15,14 +15,15 @@ import multiprocessing
 def parallel_code(thread : int, N : int, V_arr : np.array, path : str):
 
     topology_parameter = {
-        "Nx"    : N,
-        "Ny"    : N,
-        "Nz"    : 1,
-        "e_pos" : [[0,0,0],[N-1,N-1,0]]
+        "Nx"                : N,
+        "Ny"                : N,
+        "Nz"                : 1,
+        "e_pos"             : [[0,0,0],[N-1,N-1,0]],
+        "electrode_type"    : ['constant','floating']
     }
     np_network_cubic    = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter)
     
-    np_network_cubic.run_const_voltages(V_arr, 1, save_th=0.1)
+    np_network_cubic.run_const_voltages(V_arr, 1, save_th=0.1, output_potential=True)
     results = np_network_cubic.return_output_values()
 
     np.savetxt(path+f"N_{N}_th_{thread}.csv", results)

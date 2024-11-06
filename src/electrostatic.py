@@ -82,7 +82,7 @@ class electrostatic_class(topology.topology_class):
             while (not_found == True):
 
                 np1 = np.random.randint(0, self.N_particles)
-                np2 = np.random.randint(1, self.N_junctions)
+                np2 = np.random.randint(1, self.N_junctions+1)
 
                 # Select to nanoparticles at random which are connected and not connected to an electrode
                 if (self.net_topology[np1,np2] != -100) and (self.net_topology[np1,0] == -100):
@@ -218,7 +218,7 @@ class electrostatic_class(topology.topology_class):
 
         # Fill Capacitance Matrix based on Net Topology
         for i in range(self.N_particles):
-            for j in range(self.N_junctions):
+            for j in range(self.N_junctions+1):
             
                 neighbor = self.net_topology[i,j]
 
@@ -226,8 +226,8 @@ class electrostatic_class(topology.topology_class):
 
                     if (j == 0):
 
-                        # C_sum += self.mutal_capacitance_sphere_plane(eps_r, self.radius_vals[i], np_distance) # self.C_lead[i,j] 
-                        C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[i], np_distance) # self.C_lead[i,j] 
+                        if self.electrode_type[int(neighbor-1)] != 'floating':
+                            C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[i], np_distance) # self.C_lead[i,j] 
 
                     else:
                         val = self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[int(neighbor)], np_distance)

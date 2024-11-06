@@ -662,7 +662,7 @@ class model_class():
 
         # While relative error or maximum amount of KMC steps not reached
         while(((self.target_observable_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < min_batches)):
-
+            
             # Counting or not
             if kmc_counting:
                 self.counter_output_jumps_pos   = 0
@@ -1512,6 +1512,10 @@ class simulation(tunneling.tunnel_class):
         self.average_cojumps            = []
         self.res_per_it                 = []
 
+        # Check if target electrode is floating
+        if self.electrode_type[target_electrode] == 'floating':
+            output_potential=True
+
         j = 0
         
         # For each combination of electrode voltages
@@ -1819,8 +1823,15 @@ if __name__ == '__main__':
 
 
     # Parameter
-    N_x, N_y, N_z   = 3,3,1
+    N_x, N_y, N_z   = 3,1,1
     N_jumps         = 1000
+    topology_string = {
+        "Nx"                : N_x,
+        "Ny"                : N_y,
+        "Nz"                : N_z,
+        "e_pos"             : [[0,0,0],[N_x-1,N_y-1,0]],
+        "electrode_type"    : ['constant','floating']
+    }
     topology        = {
         "Nx"                : N_x,
         "Ny"                : N_y,
@@ -1832,14 +1843,15 @@ if __name__ == '__main__':
     sim_dic         = {
         "error_th"        : 0.0,      
         "max_jumps"       : N_jumps,
-        "eq_steps"        : 10000,
+        "eq_steps"        : 0,
         "jumps_per_batch" : 1,
         "kmc_counting"    : False,
         "min_batches"     : 1
     }
     
+    voltages_string     = np.array([[0.1,0.0,0.0]])
     voltages            = np.array([[0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]])
-    target_electrode    = len(topology['e_pos'])-1
+    target_electrode    = len(topology_string['e_pos'])-1
 
-    sim_class = simulation(network_topology='cubic', topology_parameter=topology)
-    sim_class.run_const_voltages(voltages=voltages, target_electrode=target_electrode, save_th=0.1)
+    sim_class = simulation(network_topology='cubic', topology_parameter=topology_string)
+    sim_class.run_const_voltages(voltages=voltages_string, target_electrode=target_electrode, save_th=0.1, output_potential=True, sim_dic=sim_dic)

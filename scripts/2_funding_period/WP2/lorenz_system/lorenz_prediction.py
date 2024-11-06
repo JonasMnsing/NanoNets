@@ -50,7 +50,7 @@ folder              = "scripts/2_funding_period/WP2/lorenz_system/"
 save_folder         = "scripts/2_funding_period/WP2/lorenz_system/data/"
 network_topology    = 'cubic'
 epsilon             = 0.001
-learning_rate       = 0.0001
+learning_rate       = 0.00001
 save_nth_epoch      = 1
 
 # Network Topology

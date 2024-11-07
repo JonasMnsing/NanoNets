@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     # Time Scale
     step_size   = 1e-10
-    N_voltages  = 2000
+    N_voltages  = 4000
     time_steps  = step_size*np.arange(N_voltages)
 
     # Voltages
@@ -37,7 +37,7 @@ if __name__ == '__main__':
     # Parameter
     folder              = "scripts/2_funding_period/WP2/step_input/1I_1O/"
     stat_size           = 500
-    eq_steps            = 0
+    eq_steps            = 10000
     network_topology    = "cubic"
     seed                = 0
     # scale               = np.array([0.75, 0.82, 0.89, 0.96, 1.  , 1.06, 1.11, 1.17, 1.22, 1.28, 1.33, 1.41, 1.5 , 1.62, 1.85, 2.13])

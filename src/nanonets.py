@@ -808,7 +808,10 @@ class model_class():
         time_target : float
             time value to be reached
         """
-        
+
+        # Calculate potential landscape once
+        self.calc_potentials()
+
         self.total_jumps    = 0
         self.charge_mean    = np.zeros(len(self.charge_vector))
         self.potential_mean = np.zeros(len(self.potential_vector))
@@ -885,6 +888,9 @@ class model_class():
         time_target : float
             time value to be reached
         """
+
+        # Calculate potential landscape once
+        self.calc_potentials()
         
         self.total_jumps    = 0
         self.charge_mean    = np.zeros(len(self.charge_vector))
@@ -1711,8 +1717,7 @@ class simulation(tunneling.tunnel_class):
         q_eq                = self.model.charge_vector.copy()
         
         # Electrode indices with const voltages
-        const_electrodes    = [i for i in range(N_electrodes) if i not in self.model.floating_electrodes]
-        # print(const_electrodes)
+        const_electrodes    = [i for i in range(self.model.N_electrodes) if i not in self.model.floating_electrodes]
 
         for s in range(stat_size):
             
@@ -1772,6 +1777,59 @@ class simulation(tunneling.tunnel_class):
             save_target_currents(self.output_values, np.hstack([self.landscape[:,:N_electrodes], voltages[:-1,-1][:,np.newaxis]]), self.path1)
             save_mean_microstate(self.microstates, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
+
+    def init_based_on_charge_vector(self, voltages : np.array, initial_charge_vector : np.array, T_val=0.0, eq_steps=0):
+
+        # First time step
+        self.charge_vector = initial_charge_vector
+        self.init_potential_vector(voltage_values=voltages[0])
+        self.init_const_capacitance_values()
+        self.np_target_electrode_electrostatic_properties()
+
+        # Return Model Arguments
+        inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
+        charge_vector                                                                           = self.return_charge_vector()
+        potential_vector                                                                        = self.return_potential_vector()
+        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
+        N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
+        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
+        temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
+        resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
+        C_np_self, C_np_target                                                                  = self.return_output_electrostatics()
+        
+        if self.res_info2 != None:
+            resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
+
+        # For memristive resistors
+        if self.res_info['dynamic']:
+            res_dynamic = self.res_info
+        else:
+            res_dynamic = False
+
+        # Pass all model arguments into Numba optimized Class
+        self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
+                                temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
+                                co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
+
+        # Eqilibrate Potential Landscape
+        if self.res_info['dynamic']:
+
+            slope   = res_dynamic['slope']
+            shift   = res_dynamic['shift']
+            tau_0   = res_dynamic['tau_0']
+            R_max   = res_dynamic['R_max']
+            R_min   = res_dynamic['R_min']
+        
+            eq_jumps = self.model.run_equilibration_steps_var_resistance(eq_steps, slope, shift, tau_0, R_max, R_min)
+        else:
+            eq_jumps = self.model.run_equilibration_steps(eq_steps)
+
+        # Initial time and Jumps towards and from target electrode
+        self.model.time = 0.0
+        
+        # Subtract charges induces by initial electrode voltages
+        offset                      = self.get_charge_vector_offset(voltage_values=voltages[0])
+        self.model.charge_vector    = self.model.charge_vector - offset
 
     def clear_outputs(self):
 

@@ -997,8 +997,6 @@ def sim_run_for_gradient_decent(thread : int, return_dic : dict, voltages : np.a
     error_values        = output_values[:,3]
     return_dic[thread]  = observable
 
-    print(np.sum(np.abs(error_values/observable))/len(error_values))
-
     if thread == 0:
         charge_values   = class_instance.return_microstates()[-1,:]
         # return_dic[-1]  = class_instance.ele_charge*np.round(charge_values/class_instance.ele_charge)

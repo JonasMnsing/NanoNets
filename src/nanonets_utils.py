@@ -956,7 +956,30 @@ def fft(signal, dt, n_padded=0, use_hann=True):
 
 def sim_run_for_gradient_decent(thread : int, return_dic : dict, voltages : np.array, time_steps : np.array,
                                 target_electrode : int, stat_size : int, network_topology : str,
-                                topology_parameter : dict, initial_charge_vector=None)->dict:
+                                topology_parameter : dict, initial_charge_vector=None):
+    """Simulation execution for gradient decent algorithm. Inits a class and runs simulation for variable voltages.
+
+    Parameters
+    ----------
+    thread : int
+        Thread if
+    return_dic : dict
+        Dictonary containing simulation results
+    voltages : np.array
+        Voltage values
+    time_steps : np.array
+        Time Steps
+    target_electrode : int
+        Electrode associated to target observable
+    stat_size : int
+        Number of individual runs for statistics
+    network_topology : str
+        Network topology, either 'cubic' or 'random'
+    topology_parameter : dict
+        Dictonary containing information about topology
+    initial_charge_vector : _type_, optional
+        If not None, initial_charge_vector is used as the first network state, by default None
+    """
 
     if initial_charge_vector is None:
         class_instance  = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter)
@@ -969,117 +992,152 @@ def sim_run_for_gradient_decent(thread : int, return_dic : dict, voltages : np.a
                                         stat_size=stat_size, save=False, output_potential=True, init=False)
     
     # Get target observable 
-    output_values       = class_instance.return_output_values()[:,2]
-    return_dic[thread]  = output_values
+    output_values       = class_instance.return_output_values()
+    observable          = output_values[:,2]
+    error_values        = output_values[:,3]
+    return_dic[thread]  = observable
+
+    print(np.sum(np.abs(error_values/observable))/len(error_values))
 
     if thread == 0:
         charge_values   = class_instance.return_microstates()[-1,:]
+        # return_dic[-1]  = class_instance.ele_charge*np.round(charge_values/class_instance.ele_charge)
         return_dic[-1]  = charge_values
 
-def loss_function(y_pred : np.array, y_real : np.array, transient=1000)->float:
-    
+def loss_function(y_pred : np.array, y_real : np.array, transient=0)->float:
+    """Root mean square error.
+
+    Parameters
+    ----------
+    y_pred : np.array
+        Predicted values
+    y_real : np.array
+        Actual values
+    transient : int, optional
+        Neglect the first transient steps, by default 0
+
+    Returns
+    -------
+    float
+        RMSE
+    """
     return np.mean((y_pred[transient:]-y_real[transient:])**2)
 
-def time_series_gradient_decent(x_vals : np.array, y_target : np.array, learning_rate : float, N_epochs : int, network_topology : str, topology_parameter : dict,
-                                epsilon=0.001, adam=False, time_step=1e-10, stat_size=500, Uc_init=0.05, transient_steps=0, print_nth_epoch=0.1,
-                                save_nth_epoch=0.1, path=''):
-    
+def time_series_gradient_decent(x_vals : np.array, y_target : np.array, learning_rate : float, batch_size : int, N_epochs : int, network_topology : str, topology_parameter : dict,
+                                epsilon=0.001, adam=False, time_step=1e-10, stat_size=500, Uc_init=0.05, transient_steps=0, print_nth_epoch=1,
+                                save_nth_epoch=1, path=''):
+
     # Parameter
     N_voltages          = len(x_vals)
+    N_batches           = int(N_voltages/batch_size)
     N_electrodes        = len(topology_parameter["e_pos"])
     N_controls          = N_electrodes - 2
     time_steps          = time_step*np.arange(N_voltages)
     control_voltages    = np.random.uniform(-Uc_init, Uc_init, N_controls)
     target_electrode    = N_electrodes - 1
-    ele_charge          = 0.160217662
-    
+        
     # Multiprocessing Manager
     with multiprocessing.Manager() as manager:
 
+        # Storage for simulation results
         return_dic = manager.dict()
         current_charge_vector = None
-
+        
+        # ADAM Optimization
         if adam:
             m = np.zeros_like(control_voltages)
             v = np.zeros_like(control_voltages)
 
-        for epoch in range(N_epochs):
-
-            voltages            = np.zeros(shape=(N_voltages, N_electrodes+1))
-            voltages[:,0]       = x_vals
-            voltages[:,1:-2]    = np.tile(control_voltages, (N_voltages,1))
+        for epoch in range(1, N_epochs+1):
             
-            voltages_list   = []
-            voltages_list.append(voltages)
-
-            # Append to list
-            for i in range(N_controls):
-
-                voltages_tmp        = voltages.copy()
-                voltages_tmp[:,i+1] += epsilon
-                voltages_list.append(voltages_tmp)
-
-                voltages_tmp        = voltages.copy()
-                voltages_tmp[:,i+1] -= epsilon
-                voltages_list.append(voltages_tmp)
-
-            # Container for processes
-            procs = []
-
-            # Run parallel simulation
-            for thread in range(2*N_controls+1):
-
-                # Start process
-                process = multiprocessing.Process(target=sim_run_for_gradient_decent, args=(thread, return_dic, voltages_list[thread], time_steps,
-                                                                                            target_electrode, stat_size, network_topology,
-                                                                                            topology_parameter, current_charge_vector))
-                process.start()
-                procs.append(process)
+            # Set charge vector to None
+            predictions = np.zeros(N_voltages)
             
-            # Wait for all threads
-            for p in procs:
-                p.join()
+            for batch in range(N_batches):
 
-            current_charge_vector = ele_charge*np.round(return_dic[-1]/ele_charge)
-            
-            # Gradient Container
-            gradients = np.zeros_like(control_voltages)
+                start   = batch*batch_size
+                stop    = (batch+1)*batch_size
+                
+                # Voltage array containing input at column 0 
+                voltages            = np.zeros(shape=(batch_size, N_electrodes+1))
+                voltages[:,0]       = x_vals[start:stop]
+                voltages[:,1:-2]    = np.tile(control_voltages, (batch_size,1))
+                voltages_list       = []
+                voltages_list.append(voltages)
 
-            # Calculate gradients
-            for i in np.arange(1,2*N_controls+1,2):
+                # Set up a list of voltages considering small deviations
+                for i in range(N_controls):
 
-                y_pred_eps_pos          = return_dic[i]
-                y_pred_eps_neg          = return_dic[i+1]
-                y_pred_eps_pos          = (y_pred_eps_pos - np.mean(y_pred_eps_pos)) / np.std(y_pred_eps_pos)
-                y_pred_eps_neg          = (y_pred_eps_neg - np.mean(y_pred_eps_neg)) / np.std(y_pred_eps_neg)
-                perturbed_loss_pos      = loss_function(y_pred=y_pred_eps_pos, y_real=y_target[1:], transient=transient_steps)
-                perturbed_loss_neg      = loss_function(y_pred=y_pred_eps_neg, y_real=y_target[1:], transient=transient_steps)
-                gradients[int((i-1)/2)] = (perturbed_loss_pos - perturbed_loss_neg) / (2*epsilon)
+                    voltages_tmp        = voltages.copy()
+                    voltages_tmp[:,i+1] += epsilon
+                    voltages_list.append(voltages_tmp)
 
-            # Current prediction and loss
-            y_pred  = return_dic[0]
-            y_pred  = (y_pred - np.mean(y_pred)) / np.std(y_pred)
-            loss    = loss_function(y_pred=y_pred, y_real=y_target[1:], transient=transient_steps)
+                    voltages_tmp        = voltages.copy()
+                    voltages_tmp[:,i+1] -= epsilon
+                    voltages_list.append(voltages_tmp)
 
-            if adam:
+                # Container for processes
+                procs = []
 
-                beta1 = 0.9         # decay rate for the first moment
-                beta2 = 0.999       # decay rate for the second moment
+                # For each set of voltages assign start a process
+                for thread in range(2*N_controls+1):
 
-                # Update biased first and second moment estimate
-                m = beta1 * m + (1 - beta1) * gradients
-                v = beta2 * v + (1 - beta2) * (gradients ** 2)
+                    # Start process
+                    process = multiprocessing.Process(target=sim_run_for_gradient_decent, args=(thread, return_dic, voltages_list[thread], time_steps,
+                                                                                                target_electrode, stat_size, network_topology,
+                                                                                                topology_parameter, current_charge_vector))
+                    process.start()
+                    procs.append(process)
+                
+                # Wait for all processes
+                for p in procs:
+                    p.join()
 
-                # Compute bias-corrected first and second moment estimate
-                m_hat = m / (1 - beta1 ** epoch)
-                v_hat = v / (1 - beta2 ** epoch)
+                # Current charge vector given the last iteration
+                current_charge_vector = return_dic[-1]
+                
+                # Gradient Container
+                gradients = np.zeros_like(control_voltages)
 
+                # Calculate gradients for each control voltage 
+                for i in np.arange(1,2*N_controls+1,2):
+
+                    y_pred_eps_pos          = return_dic[i]
+                    y_pred_eps_neg          = return_dic[i+1]
+                    y_pred_eps_pos          = (y_pred_eps_pos - np.mean(y_pred_eps_pos)) / np.std(y_pred_eps_pos)
+                    y_pred_eps_neg          = (y_pred_eps_neg - np.mean(y_pred_eps_neg)) / np.std(y_pred_eps_neg)
+                    perturbed_loss_pos      = loss_function(y_pred=y_pred_eps_pos, y_real=y_target[(start+1):stop], transient=transient_steps)
+                    perturbed_loss_neg      = loss_function(y_pred=y_pred_eps_neg, y_real=y_target[(start+1):stop], transient=transient_steps)
+                    gradients[int((i-1)/2)] = (perturbed_loss_pos - perturbed_loss_neg) / (2*epsilon)
+
+                # Current prediction and loss
+                y_pred  = return_dic[0]
+                y_pred  = (y_pred - np.mean(y_pred)) / np.std(y_pred)
+                loss    = loss_function(y_pred=y_pred, y_real=y_target[(start+1):stop], transient=transient_steps)
+                
+                predictions[(start+1):stop] = y_pred
+
+                # ADAM Optimization
+                if adam:
+
+                    beta1 = 0.9         # decay rate for the first moment
+                    beta2 = 0.999       # decay rate for the second moment
+
+                    # Update biased first and second moment estimate
+                    m = beta1 * m + (1 - beta1) * gradients
+                    v = beta2 * v + (1 - beta2) * (gradients ** 2)
+
+                    # Compute bias-corrected first and second moment estimate
+                    m_hat = m / (1 - beta1 ** epoch)
+                    v_hat = v / (1 - beta2 ** epoch)
+
+                    # Update control voltages given the gradients
+                    control_voltages -= learning_rate * m_hat / (np.sqrt(v_hat) + 1e-8)
+
+                
                 # Update control voltages given the gradients
-                control_voltages -= learning_rate * m_hat / (np.sqrt(v_hat) + 1e-8)
-
-            else:
-                # Update control voltages given the gradients
-                control_voltages -= learning_rate * gradients
+                else:
+                    control_voltages -= learning_rate * gradients
 
             # Print infos
             if epoch % print_nth_epoch == 0:
@@ -1089,7 +1147,8 @@ def time_series_gradient_decent(x_vals : np.array, y_target : np.array, learning
 
             # Save prediction
             if epoch % save_nth_epoch == 0:
-                np.savetxt(fname=f"{path}_{epoch}.csv", X=y_pred)
+                np.savetxt(fname=f"{path}ypred_{epoch}.csv", X=predictions)
+                np.savetxt(fname=f"{path}charge_{epoch}.csv", X=current_charge_vector)
 
 def metropolis_criterion(delta_func, beta):
     return np.exp(-beta * delta_func)

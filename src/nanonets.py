@@ -1,7 +1,9 @@
+import multiprocessing
 import tunneling
 import numpy as np
 import pandas as pd
 import os.path
+import copy
 from typing import List
 from numba.experimental import jitclass
 from numba import int64, float64, boolean, types
@@ -947,10 +949,10 @@ class model_class():
 
         if (last_time-inner_time) != 0:
             
-            self.target_observable_mean = target_potential/(last_time-inner_time)
+            self.target_observable_mean = target_potential/(time_target-inner_time)
             self.I_network              = self.I_network/self.total_jumps
-            self.charge_mean            = self.charge_mean/(last_time-inner_time)
-            self.potential_mean         = self.potential_mean/(last_time-inner_time)
+            self.charge_mean            = self.charge_mean/(time_target-inner_time)
+            self.potential_mean         = self.potential_mean/(time_target-inner_time)
             
         else:
             self.target_observable_mean = self.potential_vector[target_electrode]
@@ -1345,7 +1347,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 
 class simulation(tunneling.tunnel_class):
 
-    def __init__(self, network_topology : str, topology_parameter : dict, folder='', res_info=None, res_info2=None, np_info=None, np_info2=None,
+    def __init__(self, topology_parameter : dict, folder='', res_info=None, res_info2=None, np_info=None, np_info2=None,
                     add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
         """Defines network topology, electrostatic properties and tunneling junctions for a given type of topology. 
 
@@ -1388,7 +1390,10 @@ class simulation(tunneling.tunnel_class):
         super().__init__(electrode_type, tunnel_order, seed)
 
         # Type of Network Topology:
-        self.network_topology = network_topology
+        if 'Nx' in topology_parameter:
+            self.network_topology = 'cubic'
+        else:
+            self.network_topology = 'random'
 
         # Parameter of first nanoparticle type
         if np_info == None:
@@ -1412,7 +1417,7 @@ class simulation(tunneling.tunnel_class):
         self.res_info2  = res_info2
 
         # For a cubic topology
-        if network_topology == "cubic":
+        if self.network_topology == "cubic":
 
             # Path variable
             path_var = f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
@@ -1437,7 +1442,7 @@ class simulation(tunneling.tunnel_class):
             self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
 
         # For a disordered topology
-        elif network_topology == "random":
+        elif self.network_topology == "random":
             
             # Path variable
             path_var = f'Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
@@ -1719,6 +1724,8 @@ class simulation(tunneling.tunnel_class):
         # Electrode indices with const voltages
         const_electrodes    = [i for i in range(self.model.N_electrodes) if i not in self.model.floating_electrodes]
 
+        last_charge_vector  = np.zeros(self.N_particles)
+
         for s in range(stat_size):
             
             self.model.charge_vector = q_eq
@@ -1760,8 +1767,15 @@ class simulation(tunneling.tunnel_class):
                     self.resistance_mean += self.model.return_average_resistances()/stat_size
                 
                 # Subtract past charging state voltage contribution
-                # offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
                 self.model.charge_vector    = self.model.charge_vector - offset
+
+            last_charge_vector  +=  self.model.charge_vector/stat_size
+
+        self.charge_vector          = np.round(last_charge_vector/self.ele_charge)*self.ele_charge
+        self.model.charge_vector    = np.round(last_charge_vector/self.ele_charge)*self.ele_charge
+
+        # self.charge_vector          = last_charge_vector
+        # self.model.charge_vector    = last_charge_vector
 
         self.output_values[:,2] = np.mean(currents, axis=0)
         self.output_values[:,3] = 1.96*np.std(currents, axis=0, ddof=1)/np.sqrt(stat_size)
@@ -1778,17 +1792,221 @@ class simulation(tunneling.tunnel_class):
             save_mean_microstate(self.microstates, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
 
-    def init_based_on_charge_vector(self, voltages : np.array, initial_charge_vector : np.array, T_val=0.0, eq_steps=0):
+    def loss_function(self, y_pred : np.array, y_real : np.array, transient=0, norm=2)->float:
+        """Error given a norm.
+
+        Parameters
+        ----------
+        y_pred : np.array
+            Predicted values
+        y_real : np.array
+            Actual values
+        transient : int, optional
+            Neglect the first transient steps, by default 0
+        norm : int, optional
+            Error norm
+
+        Returns
+        -------
+        float
+            RMSE
+        """
+
+        if norm == 1:
+            pass
+
+        elif norm == 2:
+            error = np.sqrt(np.mean((y_pred[transient:]-y_real[transient:])**2))
+
+        elif norm >2:
+            pass
+
+        else:
+            pass
+
+        return error
+    
+    def sim_run_for_gradient_decent(self, thread : int, class_instance, return_dic : dict, voltages : np.array, time_steps : np.array,
+                                target_electrode : int, stat_size : int, initial_charge_vector=None):
+        """Simulation execution for gradient decent algorithm. Inits a class and runs simulation for variable voltages.
+
+        Parameters
+        ----------
+        thread : int
+            Thread if
+        return_dic : dict
+            Dictonary containing simulation results
+        voltages : np.array
+            Voltage values
+        time_steps : np.array
+            Time Steps
+        target_electrode : int
+            Electrode associated to target observable
+        stat_size : int
+            Number of individual runs for statistics
+        network_topology : str
+            Network topology, either 'cubic' or 'random'
+        topology_parameter : dict
+            Dictonary containing information about topology
+        initial_charge_vector : _type_, optional
+            If not None, initial_charge_vector is used as the first network state, by default None
+        """
+
+        if initial_charge_vector is None:
+            class_instance.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
+                                            stat_size=stat_size, save=False, output_potential=True, init=True)
+        else:
+            class_instance.init_based_on_charge_vector(voltages=voltages, initial_charge_vector=initial_charge_vector)
+            class_instance.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
+                                            stat_size=stat_size, save=False, output_potential=True, init=False)
+            
+        # Get target observable 
+        output_values       = class_instance.return_output_values()
+        observable          = output_values[:,2]
+        error_values        = output_values[:,3]
+        return_dic[thread]  = observable
+
+        if thread == 0:
+            charge_values   = class_instance.charge_vector
+            return_dic[-1]  = charge_values
+    
+    def train_time_series(self, x : np.array, y : np.array, learning_rate : float, batch_size : int, N_epochs : int, epsilon=0.001, adam=False,
+                          time_step=1e-10, stat_size=500, Uc_init=0.05, transient_steps=0, print_nth_batch=1, save_nth_epoch=1, path=''):
+
+        # Parameter
+        N_voltages          = len(x)
+        N_batches           = int(N_voltages/batch_size)
+        N_controls          = self.N_electrodes - 2
+        time_steps          = time_step*np.arange(N_voltages)
+        control_voltages    = np.random.uniform(-Uc_init, Uc_init, N_controls)
+        target_electrode    = self.N_electrodes - 1
+        y                   = (y - np.mean(y))/np.std(y)
+
+        # Multiprocessing Manager
+        with multiprocessing.Manager() as manager:
+
+            # Storage for simulation results
+            return_dic = manager.dict()
+            current_charge_vector = None
+            
+            # ADAM Optimization
+            if adam:
+                m = np.zeros_like(control_voltages)
+                v = np.zeros_like(control_voltages)
+
+            for epoch in range(1, N_epochs+1):
+                
+                # Set charge vector to None
+                predictions = np.zeros(N_voltages)
+                
+                for batch in range(N_batches):
+
+                    start   = batch*batch_size
+                    stop    = (batch+1)*batch_size
+                    
+                    # Voltage array containing input at column 0 
+                    voltages            = np.zeros(shape=(batch_size, self.N_electrodes+1))
+                    voltages[:,0]       = x[start:stop]
+                    voltages[:,1:-2]    = np.tile(np.round(control_voltages,4), (batch_size,1))
+                    voltages_list       = []
+                    voltages_list.append(voltages)
+
+                    # Set up a list of voltages considering small deviations
+                    for i in range(N_controls):
+
+                        voltages_tmp        = voltages.copy()
+                        voltages_tmp[:,i+1] += epsilon
+                        voltages_list.append(voltages_tmp)
+
+                        voltages_tmp        = voltages.copy()
+                        voltages_tmp[:,i+1] -= epsilon
+                        voltages_list.append(voltages_tmp)
+
+                    # Container for processes
+                    procs = []
+
+                    # For each set of voltages assign start a process
+                    for thread in range(2*N_controls+1):
+
+                        # Make a deep copy of the current instance for each process
+                        instance_copy   = copy.deepcopy(self)
+
+                        # Start process
+                        process = multiprocessing.Process(target=self.sim_run_for_gradient_decent, args=(thread, instance_copy, return_dic, voltages_list[thread], time_steps,
+                                                                                                    target_electrode, stat_size, current_charge_vector))
+                        process.start()
+                        procs.append(process)
+                    
+                    # Wait for all processes
+                    for p in procs:
+                        p.join()
+
+                    # Current charge vector given the last iteration
+                    current_charge_vector = return_dic[-1]
+                    
+                    # Gradient Container
+                    gradients = np.zeros_like(control_voltages)
+
+                    # Calculate gradients for each control voltage 
+                    for i in np.arange(1,2*N_controls+1,2):
+
+                        y_pred_eps_pos          = return_dic[i]
+                        y_pred_eps_neg          = return_dic[i+1]
+                        y_pred_eps_pos          = (y_pred_eps_pos - np.mean(y_pred_eps_pos)) / np.std(y_pred_eps_pos)
+                        y_pred_eps_neg          = (y_pred_eps_neg - np.mean(y_pred_eps_neg)) / np.std(y_pred_eps_neg)
+                        perturbed_loss_pos      = self.loss_function(y_pred=y_pred_eps_pos, y_real=y[(start+1):stop], transient=transient_steps)
+                        perturbed_loss_neg      = self.loss_function(y_pred=y_pred_eps_neg, y_real=y[(start+1):stop], transient=transient_steps)
+                        gradients[int((i-1)/2)] = (perturbed_loss_pos - perturbed_loss_neg) / (2*epsilon)
+
+                    # Current prediction and loss
+                    y_pred  = return_dic[0]
+                    y_pred  = (y_pred - np.mean(y_pred)) / np.std(y_pred)
+                    loss    = self.loss_function(y_pred=y_pred, y_real=y[(start+1):stop], transient=transient_steps)
+                    
+                    predictions[(start+1):stop] = y_pred
+
+                    # ADAM Optimization
+                    if adam:
+
+                        beta1 = 0.9         # decay rate for the first moment
+                        beta2 = 0.999       # decay rate for the second moment
+
+                        # Update biased first and second moment estimate
+                        m = beta1 * m + (1 - beta1) * gradients
+                        v = beta2 * v + (1 - beta2) * (gradients ** 2)
+
+                        # Compute bias-corrected first and second moment estimate
+                        m_hat = m / (1 - beta1 ** epoch)
+                        v_hat = v / (1 - beta2 ** epoch)
+
+                        # Update control voltages given the gradients
+                        control_voltages -= learning_rate * m_hat / (np.sqrt(v_hat) + 1e-8)
+
+                    # Update control voltages given the gradients
+                    else:
+                        control_voltages -= learning_rate * gradients
+
+                    # Print infos
+                    if batch % print_nth_batch == 0:
+                        print(f'Epoch   : {epoch}')
+                        print(f'U_C     : {np.round(control_voltages,4)}')
+                        print(f"Loss    : {loss}")
+
+                # Save prediction
+                if epoch % save_nth_epoch == 0:
+                    np.savetxt(fname=f"{path}ypred_{epoch}.csv", X=predictions)
+                    np.savetxt(fname=f"{path}charge_{epoch}.csv", X=current_charge_vector)
+
+    def init_based_on_charge_vector(self, voltages : np.array, initial_charge_vector : np.array, T_val=0.0):
 
         # First time step
-        self.charge_vector = initial_charge_vector
+        self.charge_vector  = initial_charge_vector
         self.init_potential_vector(voltage_values=voltages[0])
         self.init_const_capacitance_values()
         self.np_target_electrode_electrostatic_properties()
 
         # Return Model Arguments
         inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
-        charge_vector                                                                           = self.return_charge_vector()
         potential_vector                                                                        = self.return_potential_vector()
         const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
         N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
@@ -1807,22 +2025,9 @@ class simulation(tunneling.tunnel_class):
             res_dynamic = False
 
         # Pass all model arguments into Numba optimized Class
-        self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
+        self.model = model_class(initial_charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
                                 temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
                                 co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
-
-        # Eqilibrate Potential Landscape
-        if self.res_info['dynamic']:
-
-            slope   = res_dynamic['slope']
-            shift   = res_dynamic['shift']
-            tau_0   = res_dynamic['tau_0']
-            R_max   = res_dynamic['R_max']
-            R_min   = res_dynamic['R_min']
-        
-            eq_jumps = self.model.run_equilibration_steps_var_resistance(eq_steps, slope, shift, tau_0, R_max, R_min)
-        else:
-            eq_jumps = self.model.run_equilibration_steps(eq_steps)
 
         # Initial time and Jumps towards and from target electrode
         self.model.time = 0.0

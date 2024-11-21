@@ -14,12 +14,10 @@ import nanonets
 import nanonets_utils
 
 # Hyper Parameter
-N_epochs            = 50
 stat_size           = 100
 eq_steps            = 0
-path                = "scripts/2_funding_period/WP2/training/data/sine_to_triangle/"
+path                = "scripts/2_funding_period/WP2/training/data/lorenz/test/"
 network_topology    = 'cubic'
-learning_rate       = 0.01
 N_p                 = 7
 
 # Network Topology
@@ -40,19 +38,27 @@ np_info = {
 
 # Voltage Values
 amplitude   = 0.1
-freq        = 2.0
+x_vals      = np.loadtxt("scripts/2_funding_period/WP2/training/data/lorenz/x_vals.csv")
+x_vals      = amplitude*(x_vals - np.mean(x_vals))/np.std(x_vals)
+controls    = np.random.uniform(-amplitude, amplitude, 6)*10
+N_voltages  = 1000
+
+# voltages            = np.zeros(shape=(N_voltages,9))
+# voltages[:,0]       = x_vals[:N_voltages]
+# voltages[:,1:-2]    = np.tile(np.round(controls,4), (N_voltages,1))
+
+
 time_step   = 1e-10
-N_periods   = 16
-N_voltages  = int(N_periods*np.pi/(freq*1e8*time_step))
-batch_size  = N_voltages
 time_steps  = time_step*np.arange(N_voltages)
-x_vals      = amplitude*np.cos(freq*time_steps*1e8)
-y_target    = amplitude*signal.sawtooth(freq*time_steps*1e8-np.pi, 0.5)
+
+freqs               = [1.0,1.3,0.7,0.5,2.2,1.1]
+voltages            = np.zeros(shape=(N_voltages,9))
+for i, f in enumerate(freqs):
+    voltages[:,i+1] = amplitude*np.cos(f*time_steps*1e8)
+voltages[:,0]       = x_vals[:N_voltages]
+
+print(voltages)
 
 # Run Training
-sim_class = nanonets.simulation(topology_parameter=topology_parameter, seed=0)
-sim_class.train_time_series(x=x_vals, y=y_target, learning_rate=learning_rate, batch_size=batch_size, N_epochs=N_epochs,
-                            adam=True, time_step=time_step, stat_size=stat_size, path=path)
-
-# sim_class.train_time_series_by_frequency(x=x_vals, y=y_target, learning_rate=learning_rate, batch_size=batch_size, N_epochs=N_epochs,
-#                                         adam=True, time_step=time_step, stat_size=stat_size, path=path)
+sim_class   = nanonets.simulation(topology_parameter=topology_parameter, seed=0, folder=path)
+sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=stat_size, output_potential=True)

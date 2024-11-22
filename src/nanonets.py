@@ -1,3 +1,4 @@
+from time import time_ns
 import multiprocessing
 import tunneling
 import numpy as np
@@ -1284,7 +1285,6 @@ class model_class():
     def return_time_vals(self):
         return self.time_values
 
-
 ###################################################################################################
 # FUNCTIONS
 ###################################################################################################
@@ -1347,18 +1347,18 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 
 class simulation(tunneling.tunnel_class):
 
-    def __init__(self, topology_parameter : dict, folder='', res_info=None, res_info2=None, np_info=None, np_info2=None,
-                    add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
+    def __init__(self, topology_parameter : dict, folder='', add_to_path="", res_info=None, res_info2=None,
+                 np_info=None, np_info2=None, seed=None, **kwargs):
         """Defines network topology, electrostatic properties and tunneling junctions for a given type of topology. 
 
         Parameters
         ----------
-        network_topology : str
-            Type of network topology. Either use "cubic" to set up a lattice topology or "random" to set up a disordered network topology 
         topology_parameter : dict
-            Dictonary including information about number of nanoparticles and electrode positions.
+            Dictonary including information about number of nanoparticles, electrode positions and types.
         folder : str, optional
             Folder where simulation results are saved, by default ''
+        add_to_path : str, optional
+            String which is extended to the file path, by default ""
         res_info : dict, optional
             Dictonary including information about resistance values for the first type of nanoparticles, by default None
         res_info2 : dict, optional
@@ -1367,14 +1367,6 @@ class simulation(tunneling.tunnel_class):
             Dictonary including information about the first type of nanoparticles, by default None
         np_info2 : dict, optional
             Dictonary including information about the second type of nanoparticles, by default None
-        add_to_path : str, optional
-            String which is extended to the file path, by default ""
-        del_n_junctions : int, optional
-            Randomly delete n junctions in a cubic network topology, by default 0
-        gate_nps : _type_, optional
-            Define which nanoparticles are affected by a gate electrode, by default None
-        tunnel_order : int, optional
-            Value either set 1 or 2 to specify whether the simulation considers only first order or also second order tunneling event, by default 1
         seed : _type_, optional
             Seed in use, when network properties are randomly sampled, by default None
 
@@ -1387,7 +1379,8 @@ class simulation(tunneling.tunnel_class):
         # Constant or floating electrodes
         electrode_type  = topology_parameter['electrode_type']
 
-        super().__init__(electrode_type, tunnel_order, seed)
+        # Inheritance 
+        super().__init__(electrode_type, 1, seed)
 
         # Type of Network Topology:
         if 'Nx' in topology_parameter:
@@ -1396,7 +1389,7 @@ class simulation(tunneling.tunnel_class):
             self.network_topology = 'random'
 
         # Parameter of first nanoparticle type
-        if np_info == None:
+        if np_info is None:
             np_info = {
                 "eps_r"         : 2.6,  # Permittivity of molecular junction 
                 "eps_s"         : 3.9,  # Permittivity of oxide layer
@@ -1406,13 +1399,14 @@ class simulation(tunneling.tunnel_class):
             }
 
         # First type of nanoparticle resistances
-        if res_info == None:
+        if res_info is None:
             res_info = {
                 "mean_R"    : 25.0, # Average resistance
                 "std_R"     : 0.0,  # Standard deviation of resistances
                 "dynamic"   : False # Dynamic or constant resistances
             }
         
+        # Resistance Information
         self.res_info   = res_info
         self.res_info2  = res_info2
 
@@ -1425,11 +1419,11 @@ class simulation(tunneling.tunnel_class):
             # Cubic Network Topology
             self.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
             self.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
-            self.attach_np_to_gate(gate_nps=gate_nps)
+            self.attach_np_to_gate()
             
-            # Delete Junctions if porvided
-            if del_n_junctions != 0:
-                self.delete_n_junctions(del_n_junctions)
+            # Delete Junctions if porvided in kwargs
+            if 'del_n_junctions' in kwargs:
+                self.delete_n_junctions(kwargs['del_n_junctions'])
                 
             # Electrostatic Properties
             self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
@@ -1451,7 +1445,7 @@ class simulation(tunneling.tunnel_class):
             self.random_network(N_particles=topology_parameter["Np"], N_junctions=topology_parameter["Nj"])
             self.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
             self.graph_to_net_topology()
-            self.attach_np_to_gate(gate_nps=gate_nps)
+            self.attach_np_to_gate()
                             
             # Electrostatic Properties
             self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
@@ -1470,11 +1464,12 @@ class simulation(tunneling.tunnel_class):
         self.init_adv_indices()
 
         # Save Paths
+        self.folder = folder
         self.path1  = folder + path_var
         self.path2  = folder + 'mean_state_' + path_var
         self.path3  = folder + 'net_currents_' + path_var
 
-    def run_const_voltages(self, voltages : np.array, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, output_potential=False, verbose=False):
+    def run_const_voltages(self, voltages : np.array, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, verbose=False):
         """Run a kinetic monte carlo simulation for constant electrode voltages to estimate either the constant electric current of
         the target electrode at constant target electrode voltage or the constant potential of a floating target electrode.
 
@@ -1529,6 +1524,8 @@ class simulation(tunneling.tunnel_class):
         # Check if target electrode is floating
         if self.electrode_type[target_electrode] == 'floating':
             output_potential=True
+        else:
+            output_potential=False
 
         j = 0
         
@@ -1625,8 +1622,8 @@ class simulation(tunneling.tunnel_class):
                 self.average_cojumps = []
                 j                    = i+1
 
-    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode, T_val=0.0, eq_steps=0, save=True,
-                         stat_size=500, output_potential=False, init=True, verbose=False):
+    def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode : int, T_val=0.0, eq_steps=0, save=True,
+                         stat_size=500, init_charges=None, verbose=False):
         """Run a kinetic monte carlo simulation for time dependent electrode voltages to estimate either the electric current of
         the target electrode at variable target electrode voltage or the variable potential of a floating target electrode.
 
@@ -1641,72 +1638,84 @@ class simulation(tunneling.tunnel_class):
         T_val : float, optional
             Network temperature, by default 0.0
         eq_steps : int, optional
-            Number of KMC steps for equilibration, by default 10000
-        save_th : int, optional
-            Store simulation results after each save_th set electrode voltage combinations, by default 10
-        output_potential : bool, optional
-            If true, target electrode is floating and the simulation estimates its potential instead of the electric current, by default False
-        init : bool, optional
-            If True, initialize the network states and equilibrate the systen. If False, just keep simulation based on given network states
+            Number of KMC steps for equilibration, by default 0
+        save : bool, optional
+            Store simulation results at path, by default True
+        stat_size : int, optional
+            Number of independet runs for statistics calculation, by default 500
+        init_charges : np.array, optional
+            Initialize network states and skip equilibration based 2D np.array with rows=Run and cols=NPs, by default None
+        verbose : bool, optional
+            If true, track additional simulation observables. Increases simulation duration!, by default False
         """
 
-        # If Network States are initialized
-        if init:
-            
-            # First time step
-            self.init_charge_vector(voltage_values=voltages[0])
-            self.init_potential_vector(voltage_values=voltages[0])
-            self.init_const_capacitance_values()
-            self.np_target_electrode_electrostatic_properties()
-
-            # Return Model Arguments
-            inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
-            charge_vector                                                                           = self.return_charge_vector()
-            potential_vector                                                                        = self.return_potential_vector()
-            const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
-            N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
-            adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
-            temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
-            resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
-            C_np_self, C_np_target                                                                  = self.return_output_electrostatics()
-            
-            if self.res_info2 != None:
-                resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
-
-            # For memristive resistors
-            if self.res_info['dynamic']:
-                res_dynamic = self.res_info
-            else:
-                res_dynamic = False
-
-            # Pass all model arguments into Numba optimized Class
-            self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
-                                    temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                    co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
-
-            # Eqilibrate Potential Landscape
-            if self.res_info['dynamic']:
-
-                slope   = res_dynamic['slope']
-                shift   = res_dynamic['shift']
-                tau_0   = res_dynamic['tau_0']
-                R_max   = res_dynamic['R_max']
-                R_min   = res_dynamic['R_min']
-            
-                eq_jumps = self.model.run_equilibration_steps_var_resistance(eq_steps, slope, shift, tau_0, R_max, R_min)
-            else:
-                eq_jumps = self.model.run_equilibration_steps(eq_steps)
-
-            # Initial time and Jumps towards and from target electrode
-            self.model.time = 0.0
-            
-            # Subtract charges induces by initial electrode voltages
-            offset                      = self.get_charge_vector_offset(voltage_values=voltages[0])
-            self.model.charge_vector    = self.model.charge_vector - offset
-        
-        # If Network States is not initialized
+        # Check if target electrode is a floating electrode
+        if self.electrode_type[target_electrode] == 'floating':
+            output_potential = True
         else:
-            eq_jumps = 0
+            output_potential = False
+        
+        # Init based on first time step
+        self.init_charge_vector(voltage_values=voltages[0])
+        self.init_potential_vector(voltage_values=voltages[0])
+        self.init_const_capacitance_values()
+        self.np_target_electrode_electrostatic_properties()
+
+        # Return Model Arguments
+        inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
+        charge_vector                                                                           = self.return_charge_vector()
+        potential_vector                                                                        = self.return_potential_vector()
+        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
+        N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
+        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
+        temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
+        resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
+        C_np_self, C_np_target                                                                  = self.return_output_electrostatics()
+        
+        # Second resistor type
+        if self.res_info2 is not None:
+            resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
+
+        # Pass all model arguments into Numba optimized Class
+        self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
+                                temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
+                                co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
+
+        # Resistors are Memristors
+        if self.res_info['dynamic']:
+
+            # Memristor Properties
+            res_dynamic = self.res_info
+            slope       = res_dynamic['slope']
+            shift       = res_dynamic['shift']
+            tau_0       = res_dynamic['tau_0']
+            R_max       = res_dynamic['R_max']
+            R_min       = res_dynamic['R_min']
+
+            # Equilibration
+            if init_charges is None:
+                eq_jumps    = self.model.run_equilibration_steps_var_resistance(eq_steps, slope, shift, tau_0, R_max, R_min)
+        else:
+
+            res_dynamic = False
+
+            # Equilibration
+            if init_charges is None:
+                eq_jumps    = self.model.run_equilibration_steps(eq_steps)
+
+        # Initial time
+        self.model.time = time_steps[0]
+        
+        # Subtract charges induces by initial electrode voltages
+        offset                      = self.get_charge_vector_offset(voltage_values=voltages[0])
+        self.model.charge_vector    = self.model.charge_vector - offset
+        
+        # Without predefined states
+        if init_charges is None:
+            self.q_eq   = np.tile(self.model.charge_vector.copy(), (stat_size,1))
+        else:
+            eq_jumps    = 0
+            self.q_eq   = init_charges
             
         # Reset Obseravles
         self.output_values      = np.zeros(shape=(voltages.shape[0], 4))
@@ -1714,21 +1723,19 @@ class simulation(tunneling.tunnel_class):
         self.landscape          = np.zeros(shape=(voltages.shape[0], self.model.N_particles+self.model.N_electrodes))
         self.average_jumps      = np.zeros(shape=(voltages.shape[0], len(self.model.adv_index_rows)))
 
+        # Additional Observables
         if verbose:
             self.resistance_mean = np.zeros(shape=(voltages.shape[0], len(self.model.adv_index_rows)))
         
         # Store equilibrated charge distribution
-        currents            = np.zeros(shape=(stat_size, len(voltages)))
-        q_eq                = self.model.charge_vector.copy()
+        observable          = np.zeros(shape=(stat_size, len(voltages)))
         
         # Electrode indices with const voltages
         const_electrodes    = [i for i in range(self.model.N_electrodes) if i not in self.model.floating_electrodes]
 
-        last_charge_vector  = np.zeros(self.N_particles)
-
         for s in range(stat_size):
             
-            self.model.charge_vector = q_eq
+            self.model.charge_vector = self.q_eq[s,:]
         
             # For each time step, i.e. voltage
             for i, voltage_values in enumerate(voltages[:-1]):
@@ -1742,7 +1749,6 @@ class simulation(tunneling.tunnel_class):
                 time_target     = time_steps[i+1]
 
                 # Update Electrode Potentials
-                # self.model.potential_vector[:(len(voltage_values)-1)]  = voltage_values[:(len(voltage_values)-1)]
                 self.model.potential_vector[const_electrodes]  = voltage_values[const_electrodes]
                 
                 if self.res_info['dynamic']:
@@ -1757,7 +1763,7 @@ class simulation(tunneling.tunnel_class):
                         target_observable_mean, target_observable_error, total_jumps = self.model.return_target_values()
                 
                 # Add observables to outputs
-                currents[s,i]           =  target_observable_mean
+                observable[s,i]         =  target_observable_mean
                 self.output_values[i,:] += np.array([eq_jumps, total_jumps, 0.0, 0.0])/stat_size
                 self.microstates[i,:]   += self.model.return_average_charges()/stat_size
                 self.landscape[i,:]     += self.model.return_average_potentials()/stat_size
@@ -1769,63 +1775,23 @@ class simulation(tunneling.tunnel_class):
                 # Subtract past charging state voltage contribution
                 self.model.charge_vector    = self.model.charge_vector - offset
 
-            last_charge_vector  +=  self.model.charge_vector/stat_size
+            # Last charge vector
+            self.q_eq[s,:]   = self.model.charge_vector.copy()
 
-        # self.charge_vector          = np.round(last_charge_vector/self.ele_charge)*self.ele_charge
-        # self.model.charge_vector    = np.round(last_charge_vector/self.ele_charge)*self.ele_charge
-
-        self.charge_vector          = last_charge_vector
-        self.model.charge_vector    = last_charge_vector
-
-        self.output_values[:,2] = np.mean(currents, axis=0)
-        self.output_values[:,3] = 1.96*np.std(currents, axis=0, ddof=1)/np.sqrt(stat_size)
+        # Calculate Average observable and error
+        self.output_values[:,2] = np.mean(observable, axis=0)
+        self.output_values[:,3] = 1.96*np.std(observable, axis=0, ddof=1)/np.sqrt(stat_size)
 
         # Delte last row
-        self.output_values      = np.delete(self.output_values,-1,axis=0)
-        self.microstates        = np.delete(self.microstates,-1,axis=0)
-        self.landscape          = np.delete(self.landscape,-1,axis=0)
-        self.average_jumps      = np.delete(self.average_jumps,-1,axis=0)
+        self.output_values      = np.delete(self.output_values,-1, axis=0)
+        self.microstates        = np.delete(self.microstates,-1, axis=0)
+        self.landscape          = np.delete(self.landscape,-1, axis=0)
+        self.average_jumps      = np.delete(self.average_jumps,-1, axis=0)
 
         if save:
-            # save_target_currents(self.output_values, np.delete(voltages,-1,axis=0), self.path1)
             save_target_currents(self.output_values, np.hstack([self.landscape[:,:N_electrodes], voltages[:-1,-1][:,np.newaxis]]), self.path1)
             save_mean_microstate(self.microstates, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
-
-    def loss_function(self, y_pred : np.array, y_real : np.array, transient=0, norm=2)->float:
-        """Error given a norm.
-
-        Parameters
-        ----------
-        y_pred : np.array
-            Predicted values
-        y_real : np.array
-            Actual values
-        transient : int, optional
-            Neglect the first transient steps, by default 0
-        norm : int, optional
-            Error norm
-
-        Returns
-        -------
-        float
-            RMSE
-        """
-
-        if norm == 1:
-            pass
-
-        elif norm == 2:
-            # error = np.sqrt(np.mean((y_pred[transient:]-y_real[transient:])**2))
-            error = np.mean((y_pred[transient:]-y_real[transient:])**2)
-
-        elif norm >2:
-            pass
-
-        else:
-            pass
-
-        return error
     
     def sim_run_for_gradient_decent(self, thread : int, class_instance, return_dic : dict, voltages : np.array, time_steps : np.array,
                                     target_electrode : int, stat_size : int, initial_charge_vector=None):
@@ -2132,171 +2098,6 @@ class simulation(tunneling.tunnel_class):
                     np.savetxt(fname=f"{path}ypred_{epoch}.csv", X=predictions)
                     np.savetxt(fname=f"{path}charge_{epoch}.csv", X=current_charge_vector)
 
-    def simulated_annealing_time_series_by_frequency(self, x : np.array, y : np.array, learning_rate : float, batch_size : int, N_epochs : int, epsilon=0.1, adam=False,
-                          time_step=1e-10, stat_size=500, f_init=1.0, amplitude=0.1, transient_steps=0, print_nth_batch=1, save_nth_epoch=1, path=''):
-
-        # Parameter
-        N_voltages          = len(x)
-        N_batches           = int(N_voltages/batch_size)
-        N_controls          = self.N_electrodes - 2
-        time_steps          = time_step*np.arange(N_voltages)
-        params              = np.round(np.random.uniform(0.1, f_init, N_controls), 4) #np.repeat(f_init, N_controls)
-        target_electrode    = self.N_electrodes - 1
-        y                   = (y - np.mean(y))/np.std(y)
-
-        # Multiprocessing Manager
-        with multiprocessing.Manager() as manager:
-
-            # Storage for simulation results
-            return_dic = manager.dict()
-            current_charge_vector = None
-            
-            # ADAM Optimization
-            if adam:
-                m = np.zeros_like(params)
-                v = np.zeros_like(params)
-
-            for epoch in range(1, N_epochs+1):
-                
-                # Set charge vector to None
-                predictions = np.zeros(N_voltages)
-                
-                for batch in range(N_batches):
-
-                    start   = batch*batch_size
-                    stop    = (batch+1)*batch_size
-                    
-                    # Voltage array containing input at column 0 
-                    voltages            = np.zeros(shape=(batch_size, self.N_electrodes+1))
-                    voltages[:,0]       = x[start:stop]
-                    for i, f in enumerate(params):
-                        voltages[:,i+1] = amplitude*np.cos(np.round(f,4)*time_steps[start:stop]*1e8)
-                    voltages_list       = []
-                    voltages_list.append(voltages)
-
-                    # Set up a list of voltages considering small deviations
-                    for i in range(N_controls):
-
-                        voltages_tmp        = voltages.copy()
-                        voltages_tmp[:,i+1] = amplitude*np.cos((f+np.random.uniform(-1,1))*time_steps[start:stop]*1e8)
-                        voltages_list.append(voltages_tmp)
-
-                    # Container for processes
-                    procs = []
-
-                    # For each set of voltages assign start a process
-                    for thread in range(N_controls+1):
-
-                        # Make a deep copy of the current instance for each process
-                        instance_copy   = copy.deepcopy(self)
-
-                        # Start process
-                        process = multiprocessing.Process(target=self.sim_run_for_gradient_decent, args=(thread, instance_copy, return_dic, voltages_list[thread], time_steps,
-                                                                                                    target_electrode, stat_size, current_charge_vector))
-                        process.start()
-                        procs.append(process)
-                    
-                    # Wait for all processes
-                    for p in procs:
-                        p.join()
-
-                    # Current charge vector given the last iteration
-                    current_charge_vector = return_dic[-1]
-                    
-                    # Gradient Container
-                    gradients = np.zeros_like(params)
-
-                    # Calculate gradients for each frequency 
-                    for i in np.arange(1,2*N_controls+1,2):
-
-                        y_pred_eps_pos          = return_dic[i]
-                        y_pred_eps_neg          = return_dic[i+1]
-                        y_pred_eps_pos          = (y_pred_eps_pos - np.mean(y_pred_eps_pos)) / np.std(y_pred_eps_pos)
-                        y_pred_eps_neg          = (y_pred_eps_neg - np.mean(y_pred_eps_neg)) / np.std(y_pred_eps_neg)
-                        perturbed_loss_pos      = self.loss_function(y_pred=y_pred_eps_pos, y_real=y[(start+1):stop], transient=transient_steps)
-                        perturbed_loss_neg      = self.loss_function(y_pred=y_pred_eps_neg, y_real=y[(start+1):stop], transient=transient_steps)
-                        gradients[int((i-1)/2)] = (perturbed_loss_pos - perturbed_loss_neg) / (2*epsilon)
-
-                    # Current prediction and loss
-                    y_pred  = return_dic[0]
-                    y_pred  = (y_pred - np.mean(y_pred)) / np.std(y_pred)
-                    loss    = self.loss_function(y_pred=y_pred, y_real=y[(start+1):stop], transient=transient_steps)
-                    
-                    predictions[(start+1):stop] = y_pred
-
-                    # ADAM Optimization
-                    if adam:
-
-                        beta1 = 0.9         # decay rate for the first moment
-                        beta2 = 0.999       # decay rate for the second moment
-
-                        # Update biased first and second moment estimate
-                        m = beta1 * m + (1 - beta1) * gradients
-                        v = beta2 * v + (1 - beta2) * (gradients ** 2)
-
-                        # Compute bias-corrected first and second moment estimate
-                        m_hat = m / (1 - beta1 ** epoch)
-                        v_hat = v / (1 - beta2 ** epoch)
-
-                        # Update frequencies given the gradients
-                        params -= learning_rate * m_hat / (np.sqrt(v_hat) + 1e-8)
-
-                    # Update frequencies given the gradients
-                    else:
-                        params -= learning_rate * gradients
-
-                    params = np.clip(params, 0.1, 10.0)
-
-                    # Print infos
-                    if batch % print_nth_batch == 0:
-                        print(f'Epoch   : {epoch}')
-                        print(f'U_C     : {np.round(params,4)}')
-                        print(f"Loss    : {loss}")
-
-                # Save prediction
-                if epoch % save_nth_epoch == 0:
-                    np.savetxt(fname=f"{path}ypred_{epoch}.csv", X=predictions)
-                    np.savetxt(fname=f"{path}charge_{epoch}.csv", X=current_charge_vector)
-    
-    def init_based_on_charge_vector(self, voltages : np.array, initial_charge_vector : np.array, T_val=0.0):
-
-        # First time step
-        self.charge_vector  = initial_charge_vector
-        self.init_potential_vector(voltage_values=voltages[0])
-        self.init_const_capacitance_values()
-        self.np_target_electrode_electrostatic_properties()
-
-        # Return Model Arguments
-        inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
-        potential_vector                                                                        = self.return_potential_vector()
-        const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2    = self.return_const_capacitance_values()
-        N_electrodes, N_particles                                                               = self.return_particle_electrode_count()
-        adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
-        temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
-        resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
-        C_np_self, C_np_target                                                                  = self.return_output_electrostatics()
-        
-        if self.res_info2 != None:
-            resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
-
-        # For memristive resistors
-        if self.res_info['dynamic']:
-            res_dynamic = self.res_info
-        else:
-            res_dynamic = False
-
-        # Pass all model arguments into Numba optimized Class
-        self.model = model_class(initial_charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
-                                temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
-
-        # Initial time and Jumps towards and from target electrode
-        self.model.time = 0.0
-        
-        # Subtract charges induces by initial electrode voltages
-        offset                      = self.get_charge_vector_offset(voltage_values=voltages[0])
-        self.model.charge_vector    = self.model.charge_vector - offset
-
     def clear_outputs(self):
 
         self.output_values   = []
@@ -2345,100 +2146,17 @@ class simulation(tunneling.tunnel_class):
 
 class Optimizer(simulation):
 
-    def __init__(self, optimizer_type : str, parameter_type: str, topology_parameter : dict, folder='', res_info=None, res_info2=None, np_info=None, np_info2=None,
-                    add_to_path="", del_n_junctions=0, gate_nps=None, tunnel_order=1, seed=None):
+    def __init__(self, optimizer_type : str, parameter_type: str, topology_parameter : dict, folder='', add_to_path="", res_info=None, res_info2=None,
+                 np_info=None, np_info2=None, seed=None, **kwargs):
 
-        super().__init__(topology_parameter, folder, res_info, res_info2, np_info, np_info2,
-                         add_to_path, del_n_junctions, gate_nps, tunnel_order, seed)
+        super().__init__(topology_parameter, folder, add_to_path, res_info, res_info2, np_info, np_info2, seed, **kwargs)
         
         self.optimizer_type = optimizer_type
         self.parameter_type = parameter_type
+        self.best_loss      = np.inf
+        self.N_controls     = self.N_electrodes - 2
 
-    def simulate_current_loss(self, voltages : np.array, y_true : np.array, time_steps : np.array, stat_size=500, init=True):
-
-        target_electrode   = self.N_electrodes - 1
-        self.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, stat_size=stat_size, init=init)
-
-        # Prediction and current loss
-        output_values   = self.return_output_values()
-        y_pred          = output_values[:,2]
-        y_pred          = (y_pred - np.mean(y_pred)) / np.std(y_pred)
-        loss            = self.loss_function(y_pred=y_pred, y_real=y_true)
-
-        return y_pred, loss
-
-    def simulated_annealing(self, x : np.array, y : np.array, batch_size : int, N_epochs : int, epsilon=0.01, time_step=1e-10,
-                            stat_size=500, Uc_init=0.1, print_nth_batch=1, save_nth_epoch=1):
-
-        # Target Values
-        y   = (y - np.mean(y))/np.std(y)
-        
-        # Number of voltages and Batches
-        N_voltages          = len(x)
-        N_batches           = int(N_voltages/batch_size)
-
-        # Time Scale
-        time_steps          = time_step*np.arange(N_voltages)
-
-        # Initial Control Values
-        N_controls          = self.N_electrodes - 2
-        control_voltages    = np.random.uniform(-Uc_init, Uc_init, N_controls)
-        best_controls       = control_voltages
-
-        # Loss
-        best_loss           = np.inf
-
-        # For each epoch
-        for epoch in range(1, N_epochs+1):
-            
-            # predictions container
-            predictions = np.zeros(N_voltages)
-            
-            # For each batch in an epoch
-            for batch in range(N_batches):
-
-                # Batch start and stop index
-                start   = batch*batch_size
-                stop    = (batch+1)*batch_size
-
-                # New parameter values
-                new_control_voltages = control_voltages + np.random.uniform(-epsilon, epsilon, N_controls)
-                
-                # Voltage array containing input at column 0 
-                voltages            = np.zeros(shape=(batch_size, self.N_electrodes+1))
-                voltages[:,0]       = x[start:stop]
-                voltages[:,1:-2]    = np.tile(np.round(control_voltages,4), (batch_size,1))
-                
-                # Run Simulation
-                y_pred, new_loss            = self.simulate_current_loss(voltages=voltages, y_true=y[(start+1):stop], time_steps=time_steps, stat_size=stat_size, init=False)
-                current_charge_vector       = self.return_charge_vector()
-                predictions[(start+1):stop] = y_pred
-
-                # Check for new best parameters
-                if new_loss < best_loss:
-                    best_loss           = new_loss
-                    best_controls       = new_control_voltages
-                    control_voltages    = new_control_voltages
-
-                else:
-                    prob    = np.exp(-(new_loss-best_loss)/temp)
-                    if np.random.rand() < prob:
-                        control_voltages = new_control_voltages
-
-                temp = temp * (temp_end / temp_start) ** (1.0 / N_epochs)
-
-                # Print infos
-                if batch % print_nth_batch == 0:
-                    print(f'Epoch   : {epoch}')
-                    print(f'U_C     : {np.round(control_voltages,4)}')
-                    print(f"Loss    : {loss}")
-
-            # Save prediction
-            if epoch % save_nth_epoch == 0:
-                    np.savetxt(fname=f"{path}ypred_{epoch}.csv", X=predictions)
-                    np.savetxt(fname=f"{path}charge_{epoch}.csv", X=current_charge_vector)
-
-    def loss_function(self, y_pred : np.array, y_real : np.array, transient=0, norm=2)->float:
+    def loss_function(self, y_pred : np.array, y_real : np.array, transient=0)->float:
         """Error given a norm.
 
         Parameters
@@ -2449,8 +2167,6 @@ class Optimizer(simulation):
             Actual values
         transient : int, optional
             Neglect the first transient steps, by default 0
-        norm : int, optional
-            Error norm
 
         Returns
         -------
@@ -2458,21 +2174,86 @@ class Optimizer(simulation):
             RMSE
         """
 
-        if norm == 1:
-            pass
-
-        elif norm == 2:
-            # error = np.sqrt(np.mean((y_pred[transient:]-y_real[transient:])**2))
-            error = np.mean((y_pred[transient:]-y_real[transient:])**2)
-
-        elif norm >2:
-            pass
-
-        else:
-            pass
+        error = np.mean((y_pred[transient:]-y_real[transient:])**2)
 
         return error
+    
+    def simulate_current_loss(self, voltages : np.array, y_true : np.array, time_steps : np.array, stat_size=500, init_charges=None):
 
+        # Run Simulation
+        target_electrode   = self.N_electrodes - 1
+        self.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, stat_size=stat_size, init_charges=init_charges)
+
+        # Extract prediction and current loss
+        output_values   = self.return_output_values()
+        y_pred          = output_values[:,2]
+        self.y_pred     = (y_pred - np.mean(y_pred)) / np.std(y_pred)
+        self.loss       = self.loss_function(y_pred=y_pred, y_real=y_true)
+
+    def simulated_annealing(self, x : np.array, y : np.array, N_epochs : int, temp_init : float, cooling_rate=0.99, epsilon=0.01,
+                            time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.1, print_nth_epoch=1, save_nth_epoch=1):
+
+        # Target Values
+        y           = (y - np.mean(y))/np.std(y)
+        charge_init = None
+
+        # Initial Values
+        N_voltages          = len(x)
+        if self.parameter_type == 'freq':
+            self.best_params    = np.random.uniform(0.1, p_init, self.N_controls)
+        else:
+            self.best_params    = np.random.uniform(-p_init, p_init, self.N_controls)
+        time_steps          = time_step*np.arange(N_voltages)
+        temp                = temp_init
+
+        # For each epoch
+        for epoch in range(1, N_epochs+1):
+            
+            # New parameter values
+            params              = self.best_params + np.random.uniform(-epsilon, epsilon, self.N_controls)
+            voltages            = np.zeros(shape=(N_voltages, self.N_electrodes+1))
+            voltages[:,0]       = x
+
+            if self.parameter_type == 'freq':
+                params = np.clip(params, a_min=0.1, a_max=10.0)
+                for i, f in enumerate(params):
+                    voltages[:,i+1] = amplitude*np.cos(np.round(f,4)*time_steps*1e8)
+            else:
+                voltages[:,1:-2]    = np.tile(np.round(params,4), (N_voltages,1))
+            
+            # Run Simulation and get new loss
+            self.simulate_current_loss(voltages=voltages, y_true=y[1:], time_steps=time_steps, stat_size=stat_size, init_charges=charge_init)
+            charge_init = self.q_eq
+
+            delta_loss = self.loss - self.best_loss
+            
+            # Check for new best parameters
+            if delta_loss < 0:
+                self.best_loss      = self.loss
+                self.best_params    = params
+
+            else:
+                prob = np.exp(-delta_loss/temp)
+                if np.random.rand() < prob:
+                    self.best_loss      = self.loss
+                    self.best_params    = params
+
+            # Cool down temperature
+            if cooling_rate == 0:
+                temp = temp/np.log(1+epoch)
+            else:
+                temp = temp * cooling_rate
+
+            # Print infos
+            if epoch % print_nth_epoch == 0:
+                print(f'Epoch   : {epoch}')
+                print(f'U_C     : {np.round(self.best_params,4)}')
+                print(f"Loss    : {self.loss}")
+                print(f"Temp    : {temp}")
+
+            # Save prediction
+            if epoch % save_nth_epoch == 0:
+                np.savetxt(fname=f"{self.folder}ypred_{epoch}.csv", X=self.y_pred)
 
 ###########################################################################################################################
 ###########################################################################################################################

@@ -2223,7 +2223,9 @@ class Optimizer(simulation):
             
             # Run Simulation and get new loss
             self.simulate_current_loss(voltages=voltages, y_true=y[1:], time_steps=time_steps, stat_size=stat_size, init_charges=charge_init)
-            charge_init = self.q_eq
+            
+            # Only if accepted
+            # charge_init = self.q_eq
 
             delta_loss = self.loss - self.best_loss
             

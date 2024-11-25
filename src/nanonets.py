@@ -1735,7 +1735,7 @@ class simulation(tunneling.tunnel_class):
 
         for s in range(stat_size):
             
-            self.model.charge_vector = self.q_eq[s,:]
+            self.model.charge_vector = self.q_eq[s,:].copy()
         
             # For each time step, i.e. voltage
             for i, voltage_values in enumerate(voltages[:-1]):
@@ -1792,51 +1792,7 @@ class simulation(tunneling.tunnel_class):
             save_target_currents(self.output_values, np.hstack([self.landscape[:,:N_electrodes], voltages[:-1,-1][:,np.newaxis]]), self.path1)
             save_mean_microstate(self.microstates, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
-    
-    def sim_run_for_gradient_decent(self, thread : int, class_instance, return_dic : dict, voltages : np.array, time_steps : np.array,
-                                    target_electrode : int, stat_size : int, initial_charge_vector=None):
-        """Simulation execution for gradient decent algorithm. Inits a class and runs simulation for variable voltages.
-
-        Parameters
-        ----------
-        thread : int
-            Thread if
-        return_dic : dict
-            Dictonary containing simulation results
-        voltages : np.array
-            Voltage values
-        time_steps : np.array
-            Time Steps
-        target_electrode : int
-            Electrode associated to target observable
-        stat_size : int
-            Number of individual runs for statistics
-        network_topology : str
-            Network topology, either 'cubic' or 'random'
-        topology_parameter : dict
-            Dictonary containing information about topology
-        initial_charge_vector : _type_, optional
-            If not None, initial_charge_vector is used as the first network state, by default None
-        """
-
-        if initial_charge_vector is None:
-            class_instance.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
-                                            stat_size=stat_size, save=False, output_potential=True, init=True)
-        else:
-            class_instance.init_based_on_charge_vector(voltages=voltages, initial_charge_vector=initial_charge_vector)
-            class_instance.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
-                                            stat_size=stat_size, save=False, output_potential=True, init=False)
-            
-        # Get target observable 
-        output_values       = class_instance.return_output_values()
-        observable          = output_values[:,2]
-        error_values        = output_values[:,3]
-        return_dic[thread]  = observable
-
-        if thread == 0:
-            charge_values   = class_instance.charge_vector
-            return_dic[-1]  = charge_values
-    
+        
     def train_time_series(self, x : np.array, y : np.array, learning_rate : float, batch_size : int, N_epochs : int, epsilon=0.001, adam=False,
                           time_step=1e-10, stat_size=500, Uc_init=0.1, transient_steps=0, print_nth_batch=1, save_nth_epoch=1, path=''):
 
@@ -2178,20 +2134,61 @@ class Optimizer(simulation):
 
         return error
     
-    def simulate_current_loss(self, voltages : np.array, y_true : np.array, time_steps : np.array, stat_size=500, init_charges=None):
+    def simulate_current_loss(self, voltages : np.array, y_true : np.array, time_steps : np.array, stat_size=500, transient=0, init_charges=None):
 
         # Run Simulation
         target_electrode   = self.N_electrodes - 1
-        self.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, stat_size=stat_size, init_charges=init_charges)
+        self.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
+                              stat_size=stat_size, init_charges=init_charges, save=False)
 
         # Extract prediction and current loss
         output_values   = self.return_output_values()
         y_pred          = output_values[:,2]
         self.y_pred     = (y_pred - np.mean(y_pred)) / np.std(y_pred)
-        self.loss       = self.loss_function(y_pred=y_pred, y_real=y_true)
+        self.loss       = self.loss_function(y_pred=y_pred, y_real=y_true, transient=transient)
+    
+    def simulate_current_loss_parallel(self, thread : int, class_instance, return_dic : dict, voltages : np.array, time_steps : np.array, stat_size=500, init_charges=None):
+        """Simulation execution for gradient decent algorithm. Inits a class and runs simulation for variable voltages.
 
-    def simulated_annealing(self, x : np.array, y : np.array, N_epochs : int, temp_init : float, cooling_rate=0.99, epsilon=0.01,
-                            time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.1, print_nth_epoch=1, save_nth_epoch=1):
+        Parameters
+        ----------
+        thread : int
+            Thread if
+        return_dic : dict
+            Dictonary containing simulation results
+        voltages : np.array
+            Voltage values
+        time_steps : np.array
+            Time Steps
+        target_electrode : int
+            Electrode associated to target observable
+        stat_size : int
+            Number of individual runs for statistics
+        network_topology : str
+            Network topology, either 'cubic' or 'random'
+        topology_parameter : dict
+            Dictonary containing information about topology
+        initial_charge_vector : _type_, optional
+            If not None, initial_charge_vector is used as the first network state, by default None
+        """
+
+        
+        target_electrode    = self.N_electrodes - 1
+        class_instance.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
+                                        stat_size=stat_size, init_charges=init_charges, save=False)
+            
+        # Get target observable 
+        output_values       = class_instance.return_output_values()
+        observable          = output_values[:,2]
+        error_values        = output_values[:,3]
+        return_dic[thread]  = observable
+
+        if thread == 0:
+            charge_values   = class_instance.q_eq
+            return_dic[-1]  = charge_values
+
+    def simulated_annealing(self, x : np.array, y : np.array, N_epochs : int, temp_init : float, cooling_rate=0.9, epsilon=0.01,
+                            time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.1, freq=2.0, print_nth_epoch=1, save_nth_epoch=1):
 
         # Target Values
         y           = (y - np.mean(y))/np.std(y)
@@ -2201,10 +2198,13 @@ class Optimizer(simulation):
         N_voltages          = len(x)
         if self.parameter_type == 'freq':
             self.best_params    = np.random.uniform(0.1, p_init, self.N_controls)
+        elif self.parameter_type == 'phase':
+            self.best_params    = np.random(0.0, 2*np.pi, self.N_controls)
         else:
             self.best_params    = np.random.uniform(-p_init, p_init, self.N_controls)
-        time_steps          = time_step*np.arange(N_voltages)
-        temp                = temp_init
+
+        time_steps  = time_step*np.arange(N_voltages)
+        temp        = temp_init
 
         # For each epoch
         for epoch in range(1, N_epochs+1):
@@ -2218,27 +2218,29 @@ class Optimizer(simulation):
                 params = np.clip(params, a_min=0.1, a_max=10.0)
                 for i, f in enumerate(params):
                     voltages[:,i+1] = amplitude*np.cos(np.round(f,4)*time_steps*1e8)
+            elif self.parameter_type == 'phase':
+                for i, phi in enumerate(params):
+                    voltages[:,i+1] = amplitude*np.cos(freq*time_steps*1e8-phi)
             else:
                 voltages[:,1:-2]    = np.tile(np.round(params,4), (N_voltages,1))
             
             # Run Simulation and get new loss
-            self.simulate_current_loss(voltages=voltages, y_true=y[1:], time_steps=time_steps, stat_size=stat_size, init_charges=charge_init)
-            
-            # Only if accepted
-            # charge_init = self.q_eq
-
+            self.simulate_current_loss(voltages=voltages, y_true=y[1:], time_steps=time_steps, stat_size=stat_size, transient=1000, init_charges=charge_init)
+        
             delta_loss = self.loss - self.best_loss
             
             # Check for new best parameters
             if delta_loss < 0:
                 self.best_loss      = self.loss
                 self.best_params    = params
+                charge_init         = self.q_eq
 
             else:
-                prob = np.exp(-delta_loss/temp)
+                prob = min([1.0, np.exp(-delta_loss/temp)])
                 if np.random.rand() < prob:
                     self.best_loss      = self.loss
                     self.best_params    = params
+                    charge_init         = self.q_eq
 
             # Cool down temperature
             if cooling_rate == 0:
@@ -2250,12 +2252,165 @@ class Optimizer(simulation):
             if epoch % print_nth_epoch == 0:
                 print(f'Epoch   : {epoch}')
                 print(f'U_C     : {np.round(self.best_params,4)}')
-                print(f"Loss    : {self.loss}")
+                print(f"Loss    : {self.best_loss}")
                 print(f"Temp    : {temp}")
 
             # Save prediction
             if epoch % save_nth_epoch == 0:
                 np.savetxt(fname=f"{self.folder}ypred_{epoch}.csv", X=self.y_pred)
+
+    def gradient_decent(self, x : np.array, y : np.array, N_epochs : int, learning_rate : float, batch_size : int, epsilon=0.001, adam=False,
+                        time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.1, transient_steps=0, print_nth_batch=1, save_nth_epoch=1):
+        
+        # Target Values
+        y   = (y - np.mean(y))/np.std(y)
+
+        # Initial Values
+        N_voltages  = len(x)
+        N_batches   = N_voltages//batch_size
+        time_steps  = time_step*np.arange(N_voltages)
+
+        if self.parameter_type == 'freq':
+            params  = np.random.uniform(0.1, p_init, self.N_controls)
+        else:
+            params  = np.random.uniform(-p_init, p_init, self.N_controls)
+
+        # Multiprocessing Manager
+        with multiprocessing.Manager() as manager:
+
+            # Storage for simulation results
+            return_dic  = manager.dict()
+            charge_init = None
+            
+            # ADAM Optimization
+            if adam:
+                m = np.zeros_like(params)
+                v = np.zeros_like(params)
+
+            for epoch in range(1, N_epochs+1):
+                
+                # Set charge vector to None
+                predictions = np.zeros(N_voltages)
+                
+                for batch in range(N_batches):
+
+                    start   = batch*batch_size
+                    stop    = (batch+1)*batch_size
+                    
+                    # Voltage array containing input at column 0 
+                    voltages        = np.zeros(shape=(batch_size, self.N_electrodes+1))
+                    voltages[:,0]   = x[start:stop]
+                    
+                    if self.parameter_type == 'freq':
+                        for i,f in enumerate(params):
+                            voltages[:,i+1] = amplitude*np.cos(np.round(f,4)*time_steps[start:stop]*1e8)
+                        voltages_list       = []
+                        voltages_list.append(voltages)
+
+                        # Set up a list of voltages considering small deviations
+                        for i,f in enumerate(params):
+
+                            voltages_tmp        = voltages.copy()
+                            voltages_tmp[:,i+1] = amplitude*np.cos((f+epsilon)*time_steps[start:stop]*1e8)
+                            voltages_list.append(voltages_tmp)
+
+                            voltages_tmp        = voltages.copy()
+                            voltages_tmp[:,i+1] = amplitude*np.cos((f-epsilon)*time_steps[start:stop]*1e8)
+                            voltages_list.append(voltages_tmp)
+                    else:
+                        voltages[:,1:-2]    = np.tile(np.round(params,4), (batch_size,1))
+                        voltages_list       = []
+                        voltages_list.append(voltages)
+
+                        # Set up a list of voltages considering small deviations
+                        for i in range(self.N_controls):
+
+                            voltages_tmp        = voltages.copy()
+                            voltages_tmp[:,i+1] += epsilon
+                            voltages_list.append(voltages_tmp)
+
+                            voltages_tmp        = voltages.copy()
+                            voltages_tmp[:,i+1] -= epsilon
+                            voltages_list.append(voltages_tmp)
+
+                    # Container for processes
+                    procs       = []
+
+                    # For each set of voltages assign start a process
+                    for thread in range(2*self.N_controls+1):
+                        
+                        self_copy = copy.deepcopy(self)
+
+                        # Start process
+                        process = multiprocessing.Process(target=self.simulate_current_loss_parallel, args=(thread, self_copy, return_dic, voltages,
+                                                                                                            time_steps, stat_size, charge_init))
+                        process.start()
+                        procs.append(process)
+                    
+                    # Wait for all processes
+                    for p in procs:
+                        p.join()
+
+                    # Current charge vector given the last iteration
+                    charge_init = return_dic[0]
+                    
+                    # Gradient Container
+                    gradients = np.zeros_like(params)
+
+                    # Calculate gradients for each control voltage 
+                    for i in np.arange(1,2*self.N_controls+1,2):
+
+                        y_pred_eps_pos          = return_dic[i]
+                        y_pred_eps_neg          = return_dic[i+1]
+                        y_pred_eps_pos          = (y_pred_eps_pos - np.mean(y_pred_eps_pos)) / np.std(y_pred_eps_pos)
+                        y_pred_eps_neg          = (y_pred_eps_neg - np.mean(y_pred_eps_neg)) / np.std(y_pred_eps_neg)
+                        perturbed_loss_pos      = self.loss_function(y_pred=y_pred_eps_pos, y_real=y[(start+1):stop], transient=transient_steps)
+                        perturbed_loss_neg      = self.loss_function(y_pred=y_pred_eps_neg, y_real=y[(start+1):stop], transient=transient_steps)
+                        gradients[int((i-1)/2)] = (perturbed_loss_pos - perturbed_loss_neg) / (2*epsilon)
+
+                    
+                    if ((epoch != 1) and (batch != 0)):
+                        
+                        # Current prediction and loss
+                        y_pred  = return_dic[0]
+                        y_pred  = (y_pred - np.mean(y_pred)) / np.std(y_pred)
+                        loss    = self.loss_function(y_pred=y_pred, y_real=y[(start+1):stop], transient=transient_steps)
+                        
+                        predictions[(start+1):stop] = y_pred
+
+                        # ADAM Optimization
+                        if adam:
+
+                            beta1 = 0.9         # decay rate for the first moment
+                            beta2 = 0.999       # decay rate for the second moment
+
+                            # Update biased first and second moment estimate
+                            m = beta1 * m + (1 - beta1) * gradients
+                            v = beta2 * v + (1 - beta2) * (gradients ** 2)
+
+                            # Compute bias-corrected first and second moment estimate
+                            m_hat = m / (1 - beta1 ** epoch)
+                            v_hat = v / (1 - beta2 ** epoch)
+
+                            # Update control voltages given the gradients
+                            control_voltages -= learning_rate * m_hat / (np.sqrt(v_hat) + 1e-8)
+
+                        # Update control voltages given the gradients
+                        else:
+                            control_voltages -= learning_rate * gradients
+
+                        # Print infos
+                        if batch % print_nth_batch == 0:
+                            print(f'Epoch   : {epoch}')
+                            print(f'U_C     : {np.round(control_voltages,4)}')
+                            print(f"Loss    : {loss}")
+
+                # Save prediction
+                if epoch % save_nth_epoch == 0:
+                    np.savetxt(fname=f"{self.folder}ypred_{epoch}.csv", X=predictions)
+                    # np.savetxt(fname=f"{path}charge_{epoch}.csv", X=current_charge_vector)
+
+
 
 ###########################################################################################################################
 ###########################################################################################################################

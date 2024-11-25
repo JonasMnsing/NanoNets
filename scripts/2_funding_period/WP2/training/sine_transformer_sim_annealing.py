@@ -17,11 +17,9 @@ import nanonets_utils
 N_epochs            = 50
 stat_size           = 100
 path                = "scripts/2_funding_period/WP2/training/data/sine_to_triangle/"
-network_topology    = 'cubic'
-cooling_rate        = 0.99
-temp_init           = 10
+temp_init           = 1.0
 p_init              = 4.0
-epsilon             = 0.1
+epsilon             = 0.5
 N_p                 = 7
 
 # Network Topology
@@ -44,13 +42,14 @@ np_info = {
 amplitude   = 0.1
 freq        = 2.0
 time_step   = 1e-10
-N_periods   = 16
+N_periods   = 20
 N_voltages  = int(N_periods*np.pi/(freq*1e8*time_step))
 time_steps  = time_step*np.arange(N_voltages)
 x_vals      = amplitude*np.cos(freq*time_steps*1e8)
-y_target    = amplitude*signal.sawtooth(freq*time_steps*1e8-np.pi, 0.5)
+# y_target    = amplitude*signal.sawtooth(freq*time_steps*1e8-np.pi, 0.5)
+y_target    = amplitude*signal.square(freq*time_steps*1e8-3*np.pi/2)
 
 # Run Training
 optim_class = nanonets.Optimizer("annealing", "freq", folder=path, topology_parameter=topology_parameter, seed=0)
 optim_class.simulated_annealing(x=x_vals, y=y_target, temp_init=temp_init, N_epochs=N_epochs,
-                                cooling_rate=cooling_rate, epsilon=epsilon, time_step=time_step, p_init=p_init)
+                                epsilon=epsilon, time_step=time_step, p_init=p_init)

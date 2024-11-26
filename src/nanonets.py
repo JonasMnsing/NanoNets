@@ -2188,14 +2188,20 @@ class Optimizer(simulation):
             return_dic[-1]  = charge_values
 
     def simulated_annealing(self, x : np.array, y : np.array, N_epochs : int, temp_init : float, cooling_rate=0.9, epsilon=0.01,
-                            time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.1, freq=2.0, print_nth_epoch=1, save_nth_epoch=1):
+                            time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.1, freq=2.0, batch_size=0, print_nth_epoch=1, save_nth_epoch=1):
 
         # Target Values
         y           = (y - np.mean(y))/np.std(y)
         charge_init = None
 
         # Initial Values
-        N_voltages          = len(x)
+        N_voltages  = len(x)
+
+        if batch_size == 0:
+            N_batches   = 1
+        else:
+            N_batches   = N_voltages//batch_size
+
         if self.parameter_type == 'freq':
             self.best_params    = np.random.uniform(0.1, p_init, self.N_controls)
         elif self.parameter_type == 'phase':
@@ -2208,45 +2214,48 @@ class Optimizer(simulation):
 
         # For each epoch
         for epoch in range(1, N_epochs+1):
-            
-            # New parameter values
-            params              = self.best_params + np.random.uniform(-epsilon, epsilon, self.N_controls)
-            voltages            = np.zeros(shape=(N_voltages, self.N_electrodes+1))
-            voltages[:,0]       = x
 
-            if self.parameter_type == 'freq':
-                params = np.clip(params, a_min=0.1, a_max=10.0)
-                for i, f in enumerate(params):
-                    voltages[:,i+1] = amplitude*np.cos(np.round(f,4)*time_steps*1e8)
-            elif self.parameter_type == 'phase':
-                for i, phi in enumerate(params):
-                    voltages[:,i+1] = amplitude*np.cos(freq*time_steps*1e8-phi)
-            else:
-                voltages[:,1:-2]    = np.tile(np.round(params,4), (N_voltages,1))
-            
-            # Run Simulation and get new loss
-            self.simulate_current_loss(voltages=voltages, y_true=y[1:], time_steps=time_steps, stat_size=stat_size, transient=1000, init_charges=charge_init)
-        
-            delta_loss = self.loss - self.best_loss
-            
-            # Check for new best parameters
-            if delta_loss < 0:
-                self.best_loss      = self.loss
-                self.best_params    = params
-                charge_init         = self.q_eq
+            for batch in range(N_batches):
 
-            else:
-                prob = min([1.0, np.exp(-delta_loss/temp)])
-                if np.random.rand() < prob:
+                start   = batch*batch_size
+                stop    = (batch+1)*batch_size
+            
+                # New parameter values
+                params              = self.best_params + np.random.uniform(-epsilon, epsilon, self.N_controls)
+                voltages            = np.zeros(shape=(batch_size, self.N_electrodes+1))
+                voltages[:,0]       = x[start:stop]
+
+                if self.parameter_type == 'freq':
+                    params = np.clip(params, a_min=0.1, a_max=10.0)
+                    for i, f in enumerate(params):
+                        voltages[:,i+1] = amplitude*np.cos(np.round(f,4)*time_steps[start:stop]*1e8)
+                elif self.parameter_type == 'phase':
+                    for i, phi in enumerate(params):
+                        voltages[:,i+1] = amplitude*np.cos(freq*time_steps[start:stop]*1e8-phi)
+                else:
+                    voltages[:,1:-2]    = np.tile(np.round(params,4), (batch_size,1))
+            
+                # Run Simulation and get new loss
+                self.simulate_current_loss(voltages=voltages, y_true=y[start+1:stop], time_steps=time_steps[start:stop], stat_size=stat_size, transient=1000, init_charges=charge_init)
+            
+                delta_loss  = self.loss - self.best_loss
+                charge_init = self.q_eq
+
+                # Check for new best parameters
+                if delta_loss < 0:
                     self.best_loss      = self.loss
                     self.best_params    = params
-                    charge_init         = self.q_eq
+                else:
+                    prob = min([1.0, np.exp(-delta_loss/temp)])
+                    if np.random.rand() < prob:
+                        self.best_loss      = self.loss
+                        self.best_params    = params
 
-            # Cool down temperature
-            if cooling_rate == 0:
-                temp = temp/np.log(1+epoch)
-            else:
-                temp = temp * cooling_rate
+                # Cool down temperature
+                if cooling_rate == 0:
+                    temp = temp/np.log(1+epoch)
+                else:
+                    temp = temp * cooling_rate
 
             # Print infos
             if epoch % print_nth_epoch == 0:

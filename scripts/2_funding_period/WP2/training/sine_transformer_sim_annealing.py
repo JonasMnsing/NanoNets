@@ -39,7 +39,7 @@ np_info = {
 }
 
 # Voltage Values
-amplitude   = 0.1
+amplitude   = 0.05
 freq        = 2.0
 time_step   = 1e-10
 N_periods   = 20
@@ -51,5 +51,5 @@ y_target    = amplitude*signal.square(freq*time_steps*1e8-3*np.pi/2)
 
 # Run Training
 optim_class = nanonets.Optimizer("annealing", "freq", folder=path, topology_parameter=topology_parameter, seed=0)
-optim_class.simulated_annealing(x=x_vals, y=y_target, temp_init=temp_init, N_epochs=N_epochs,
+optim_class.simulated_annealing(x=x_vals, y=y_target, temp_init=temp_init, N_epochs=N_epochs, amplitude=amplitude,
                                 epsilon=epsilon, time_step=time_step, p_init=p_init)

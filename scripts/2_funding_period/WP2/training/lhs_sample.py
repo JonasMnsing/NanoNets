@@ -28,8 +28,8 @@ def run_sim(thread, x, params, rows, time_steps, topology, path, amplitude):
             voltages[:,i+1] = amplitude*np.cos(p*time_steps*1e8)
 
         # Run Training
-        sim_class   = nanonets.simulation(topology_parameter=topology, folder=path, seed=0, add_to_path=f'{thread}_{n}')
-        sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7)
+        sim_class   = nanonets.simulation(topology_parameter=topology, folder=path, seed=0, add_to_path=f'_{thread}_{n}')
+        sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=200)
 
 path    = "scripts/2_funding_period/WP2/training/data/random_sample/"
 N_p     = 7
@@ -52,10 +52,10 @@ np_info = {
 
 N_samples   = 500
 N_procs     = 10
-amplitude   = 0.1
+amplitude   = 0.05
 freq        = 2.0
 time_step   = 1e-10
-N_periods   = 20
+N_periods   = 50
 N_voltages  = int(N_periods*np.pi/(freq*1e8*time_step))
 time_steps  = time_step*np.arange(N_voltages)
 x_vals      = amplitude*np.cos(freq*time_steps*1e8)

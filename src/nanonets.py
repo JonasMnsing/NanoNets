@@ -1649,7 +1649,7 @@ class simulation(tunneling.tunnel_class):
         
         # Electrode indices with floating or constant voltages
         floating_electrodes = np.where(self.electrode_type == 'floating')[0]
-        const_electrodes    = np.where(self.electrode_type == 'const')[0]
+        const_electrodes    = np.where(self.electrode_type == 'constant')[0]
 
         # Init based on first time step
         self.init_charge_vector(voltage_values=voltages[0])

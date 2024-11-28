@@ -11,10 +11,20 @@ sys.path.append("/home/jonasmensing/phd/NanoNets/src/")
 
 # NanoNets Simulation Tool
 import nanonets
-import nanonets_utils
+import multiprocessing
+
+def run_sim(thread, voltages, time_steps, freqs, topology_parameter, amplitude, path, np_info):
+
+    n = 0
+    for i in range(len(topology_parameter["e_pos"])):
+        if topology_parameter["electrode_type"][i] != "floating":
+            voltages[:,i]   =   amplitude*np.cos(freqs[n]*time_steps*1e8)
+            n               +=  1
+
+    sim_class   = nanonets.simulation(topology_parameter=topology_parameter, folder=path, add_to_path=f'_{thread}', np_info=np_info)
+    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7)
 
 # Hyper Parameter
-stat_size           = 500
 path                = "scripts/2_funding_period/WP2/training/data/sine_example/"
 network_topology    = 'cubic'
 N_p                 = 7
@@ -35,18 +45,22 @@ np_info = {
     "np_distance"   : 1.0
 }
 
-
 # Voltage Values
-amplitude   = 0.1
+amplitudes  = np.linspace(0.1,1.0,10)
 freqs       = [2.0, 1.0, 3.0, 4.0, 2.2, 1.6, 4.5]
 time_step   = 1e-10
 N_periods   = 50
+N_procs     = 10
 N_voltages  = int(N_periods*np.pi/(freqs[0]*1e8*time_step))
 voltages    = np.zeros(shape=(N_voltages,len(topology_parameter["e_pos"])+1))
 time_steps  = time_step*np.arange(N_voltages)
 
-for i, f in enumerate(freqs):
-    voltages[:,i] = amplitude*np.cos(f*time_steps*1e8)
+procs = []
+for thread in range(N_procs):
+    process = multiprocessing.Process(target=run_sim, args=(thread+10, voltages, time_steps, freqs, topology_parameter,
+                                                            amplitudes[thread], path, np_info))
+    process.start()
+    procs.append(process)
 
-sim_class   = nanonets.simulation(topology_parameter=topology_parameter, folder=path, add_to_path='')
-sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=stat_size)
+for p in procs:
+    p.join()

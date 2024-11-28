@@ -141,24 +141,6 @@ class tunnel_class(electrostatic.electrostatic_class):
         self.potential_vector                       = np.zeros(self.N_electrodes+self.N_particles)
         self.potential_vector[0:self.N_electrodes]  = voltage_values[:-1]
 
-    def np_target_electrode_electrostatic_properties(self)->None:
-        """Defines electrostatic properties of the target floating electrodes
-        """
-        
-        # Select radius of NPs adjacent to electrodes
-        np_indices          = self.adv_index_cols[np.arange(self.N_electrodes)]
-        radius_vals         = self.radius_vals[np_indices-self.N_electrodes]
-        
-        # Capacitance between electrodes and NPs
-        self.C_np_self      = self.self_capacitance_sphere(self.eps_s, radius_vals)
-        self.C_np_target    = self.mutal_capacitance_adjacent_spheres(self.eps_r, radius_vals, 10, self.np_distance)
-        # self.C_np_target    = self.mutal_capacitance_sphere_plane(self.eps_r, radius_vals, self.np_distance)
-
-        # If Electrode is constant, Capacitance not needed
-        self.C_np_self[self.electrode_type != 'floating']    = 0.0
-        self.C_np_target[self.electrode_type != 'floating']  = 1.0
-        # self.C_np_target    = self.C_np_self # first order approx
-
     def init_const_capacitance_values(self)->None:
         """For given tunnel order, initialize an array containing C_ii + C_jj + C_ij as parts from the inverse capacitance matrix to calculate free energy
         """
@@ -238,11 +220,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         """
 
         return self.const_capacitance_values, self.const_capacitance_values_co1, self.const_capacitance_values_co2
-    
-    def return_output_electrostatics(self):
-
-        return self.C_np_self, self.C_np_target
-    
+        
     def return_particle_electrode_count(self)->float:
         """
         Returns
@@ -394,7 +372,6 @@ if __name__ == "__main__":
     cubic_system.calc_capacitance_matrix(eps_r, eps_s, np_distance)
     cubic_system.init_charge_vector(voltage_values)
     cubic_system.init_adv_indices()
-    cubic_system.np_target_electrode_electrostatic_properties()
 
     # Return Class Attributes
     topology_arr            = cubic_system.return_net_topology()
@@ -413,8 +390,3 @@ if __name__ == "__main__":
 
     print("Tunnel Origins:\n", adv_index_rows)
     print("Tunnel Targets:\n", adv_index_cols)
-
-    C_np_self, C_np_target  = cubic_system.return_output_electrostatics()
-
-    print("Self Capacitance for floating Electrodes:\n", C_np_self)
-    print("Mutual Capacitance for floating Electrodes:\n", C_np_target)

@@ -18,8 +18,6 @@ spec = [
     ('const_capacitance_values', float64[::1]),
     ('const_capacitance_values_co1', float64[::1]),
     ('const_capacitance_values_co2', float64[::1]),
-    ('C_np_target', float64[::1]),
-    ('C_np_self', float64[::1]),
     ('floating_electrodes', int64[::1]),
     ('temperatures', float64[::1]),
     ('temperatures_co', float64[::1]),
@@ -184,7 +182,7 @@ class model_class():
                 const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
                 temperatures, temperatures_co, resistances, resistances_co1,
                 resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1,
-                co_adv_index2, co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self):
+                co_adv_index2, co_adv_index3, N_electrodes, N_particles, floating_electrodes):
 
         # CONST
         self.ele_charge     = 0.160217662
@@ -197,11 +195,7 @@ class model_class():
         self.const_capacitance_values       = const_capacitance_values
         self.const_capacitance_values_co1   = const_capacitance_values_co1
         self.const_capacitance_values_co2   = const_capacitance_values_co2
-        self.C_np_target                    = C_np_target
-        self.C_np_self                      = C_np_self
-        self.floating_electrodes            = np.where(self.C_np_target != 1.0)[0]
-        self.C_np_target                    = self.C_np_target[self.floating_electrodes]
-        self.C_np_self                      = self.C_np_self[self.floating_electrodes]
+        self.floating_electrodes            = floating_electrodes
         self.temperatures                   = temperatures
         self.temperatures_co                = temperatures_co
         self.resistances                    = resistances
@@ -1536,7 +1530,6 @@ class simulation(tunneling.tunnel_class):
             self.init_charge_vector(voltage_values=voltage_values)
             self.init_potential_vector(voltage_values=voltage_values)
             self.init_const_capacitance_values()
-            self.np_target_electrode_electrostatic_properties()
 
             # Return Model Arguments
             inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
@@ -1547,7 +1540,6 @@ class simulation(tunneling.tunnel_class):
             adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
             resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
-            C_np_self, C_np_target                                                                  = self.return_output_electrostatics()
 
             # If second type of resistances is provided
             if self.res_info2 != None:
@@ -1562,7 +1554,7 @@ class simulation(tunneling.tunnel_class):
             # Pass all model arguments into Numba optimized Class
             model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
                                 temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
+                                co_adv_index3, N_electrodes, N_particles)
 
             if self.res_info['dynamic']:
 
@@ -1651,15 +1643,18 @@ class simulation(tunneling.tunnel_class):
 
         # Check if target electrode is a floating electrode
         if self.electrode_type[target_electrode] == 'floating':
-            output_potential = True
+            output_potential    = True
         else:
-            output_potential = False
+            output_potential    = False
         
+        # Electrode indices with floating or constant voltages
+        floating_electrodes = np.where(self.electrode_type == 'floating')[0]
+        const_electrodes    = np.where(self.electrode_type == 'const')[0]
+
         # Init based on first time step
         self.init_charge_vector(voltage_values=voltages[0])
         self.init_potential_vector(voltage_values=voltages[0])
         self.init_const_capacitance_values()
-        self.np_target_electrode_electrostatic_properties()
 
         # Return Model Arguments
         inv_capacitance_matrix                                                                  = self.return_inv_capacitance_matrix()
@@ -1670,7 +1665,6 @@ class simulation(tunneling.tunnel_class):
         adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
         temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
         resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
-        C_np_self, C_np_target                                                                  = self.return_output_electrostatics()
         
         # Second resistor type
         if self.res_info2 is not None:
@@ -1679,7 +1673,7 @@ class simulation(tunneling.tunnel_class):
         # Pass all model arguments into Numba optimized Class
         self.model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1,const_capacitance_values_co2,
                                 temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                co_adv_index3, N_electrodes, N_particles, C_np_target, C_np_self)
+                                co_adv_index3, N_electrodes, N_particles, floating_electrodes)
 
         # Resistors are Memristors
         if self.res_info['dynamic']:
@@ -1730,9 +1724,6 @@ class simulation(tunneling.tunnel_class):
         # Store equilibrated charge distribution
         observable          = np.zeros(shape=(stat_size, len(voltages)))
         
-        # Electrode indices with const voltages
-        const_electrodes    = [i for i in range(self.model.N_electrodes) if i not in self.model.floating_electrodes]
-
         for s in range(stat_size):
             
             self.model.charge_vector = self.q_eq[s,:].copy()
@@ -1788,8 +1779,13 @@ class simulation(tunneling.tunnel_class):
         self.landscape          = np.delete(self.landscape,-1, axis=0)
         self.average_jumps      = np.delete(self.average_jumps,-1, axis=0)
 
+        V_safe_vals                         = np.zeros(shape=(self.landscape.shape[0],self.N_electrodes+1))
+        V_safe_vals[:,floating_electrodes]  = self.landscape[:,floating_electrodes]
+        V_safe_vals[:,const_electrodes]     = voltages[:-1, const_electrodes]
+        V_safe_vals[:,-1]                   = voltages[:-1, -1]
+
         if save:
-            save_target_currents(self.output_values, np.hstack([self.landscape[:,:N_electrodes], voltages[:-1,-1][:,np.newaxis]]), self.path1)
+            save_target_currents(self.output_values, V_safe_vals, self.path1)
             save_mean_microstate(self.microstates, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
         
@@ -2418,8 +2414,6 @@ class Optimizer(simulation):
                 if epoch % save_nth_epoch == 0:
                     np.savetxt(fname=f"{self.folder}ypred_{epoch}.csv", X=predictions)
                     # np.savetxt(fname=f"{path}charge_{epoch}.csv", X=current_charge_vector)
-
-
 
 ###########################################################################################################################
 ###########################################################################################################################

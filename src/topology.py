@@ -49,9 +49,10 @@ class topology_class:
         return_net_topology()
     """
 
-    def __init__(self, seed=None)->None:
+    def __init__(self, electrode_type, seed=None)->None:
 
         self.rng            = np.random.RandomState(seed)
+        self.electrode_type = np.array(electrode_type)
         self.N_particles    = 0
         self.N_electrodes   = 0
 

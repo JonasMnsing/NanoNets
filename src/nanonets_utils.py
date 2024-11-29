@@ -6,167 +6,353 @@ import networkx as nx
 import nanonets
 import scienceplots
 import multiprocessing
-from copy import deepcopy
 from typing import Union, Tuple, List
 from scipy.signal.windows import hann
+from pyDOE import lhs
 
 blue_color  = '#348ABD'
 red_color   = '#A60628'
 
-def store_average_time_results(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+# SAMPLING METHODS
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def uniform_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict, U_g : Union[float, List[float]]=0.0)->np.array:
+    """Returns a uniform sample of electrode voltages, with floating electrodes set Zero and Gate electrode defined individually.
+
+    Parameters
+    ----------
+    U_e : Union[float, List[float]]
+        Electrode Voltage range 
+    N_samples : int
+        Number of Samples
+    topology_parameter : dict
+        Network topology dictonary
+    U_g : Union[float, List[float]], optional
+        Gate voltage range, by default 0.0
+
+    Returns
+    -------
+    np.array
+        Uniform sample
+    """
+
+    # Parameter based on electrode specification
+    N_electrodes    = len(topology_parameter["e_pos"])
+    electrode_types = np.array(topology_parameter["electrode_type"])
+    floating_idx    = np.where(electrode_types=="floating")[0]
     
-    values          = [pd.read_csv(folder+f"/Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}_t{j}_s{k}.csv") for j in range(N_threads) for k in range(N_stat)]
-    means           = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns)
-    means['Error']  = np.std(values,axis=0)[:,-2]/np.sqrt(len(values))
-
-    means.to_csv(folder+f"/Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
-
-def store_average_time_states(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
-
-    values  = [pd.read_csv(folder+f"/mean_state_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}_t{j}_s{k}.csv") for j in range(N_threads) for k in range(N_stat)]
-    means   = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns).round(3)
-    
-    means.to_csv(folder+f"/mean_state_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
-
-def store_average_time_currents(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
-
-    values  = [pd.read_csv(folder+f"/net_currents_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}_t{j}_s{k}.csv") for j in range(N_threads) for k in range(N_stat)]
-    means   = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns).round(3)
-    
-    means.to_csv(folder+f"/net_currents_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
-
-def uniform_config(low : float, high : float, N_rows : int, N_cols : int)->np.array:
-
-    arr = np.random.uniform(low=low, high=high, size=(N_rows, N_cols))
-
-    return arr
-
-def logic_gate_config(low : float, high : float, off_state : float, on_state : float, i1_col : int, i2_col : int, N_rows : int, N_cols : int)->np.array:
-
-    arr = np.repeat(a=uniform_config(low, high, int(N_rows/4), N_cols), repeats=4, axis=0)
-    i1  = np.tile([off_state,off_state,on_state,on_state], int(N_rows/4))
-    i2  = np.tile([off_state,on_state,off_state,on_state], int(N_rows/4))
-
-    arr[:,i1_col]   = i1
-    arr[:,i2_col]   = i2
-
-    return arr
-
-def logic_gate_config_G(low : float, high : float, N_rows : int)->np.array:
-    
-    arr = np.repeat(a=uniform_config(low, high, int(N_rows/4), N_cols=1), repeats=4)
-
-    return arr
-
-def load_time_params(folder : str):
-
-    txt_file    = open(folder+'params.txt', 'r')
-    lines       = txt_file.readlines()
-
-    params = []
-
-    for line in lines:
-        
-        if ((line[0] != '#') and (line[0] != '\n')):
-
-            params.append(line[:-1])
-
-    N_processes         = eval(params[0])
-    network_topology    = params[1]
-
-    if network_topology == 'cubic':
-        topology_parameter  = {
-            "Nx"    :   eval(params[2][0]),
-            "Ny"    :   eval(params[2][2]),
-            "Nz"    :   eval(params[2][4]),
-            "e_pos" :   eval(params[3])
-        }
+    # Sample Control Voltages
+    if isinstance(U_e, list):
+        sample  = np.random.uniform(low=U_e[0], high=U_e[1], size=(N_samples,N_electrodes+1))
     else:
-        topology_parameter  = {
-            "Np"    :   eval(params[2][0]),
-            "Nj"    :   eval(params[2][2]),
-            "e_pos" :   eval(params[3])
-        }
-
-    eq_steps = eval(params[4])
-
-    np_info = {
-        "eps_r"         : eval(params[5]),
-        "eps_s"         : eval(params[6]),
-        "mean_radius"   : eval(params[7]),
-        "std_radius"    : eval(params[8]),
-        "np_distance"   : eval(params[9])
-    }
-
-    res_info = {
-        "mean_R"    : eval(params[10]),
-        "std_R"     : eval(params[11])    
-    }
-
-    T_val       = eval(params[12])
-    save_th     = eval(params[13])
-
-    return N_processes, network_topology, topology_parameter, eq_steps, np_info, res_info, T_val, save_th
-
-def load_params(folder : str):
-
-    txt_file    = open(folder+'params.txt', 'r')
-    lines       = txt_file.readlines()
-
-    params = []
-
-    for line in lines:
-        
-        if ((line[0] != '#') and (line[0] != '\n')):
-
-            params.append(line[:-1])
-
-    N_processes         = eval(params[0])
-    network_topology    = params[1]
-
-    if network_topology == 'cubic':
-        topology_parameter  = {
-            "Nx"    :   eval(params[2][0]),
-            "Ny"    :   eval(params[2][2]),
-            "Nz"    :   eval(params[2][4]),
-            "e_pos" :   eval(params[3])
-        }
+        sample  = np.random.uniform(low=-U_e, high=U_e, size=(N_samples,N_electrodes+1))  
+    
+    # Sample Gate Voltages
+    if isinstance(U_g, list):
+        sample[:,-1]    = np.random.uniform(low=U_g[0], high=U_g[1], size=N_samples)
     else:
-        topology_parameter  = {
-            "Np"    :   eval(params[2][0]),
-            "Nj"    :   eval(params[2][2]),
-            "e_pos" :   eval(params[3])
-        }
+        sample[:,-1]    = np.random.uniform(low=-U_g, high=U_g, size=N_samples)
 
-    sim_dic = {
-        'error_th'  :   eval(params[4]),
-        'max_jumps' :   eval(params[5]),
-        'eq_steps'  :   eval(params[6])
-    }
+    # Set floating electrodes to 0V
+    sample[:,floating_idx]  = 0.0
 
-    np_info = {
-        "eps_r"         : eval(params[7]),
-        "eps_s"         : eval(params[8]),
-        "mean_radius"   : eval(params[9]),
-        "std_radius"    : eval(params[10]),
-        "np_distance"   : eval(params[11])
-    }
+    return sample
 
-    res_info = {
-        "mean_R"    : eval(params[12]),
-        "std_R"     : eval(params[13])
-    }
+def lhs_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict, U_g : Union[float, List[float]]=0.0)->np.array:
+    """Returns a Latin Hypercube sample of electrode voltages, with floating electrodes set Zero and Gate electrode defined individually.
 
-    T_val       = eval(params[14])
-    save_th     = eval(params[15])
+    Parameters
+    ----------
+    U_e : Union[float, List[float]]
+        Electrode Voltage range
+    N_samples : int
+        Number of Samples
+    topology_parameter : dict
+        Network topology dictonary
+    U_g : Union[float, List[float]], optional
+        Gate voltage range, by default 0.0
 
-    return N_processes, network_topology, topology_parameter, sim_dic, np_info, res_info, T_val, save_th
+    Returns
+    -------
+    np.array
+        LHS sample
+    """
 
-def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list], boot_steps=0, i1_col=1, i2_col=3, o_col=7,
-                    min_currents=0.0, min_error=0.0, max_error=np.inf, dic=None, dic_nc=None, off_state=[0.0], on_state=[0.01], disordered=False)->Tuple[dict,dict]:
+    # Parameter based on electrode specification
+    N_electrodes    = len(topology_parameter["e_pos"])
+    electrode_types = np.array(topology_parameter["electrode_type"])
+    floating_idx    = np.where(electrode_types=="floating")[0]
+
+    # lhs sample between [0,1]
+    lhs_samples     = lhs(N_electrodes+1, samples=N_samples)
+    scaled_samples  = np.zeros_like(lhs_samples)
+
+    # Sample Control Voltages
+    if isinstance(U_e, list):
+        scaled_samples[:,:N_electrodes] = U_e[0] + (U_e[1] - U_e[0]) * lhs_samples[:,:N_electrodes]
+    else:
+        scaled_samples[:,:N_electrodes] = -U_e + (U_e + U_e) * lhs_samples[:,:N_electrodes]
+    
+    # Sample Gate Voltages
+    if isinstance(U_g, list):
+        scaled_samples[:,-1]    = U_g[0] + (U_g[1] - U_g[0]) * lhs_samples[:,-1]
+    else:
+        scaled_samples[:,-1]    = -U_g + (U_g + U_g) * lhs_samples[:,-1]
+
+    # Set floating electrodes to 0V
+    scaled_samples[:,floating_idx]  = 0.0
+
+    return scaled_samples
+
+def logic_gate_sample(U_e : Union[float, List[float]], input_pos : List[int], N_samples : int, topology_parameter : dict,
+                      U_i : Union[float, List[float]]=0.01, U_g : Union[float, List[float]]=0.0, sample_technique='lhs')->np.array:
+    """Returns a sample of electrode voltages, with floating electrodes set Zero and Gate electrodes defined individually.
+    At input_pos electrode values are set to Boolean logic states defined in U_i
+
+    Parameters
+    ----------
+    U_e : Union[float, List[float]]
+        Electrode Voltage range
+    input_pos : List[int]
+        Input Electrode positions
+    N_samples : int
+        Number of Samples
+    topology_parameter : dict
+        Network topology dictonary
+    U_i : Union[float, List[float]], optional
+        Input Voltages, by default 0.01
+    U_g : Union[float, List[float]], optional
+        Gate voltage range, by default 0.0, by default 0.0
+    sample_technique : str, optional
+        Sampling technique, either lhs or uniform, by default 'lhs'
+
+    Returns
+    -------
+    np.array
+        logic gate sample
+
+    Raises
+    ------
+    ValueError
+        If sample_technique isn't either 'lhs' or 'uniform'
+    """
+
+    # Define sampling technique
+    if sample_technique == 'lhs':
+        sample = lhs_sample(U_e=U_e, N_samples=N_samples, topology_parameter=topology_parameter, U_g=U_g)
+    elif sample_technique == 'uniform':
+        sample = uniform_sample(U_e=U_e, N_samples=N_samples, topology_parameter=topology_parameter, U_g=U_g)
+    else:
+        raise ValueError("Sample technique 'lhs' or 'uniform' supported")
+
+    # Repeat Sample 4 times for each logic state
+    sample = np.repeat(a=sample, repeats=4, axis=0)
+
+    # Put logic states into sample
+    if isinstance(U_i, list):
+        sample[:,input_pos[0]]  = np.tile([U_i[0],U_i[0],U_i[1],U_i[1]], N_samples)
+        sample[:,input_pos[1]]  = np.tile([U_i[0],U_i[1],U_i[0],U_i[1]], N_samples)
+    else:
+        sample[:,input_pos[0]]  = np.tile([0.0,0.0,U_i,U_i], N_samples)
+        sample[:,input_pos[1]]  = np.tile([0.0,U_i,0.0,U_i], N_samples)
+
+    return sample
+
+def sinusoidal_voltages(frequencies : Union[float, List[float]], amplitudes : Union[float, List[float]], N_samples : int,
+                        topology_parameter : dict, time_step : float=1e-10)->Tuple[np.array,np.array]:
+    """Return voltage array containing sinusoidal signals of given frequencies and amplitudes
+
+    Parameters
+    ----------
+    frequencies : Union[float, List[float]]
+        Single frequency for all constant electrodes or individual frequency for each electrode
+    amplitudes : Union[float, List[float]]
+        Single amplitude for all constant electrodes or individual amplitude for each electrode
+    N_samples : int
+        Number of voltage values
+    topology_parameter : dict
+        Network topology dictonary
+    time_step : float, optional
+        Time step size, by default 1e-10
+
+    Returns
+    -------
+    Tuple[np.array,np.array]
+        Time and Voltages
+    """
+    # Voltages and Time Scale
+    voltages        = np.zeros(shape=(N_samples, len(topology_parameter["e_pos"])+1))
+    time_steps      = time_step*np.arange(N_samples)
+    
+    # Parameter based on electrode specification
+    electrode_types = np.array(topology_parameter["electrode_type"])
+    floating_idx    = np.where(electrode_types=="floating")[0]
+
+    # For variable frequencies
+    if isinstance(frequencies, list):
+        # For variable amplitudes
+        if isinstance(amplitudes, list):
+            for i in range(voltages.shape[1]-1):
+                voltages[:,i]   = amplitudes[i]*np.cos(frequencies[i]*time_steps*1e8)
+        else:
+            for i in range(voltages.shape[1]-1):
+                voltages[:,i]   = amplitudes*np.cos(frequencies[i]*time_steps*1e8)
+    else:
+        if isinstance(amplitudes, list):
+            for i in range(voltages.shape[1]-1):
+                voltages[:,i]   = amplitudes[i]*np.cos(frequencies*time_steps*1e8)
+        else:
+            for i in range(voltages.shape[1]-1):
+                voltages[:,i]   = amplitudes*np.cos(frequencies*time_steps*1e8)
+
+    # Set floating electrodes to 0V
+    voltages[:,floating_idx] = 0.0
+    
+    return time_steps, voltages 
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+# LOAD SIMULATION RESULTS
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def load_simulation_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], disordered : bool=False, data : Union[None, dict]=None)->Tuple[pd.DataFrame,dict]:
+    """Load simulation results. For N as list, returns a dict of DataFrames for each particle count. For N_e as list, returns a dict of DataFrames for each electrode count.
+    For N and N_e as int returns DataFrame.
+
+    Parameters
+    ----------
+    folder : str
+        Path to data folder
+    N : Union[int, List[int]]
+        Number of NPs in x,y direction or Number of NPs is disordered Network
+    N_e : Union[int, List[int]]
+        Number of Electrodes
+    disordered : bool, optional
+        Disorderd network, by default False
+    data : Union[None, dict], optional
+        Previous dict of data to be appended if provided, by default None
+
+    Returns
+    -------
+    Union[pd.DataFrame,dict]
+        Simulation data
+    """
+
+    # Add slash to folder path
+    folder += '/' if not folder.endswith('/') else ''
 
     # For variable numbers of nanoparticles
-    if (type(N) == list and type(N_e) == int):
+    if (isinstance(N, list) and isinstance(N_e, int)):
+
+        # Without dictonary input
+        if data is None:
+            if disordered:
+                data = {key : pd.read_csv(f"{folder}Np={key}_Nj=4_Ne={N_e}.csv") for key in N}
+            else:
+                data = {key : pd.read_csv(f"{folder}Nx={key}_Ny={key}_Nz=1_Ne={N_e}.csv") for key in N}
+
+        else:
+            for key in N:
+                if disordered:
+                    data[key] = pd.read_csv(f"{folder}Np={key}_Nj=4_Ne={N_e}.csv")
+                else:
+                    data[key] = pd.read_csv(f"{folder}Nx={key}_Ny={key}_Nz=1_Ne={N_e}.csv")
+
+    # For variable numbers of electrodes
+    elif (isinstance(N, int) and isinstance(N_e, list)):
+
+        # Without dictonary input
+        if data is None:
+            if disordered:
+                data = {key : pd.read_csv(f"{folder}Np={N}_Nj=4_Ne={key}.csv") for key in N_e}
+            else:
+                data = {key : pd.read_csv(f"{folder}Nx={N}_Ny={N}_Nz=1_Ne={N_e}.csv") for key in N_e}
+
+        else:
+            for key in N_e:
+                if disordered:
+                    data[key] = pd.read_csv(f"{folder}Np={N}_Nj=4_Ne={key}.csv")
+                else:
+                    data[key] = pd.read_csv(f"{folder}Nx={N}_Ny={N}_Nz=1_Ne={key}.csv")
+
+    else:
+
+        if disordered:
+            data  = pd.read_csv(f"{folder}Np={N}_Nj=4_Ne={N_e}.csv")
+        else:
+            data  = pd.read_csv(f"{folder}Nx={N}_Ny={N}_Nz=1_Ne={N_e}.csv")
+
+    return data
+
+def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List[str], drop_zero=True, off_state=0.0, on_state=0.01)->pd.DataFrame:
+    """Prepares a pandas DataFrame for the calculation of logic gate fitness, ensuring that all input state combinations are present for each set of rows.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Boolean logic simulation DataFrame
+    N_e : int
+        Number of Electrodes
+    input_cols : List[str]
+        List of input voltage columns (e.g., ['E0', 'E1']).
+    drop_zero : bool, optional
+        Whether to drop rows with zero observable current, by default True
+    off_state : float, optional
+        Value representing the off-state voltage, by default 0.0
+    on_state : float, optional
+        Value representing the on-state voltage, by default 0.01
+
+    Returns
+    -------
+    pd.DataFrame
+        The filtered and cleaned DataFrame
+    """
+
+    # Prepare column names for sorting
+    sort_cols   = [f'E{i}' for i in range(N_e) if 'E{i}' not in input_cols] + ['G'] + input_cols
+
+    # Copy DataFame and drop Zeros
+    data    = df.copy()
+    data    = data[data['Observable'].abs() > 0.0] if drop_zero else data
+
+    # Sort the DataFrame by relevant columns
+    data    = data.sort_values(by=sort_cols)
+    data    = data.reset_index(drop=True)
+    N_data  = len(data)
+    
+    # Collect indices of rows to drop
+    rows_to_drop    = []
+    i_input1        = input_cols[0]
+    i_input2        = input_cols[1]
+
+    while i < N_data-3:
+
+        cond1   = (data[i_input1][i]      == off_state)   and (data[i_input2][i]      == off_state)
+        cond2   = (data[i_input1][i + 1]  == off_state)   and (data[i_input2][i + 1]  == on_state)
+        cond3   = (data[i_input1][i + 2]  == on_state)    and (data[i_input2][i + 2]  == off_state)
+        cond4   = (data[i_input1][i + 3]  == on_state)    and (data[i_input2][i + 3]  == on_state)
+        
+        cond5   = data['G'][i] == data['G'][i + 1]
+        cond6   = data['G'][i] == data['G'][i + 2]
+        cond7   = data['G'][i] == data['G'][i + 3]
+
+        # If any condition fails, mark the rows for dropping
+        if not (cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7):
+            rows_to_drop.extend([i])
+            i += 1
+        else:
+            i += 4
+    
+    # Drop the rows at once and reset the index
+    data = data.drop(rows_to_drop).reset_index(drop=True)
+
+    return data
+
+def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], disordered=False, boot_steps=0, i1_col=1, i2_col=3, o_col=7,
+                         min_currents=0.0, min_error=0.0, max_error=np.inf, dic=None, dic_nc=None, off_state=[0.0], on_state=[0.01])->Tuple[dict,dict]:
+
+    # For variable numbers of nanoparticles
+    if (isinstance(N, list) and isinstance(N_e, int)):
 
         # DataFrame Columns
         columns = [f'C{i}' for i in range(1,N_e-2)] + ['G','Jumps_eq','Jumps','Current','Error']
@@ -237,7 +423,7 @@ def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list],
                 dic_nc[i]   = df2
 
     # For variable numbers of electrodes
-    elif (type(N) == int and type(N_e) == list):
+    elif (isinstance(N, int) and isinstance(N_e, list)):
         
         # Without dictonary input make new
         if (dic==None and dic_nc==None):
@@ -363,80 +549,129 @@ def get_boolean_data(folder : str, N : Union[int, list], N_e : Union[int, list],
 
     return dic, dic_nc
 
-def prepare_for_fitness_calculation(df : pd.DataFrame, N_c : int, min_current=None, input1_col='I1', input2_col='I2',
-    gate_col='G', control_col='C', current_col='Current', off_state=0.0, on_state=0.01) -> pd.DataFrame:
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+#
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def store_average_time_results(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
+    
+    values          = [pd.read_csv(folder+f"/Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}_t{j}_s{k}.csv") for j in range(N_threads) for k in range(N_stat)]
+    means           = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns)
+    means['Error']  = np.std(values,axis=0)[:,-2]/np.sqrt(len(values))
+
+    means.to_csv(folder+f"/Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
+
+def store_average_time_states(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
+
+    values  = [pd.read_csv(folder+f"/mean_state_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}_t{j}_s{k}.csv") for j in range(N_threads) for k in range(N_stat)]
+    means   = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns).round(3)
+    
+    means.to_csv(folder+f"/mean_state_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
+
+def store_average_time_currents(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
+
+    values  = [pd.read_csv(folder+f"/net_currents_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}_t{j}_s{k}.csv") for j in range(N_threads) for k in range(N_stat)]
+    means   = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns).round(3)
+    
+    means.to_csv(folder+f"/net_currents_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
+
+def autocorrelation(x : np.array, y : np.array, lags : int)->np.array:
+    """Compute autocorrelation between two arrays "x" and "y" for a range of lags
+
+    Parameters
+    ----------
+    x : np.array
+        First time series array
+    y : np.array
+        Second time series array
+    lags : int
+        Number of lags
+
+    Returns
+    -------
+    np.array
+        Autocorrelation for each lag from 0 to lags-1
     """
-    Prepares a pandas Dataframe of electric currents for calculation of gate fitnesses\\
-    Number of Controls NC must be provided as argument\\
-    Allows to exclude any currents having an absolute value less than min_current if min_current != None\\
-    Allows to check df if for each voltage combination exactly all possible input states are present\\ 
-    Other Attributes define column names for various features
-    """
 
-    # Sort Dataframe by C1,C2,..G,I1,I2 and exclude Currents if min_current != None
-    sort_cols = [control_col + '{}'.format(i) for i in range(1, N_c + 1)]
-    sort_cols.extend([gate_col, input1_col, input2_col])
+    return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
+
+
+
+# def prepare_for_fitness_calculation(df : pd.DataFrame, N_c : int, min_current=None, input1_col='I1', input2_col='I2',
+#     gate_col='G', control_col='C', current_col='Current', off_state=0.0, on_state=0.01) -> pd.DataFrame:
+#     """
+#     Prepares a pandas Dataframe of electric currents for calculation of gate fitnesses\\
+#     Number of Controls NC must be provided as argument\\
+#     Allows to exclude any currents having an absolute value less than min_current if min_current != None\\
+#     Allows to check df if for each voltage combination exactly all possible input states are present\\ 
+#     Other Attributes define column names for various features
+#     """
+
+#     # Sort Dataframe by C1,C2,..G,I1,I2 and exclude Currents if min_current != None
+#     sort_cols = [control_col + '{}'.format(i) for i in range(1, N_c + 1)]
+#     sort_cols.extend([gate_col, input1_col, input2_col])
     
-    data    = df.copy()
+#     data    = df.copy()
     
-    if min_current != None:
-        # data.loc[data[current_col].abs() <= min_current, current_col] = min_current
-        data = data[data[current_col].abs() > min_current]
+#     if min_current != None:
+#         # data.loc[data[current_col].abs() <= min_current, current_col] = min_current
+#         data = data[data[current_col].abs() > min_current]
     
-    data    = data.sort_values(by=sort_cols)
-    data    = data.reset_index(drop=True)
+#     data    = data.sort_values(by=sort_cols)
+#     data    = data.reset_index(drop=True)
 
-    # Move through each row and proof that for each electrode voltage combination all possible input states are present
-    i       = 0
-    rows    = np.floor(len(data))
+#     # Move through each row and proof that for each electrode voltage combination all possible input states are present
+#     i       = 0
+#     rows    = np.floor(len(data))
 
-    while (i < rows):
+#     while (i < rows):
 
-        try:
+#         try:
 
-            cond1 = ((data[input1_col][i]   == off_state) and (data[input2_col][i]   == off_state))
-            cond2 = ((data[input1_col][i+1] == off_state) and (data[input2_col][i+1] == on_state))
-            cond3 = ((data[input1_col][i+2] == on_state)  and (data[input2_col][i+2] == off_state))
-            cond4 = ((data[input1_col][i+3] == on_state)  and (data[input2_col][i+3] == on_state))
+#             cond1 = ((data[input1_col][i]   == off_state) and (data[input2_col][i]   == off_state))
+#             cond2 = ((data[input1_col][i+1] == off_state) and (data[input2_col][i+1] == on_state))
+#             cond3 = ((data[input1_col][i+2] == on_state)  and (data[input2_col][i+2] == off_state))
+#             cond4 = ((data[input1_col][i+3] == on_state)  and (data[input2_col][i+3] == on_state))
             
-            cond5 = (data[gate_col][i] == data[gate_col][i+1]) 
-            cond6 = (data[gate_col][i] == data[gate_col][i+2]) 
-            cond7 = (data[gate_col][i] == data[gate_col][i+3])
+#             cond5 = (data[gate_col][i] == data[gate_col][i+1]) 
+#             cond6 = (data[gate_col][i] == data[gate_col][i+2]) 
+#             cond7 = (data[gate_col][i] == data[gate_col][i+3])
 
-            cond8 = (data[control_col + '1'][i] == data[control_col + '1'][i+1]) 
-            cond9 = (data[control_col + '1'][i] == data[control_col + '1'][i+2]) 
-            cond10= (data[control_col + '1'][i] == data[control_col + '1'][i+3])
+#             cond8 = (data[control_col + '1'][i] == data[control_col + '1'][i+1]) 
+#             cond9 = (data[control_col + '1'][i] == data[control_col + '1'][i+2]) 
+#             cond10= (data[control_col + '1'][i] == data[control_col + '1'][i+3])
         
-        except:
+#         except:
 
-            try:
-                data = data.drop(i)
-            except:
-                pass
+#             try:
+#                 data = data.drop(i)
+#             except:
+#                 pass
 
-            try:
-                data = data.drop(i+1)
-            except:
-                pass
+#             try:
+#                 data = data.drop(i+1)
+#             except:
+#                 pass
 
-            try:
-                data = data.drop(i+2)
-            except:
-                pass
+#             try:
+#                 data = data.drop(i+2)
+#             except:
+#                 pass
 
-            data = data.reset_index(drop=True)
-            break
+#             data = data.reset_index(drop=True)
+#             break
 
-        if not(cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7 and cond7 and cond8 and cond9 and cond10):
+#         if not(cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7 and cond7 and cond8 and cond9 and cond10):
 
-            data    = data.drop(i)
-            data    = data.reset_index(drop=True)
-            rows    = rows - 1
-            continue
+#             data    = data.drop(i)
+#             data    = data.reset_index(drop=True)
+#             rows    = rows - 1
+#             continue
 
-        i = i + 4
+#         i = i + 4
     
-    return data
+#     return data
 
 def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame, df11 : pd.DataFrame, gate : str, all=False) -> pd.DataFrame:
     """

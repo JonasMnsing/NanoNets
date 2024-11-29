@@ -61,8 +61,7 @@ class electrostatic_class(topology.topology_class):
     
     def __init__(self, electrode_type, seed=None)->None:
 
-        super().__init__(seed)
-        self.electrode_type = np.array(electrode_type)
+        super().__init__(electrode_type, seed)
 
     def delete_n_junctions(self, n : int)->None:
         """ Delete n junctions in network at random
@@ -100,20 +99,10 @@ class electrostatic_class(topology.topology_class):
             self.net_topology[np1,np2]          = -100
             self.net_topology[np1_2,np2_2+1]    = -100
 
-    def mutal_capacitance_sphere_plane(self, eps_r : float, np_radius : float, np_distance : float)->float:
-
-        # cap = 2*3.14159265359*8.85418781762039*0.001*eps_r*np_radius
-
-        d       = (np_radius + np_distance)
-        cap     = 4*3.14159265359*8.85418781762039*0.001*eps_r*np_radius/d
-        # sum_val = 1 + np.sum([(np_radius**n+np_radius2**n)/(d**n) for n in range(N_vals)])
-
-        return cap
-
     def mutal_capacitance_adjacent_spheres(self, eps_r : float, np_radius1 : float, np_radius2 : float, np_distance : float)->float:
         """
         Calculate capacitance in between a spherical conductors - insulator - spherical conductors setup.
-        This is a first order Taylor Expansion based on the Image Charge method.
+        This is a thrid order Taylor Expansion based on the Image Charge method.
 
         Parameters
         ----------
@@ -124,9 +113,7 @@ class electrostatic_class(topology.topology_class):
         np_radius2 : float
             Radius second sphere (nanoparticle)
         np_distance : float
-            Spacing in between both spheres (edge to edge) 
-        N_vals : int
-            Order for series calculation, default 100
+            Spacing in between both spheres (edge to edge)
             
         Returns
         -------
@@ -136,13 +123,10 @@ class electrostatic_class(topology.topology_class):
         
         d       = (np_radius1 + np_radius2 + np_distance)
         factor  = 4*3.14159265359*8.85418781762039*0.001*eps_r*(np_radius1*np_radius2)/d
-        # sum_val = np.sum([(np_radius1**n+np_radius2**n)/(d**n) for n in range(N_vals)])
+        # Paper approx sum_val = 1
         sum_val = sum([1,(np_radius1*np_radius2)/(d**2-2*np_radius1*np_radius2),
                        ((np_radius1**2)*(np_radius2**2))/(d**4-4*(d**2)*np_radius1*np_radius2+3*(np_radius1**2)*(np_radius2**2))])
         cap     = factor*sum_val
-
-        # factor  = 4*3.14159265359*8.85418781762039*0.001*eps_r
-        # cap     = factor*((np_radius1*np_radius2)/(np_radius1 + np_radius2 + np_distance))
 
         return cap
 
@@ -196,7 +180,6 @@ class electrostatic_class(topology.topology_class):
 
         self.radius_vals[nanoparticles] = np.abs(self.rng.normal(loc=mean_radius, scale=std_radius, size=len(nanoparticles)))
         
-    # TODO Add self capacitance also if NP is not connected to gate?
     def calc_capacitance_matrix(self, eps_r=2.6, eps_s=3.9, np_distance=1.0)->None:
         """Calculate capacitance matrix.
 
@@ -222,14 +205,19 @@ class electrostatic_class(topology.topology_class):
             
                 neighbor = self.net_topology[i,j]
 
+                # If neighbor is present
                 if (neighbor != (-100)):
 
+                    # If electrode is connected
                     if (j == 0):
 
-                        if self.electrode_type[int(neighbor-1)] != 'floating':
-                            C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[i], np_distance) # self.C_lead[i,j] 
+                        # if self.electrode_type[int(neighbor-1)] != 'floating':
+                        # Add electrode capacitance
+                        C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], 10, np_distance)
 
                     else:
+                        
+                        # Calc mutual capacitance
                         val = self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[int(neighbor)], np_distance)
                         self.capacitance_matrix[i,int(self.net_topology[i,j])] = -val
                         C_sum += val # self.C_node[i,j]
@@ -258,13 +246,18 @@ class electrostatic_class(topology.topology_class):
 
         self.charge_vector = np.zeros(self.N_particles)
 
+        # For each charge
         for i in range(self.N_particles):
 
+            # NP without an electrode connection
             if (self.net_topology[i,0] == -100):
 
+                # If they are connected to gate
                 if self.gate_nps[i] == 1:
-                    C_self  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
-                    self.charge_vector[i] = voltage_values[-1]*C_self
+                    
+                    # Add induced charges given gate electrode voltage
+                    C_self                  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
+                    self.charge_vector[i]   = voltage_values[-1]*C_self
 
                 else:
                     self.charge_vector[i] = 0.0
@@ -273,19 +266,22 @@ class electrostatic_class(topology.topology_class):
 
                 electrode_index = int(self.net_topology[i,0] - 1)
                 
+                # If they are connected to gate
                 if self.gate_nps[i] == 1:
-                    # C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
-                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
-                    C_self  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
-                    self.charge_vector[i] = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
+                    
+                    # Add induced charges given electrode and gate voltages
+                    C_lead                  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
+                    C_self                  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
+                    self.charge_vector[i]   = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
                 else:
-                    # C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
-                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
-                    self.charge_vector[i] = voltage_values[electrode_index]*C_lead
+                    
+                    # Add induced charges given electrode voltages
+                    C_lead                  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
+                    self.charge_vector[i]   = voltage_values[electrode_index]*C_lead
 
     def get_charge_vector_offset(self, voltage_values : np.array)->np.array:
         """
-        Return offset of charges put into the system by electrodes
+        Return offset of charges / induced charges put into the system by electrodes
 
         Parameters
         ----------
@@ -302,13 +298,18 @@ class electrostatic_class(topology.topology_class):
 
         offset = np.zeros(self.N_particles)
 
+        # For each charge
         for i in range(self.N_particles):
 
+            # NP without an electrode connection
             if (self.net_topology[i,0] == -100):
 
+                # If they are connected to gate
                 if self.gate_nps[i] == 1:
-                    C_self  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
-                    offset[i] = voltage_values[-1]*C_self
+                    
+                    # Add induced charges given gate electrode voltage
+                    C_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
+                    offset[i]   = voltage_values[-1]*C_self
 
                 else:
                     offset[i] = 0.0
@@ -317,15 +318,18 @@ class electrostatic_class(topology.topology_class):
 
                 electrode_index = int(self.net_topology[i,0] - 1)
                 
+                # If they are connected to gate
                 if self.gate_nps[i] == 1:
-                    # C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
-                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
-                    C_self  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
-                    offset[i] = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
+
+                    # Add induced charges given electrode and gate voltages
+                    C_lead      = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
+                    C_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
+                    offset[i]   = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
                 else:
-                    # C_lead  = self.mutal_capacitance_sphere_plane(self.eps_r, self.radius_vals[i], self.np_distance)
-                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
-                    offset[i] = voltage_values[electrode_index]*C_lead
+
+                    # Add induced charges given electrode voltages
+                    C_lead      = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.radius_vals[i], self.np_distance)
+                    offset[i]   = voltage_values[electrode_index]*C_lead
 
         return offset
 

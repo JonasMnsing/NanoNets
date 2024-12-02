@@ -329,7 +329,7 @@ class model_class():
 
         if N_calculations >= 2:
 
-            self.target_observable_error     = np.sqrt(np.abs(self.target_observable_mean2) / (N_calculations - 1))/np.sqrt(N_calculations)
+            self.target_observable_error     = 1.96*np.sqrt(np.abs(self.target_observable_mean2) / (N_calculations - 1))/np.sqrt(N_calculations)
             self.target_observable_error_rel = self.target_observable_error/np.abs(self.target_observable_mean)
     
     def select_event(self, random_number1 : float, random_number2 : float):
@@ -955,7 +955,6 @@ class model_class():
             self.charge_mean            = self.charge_vector
             self.potential_mean         = self.potential_vector
         
-
     def kmc_time_simulation_var_resistance(self, target_electrode : int, time_target : float, slope=0.8,
                             shift=7.5, tau_0=1e-8, R_max=25, R_min=10):
         """
@@ -1486,7 +1485,7 @@ class simulation(tunneling.tunnel_class):
         """
 
         # Simulation Parameter
-        if sim_dic != None:
+        if sim_dic is not None:
             error_th        = sim_dic['error_th']           # Target obervable's relative error
             max_jumps       = sim_dic['max_jumps']          # Maximum number of KMC Steps
             eq_steps        = sim_dic['eq_steps']           # Equilibration Steps
@@ -1494,13 +1493,17 @@ class simulation(tunneling.tunnel_class):
             kmc_counting    = sim_dic['kmc_counting']       # Current calculation based on counting jumps
             min_batches     = sim_dic['min_batches']        # Minimum number of batches 
         else:
-            error_th        = 0.05      
-            max_jumps       = 10000000
+            error_th        = 0.0
+            max_jumps       = 100000
             eq_steps        = 100000
             jumps_per_batch = 1000
             kmc_counting    = False
             min_batches     = 10
 
+        # Electrode indices with floating or constant voltages
+        floating_electrodes = np.where(self.electrode_type == 'floating')[0]
+        const_electrodes    = np.where(self.electrode_type == 'constant')[0]
+        
         # Simulation Obseravles
         self.output_values              = []
         self.target_observable_values   = []
@@ -1554,7 +1557,7 @@ class simulation(tunneling.tunnel_class):
             # Pass all model arguments into Numba optimized Class
             model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values, const_capacitance_values_co1, const_capacitance_values_co2,
                                 temperatures, temperatures_co, resistances, resistances_co1, resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2,
-                                co_adv_index3, N_electrodes, N_particles)
+                                co_adv_index3, N_electrodes, N_particles, floating_electrodes)
 
             if self.res_info['dynamic']:
 
@@ -2098,8 +2101,8 @@ class simulation(tunneling.tunnel_class):
 
 class Optimizer(simulation):
 
-    def __init__(self, optimizer_type : str, parameter_type: str, topology_parameter : dict, folder='', add_to_path="", res_info=None, res_info2=None,
-                 np_info=None, np_info2=None, seed=None, **kwargs):
+    def __init__(self, optimizer_type : str, parameter_type: str, topology_parameter : dict, folder='', add_to_path="",
+                 res_info=None, res_info2=None, np_info=None, np_info2=None, seed=None, **kwargs):
 
         super().__init__(topology_parameter, folder, add_to_path, res_info, res_info2, np_info, np_info2, seed, **kwargs)
         

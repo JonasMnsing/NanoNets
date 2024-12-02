@@ -211,6 +211,31 @@ def sinusoidal_voltages(frequencies : Union[float, List[float]], amplitudes : Un
     
     return time_steps, voltages 
 
+def distribute_array_across_processes(process : int, data : np.array, N_processes : int)->np.array:
+    """Returns part of an array to be simulated by a certain process
+
+    Parameters
+    ----------
+    process : int
+        Process index
+    data : np.array
+        Data as array 
+    N_processes : int
+        Number of total processes
+
+    Returns
+    -------
+    np.array
+        Sub-array for given process
+    """
+
+    # Simulated rows for each process
+    index           = [i for i in range(len(data))]
+    rows            = [index[i::N_processes] for i in range(N_processes)]
+    process_rows    = rows[process]
+
+    return data[process_rows,:]
+
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # LOAD SIMULATION RESULTS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -548,6 +573,43 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
             return df1, df2
 
     return dic, dic_nc
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+# MISC
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def standard_scale(arr : np.array)->np.array:
+    """Standard scale: y = ( y - mean(y) ) / std(y) a 1D array
+
+    Parameters
+    ----------
+    arr : np.array
+        Data
+
+    Returns
+    -------
+    np.array
+        Standard scaled data
+    """
+    return (arr - np.mean(arr))/np.std(arr)
+
+def poincare_map_zero_corssing(arr : np.array)->np.array:
+    """For a 1D array, return all idx at which array crosses zero line
+
+    Parameters
+    ----------
+    arr : np.array
+        Data
+
+    Returns
+    -------
+    np.array
+        Zero crossings
+    """
+    vals        = standard_scale(arr)
+    crossing    = np.where(np.diff(np.sign(vals)))[0]
+    
+    return crossing
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 #

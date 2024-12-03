@@ -19,7 +19,7 @@ stat_size           = 100
 path                = "scripts/2_funding_period/WP2/training/data/sine_to_triangle/"
 temp_init           = 1.0
 p_init              = 4.0
-epsilon             = 0.5
+epsilon             = 0.1
 N_p                 = 7
 
 # Network Topology
@@ -39,8 +39,8 @@ np_info = {
 }
 
 # Voltage Values
-amplitude   = 0.05
-freq        = 2.0
+amplitude   = 0.02
+freq        = 3.0
 time_step   = 1e-10
 N_periods   = 20
 N_voltages  = int(N_periods*np.pi/(freq*1e8*time_step))

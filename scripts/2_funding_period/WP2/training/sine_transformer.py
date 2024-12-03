@@ -20,6 +20,7 @@ eq_steps            = 0
 path                = "scripts/2_funding_period/WP2/training/data/sine_to_triangle/"
 network_topology    = 'cubic'
 learning_rate       = 0.01
+epsilon             = 0.1
 N_p                 = 7
 
 # Network Topology
@@ -42,20 +43,16 @@ np_info = {
 amplitude   = 0.1
 freq        = 2.0
 time_step   = 1e-10
-N_periods   = 16
+N_periods   = 20
 N_voltages  = int(N_periods*np.pi/(freq*1e8*time_step))
 batch_size  = N_voltages
 time_steps  = time_step*np.arange(N_voltages)
 x_vals      = amplitude*np.cos(freq*time_steps*1e8)
-y_target    = amplitude*signal.sawtooth(freq*time_steps*1e8-np.pi, 0.5)
+y_target    = amplitude*signal.square(freq*time_steps*1e8-3*np.pi/2)
+
+# y_target    = amplitude*signal.sawtooth(freq*time_steps*1e8-np.pi, 0.5)
 
 # Run Training
-optim_class = nanonets.Optimizer("","",topology_parameter=topology_parameter, seed=0)
-optim_class.simulated_annealing(x=x_vals, y=y_target,N_epochs=N_epochs,cooling_rate=)
-
-sim_class = nanonets.simulation(topology_parameter=topology_parameter, seed=0)
-sim_class.train_time_series(x=x_vals, y=y_target, learning_rate=learning_rate, batch_size=batch_size, N_epochs=N_epochs,
-                            adam=True, time_step=time_step, stat_size=stat_size, path=path)
-
-# sim_class.train_time_series_by_frequency(x=x_vals, y=y_target, learning_rate=learning_rate, batch_size=batch_size, N_epochs=N_epochs,
-#                                         adam=True, time_step=time_step, stat_size=stat_size, path=path)
+optim_class = nanonets.Optimizer("","freq",topology_parameter=topology_parameter, seed=0)
+optim_class.gradient_decent(x=x_vals, y=y_target, N_epochs=N_epochs, learning_rate=learning_rate,
+                            batch_size=batch_size, adam=True, time_step=time_step, epsilon=epsilon)

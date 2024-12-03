@@ -12,35 +12,57 @@ import nanonets_utils
 
 import multiprocessing
 
-def parallel_code(thread : int, N : int, V_arr : np.array, path : str):
+def parallel_code(thread : int, N : int, V_arr : np.array, input_at : int, path : str, N_processes: int):
 
     topology_parameter = {
-        "Np"    :   N,
-        "Nj"    :   0,
-        "e_pos" :   [[-1,-1],[1,1]],
+        "Np"                :   N,
+        "Nj"                :   0,
+        "e_pos"             :   [[-1,-1],[0,-1],[-1,0],[1,-1],[-1,1],[1,0],[0,1],[1,1]],
+        "electrode_type"    :   ['constant','constant','constant','constant','constant','constant','constant','floating']
     }
-    np_network_random   = nanonets.simulation(network_topology='random', topology_parameter=topology_parameter, seed=thread)
-    
-    np_network_random.run_const_voltages(V_arr, 1, save_th=0.1)
-    results = np_network_random.return_output_values()
 
-    np.savetxt(path+f"N_{N}_th_{thread}.csv", results)
+    sim_dic =   {
+        "error_th"        : 0.05,      
+        "max_jumps"       : 10000000,
+        "eq_steps"        : 100000,
+        "jumps_per_batch" : 5000,
+        "kmc_counting"    : False,
+        "min_batches"     : 10
+    }
 
-V_arr       = np.zeros((100,3))
-V_min       = 0.5
-V_max       = 1.0
-V_arr[:,0]  = np.linspace(V_min, V_max, 100, endpoint=True)
+    np_info = {
+        "eps_r"         : 2.6,
+        "eps_s"         : 3.9,
+        "mean_radius"   : 10.0,
+        "std_radius"    : 0.0,
+        "np_distance"   : 1.0
+    }
+
+    jpb                 = sim_dic["jumps_per_batch"]
+    voltages            = nanonets_utils.distribute_array_across_processes(process=thread, data=V_arr, N_processes=N_processes)
+    np_network_cubic    = nanonets.simulation(topology_parameter=topology_parameter, folder=path,
+                                              add_to_path=f"_jpb_{jpb}_E{input_at}", np_info=np_info, seed=0)
+    np_network_cubic.run_const_voltages(voltages=voltages, target_electrode=7, save_th=10, sim_dic=sim_dic)
+
+N_data      = 200
+V_min       = 0.0
+V_max       = 0.05
 N_processes = 10
 path        = "scripts/1_funding_period/current_magnitude/data_disorder/"
 
-for N in np.arange(10,311,20):
+for N in range(3,10):
 
-    procs = []
-    for i in range(10,N_processes+10):
+    for input_at in [0,1,3,5]:
 
-        process = multiprocessing.Process(target=parallel_code, args=(i, N, V_arr, path))
-        process.start()
-        procs.append(process)
-    
-    for p in procs:
-        p.join()
+        V_arr               = np.zeros((N_data,9))
+        V_arr[:,input_at]   = np.linspace(V_min, V_max, N_data, endpoint=True)
+
+        procs = []
+        for i in range(N_processes):
+
+            process = multiprocessing.Process(target=parallel_code, args=(i, N*N, V_arr, input_at, path, N_processes))
+            process.start()
+            procs.append(process)
+        
+        for p in procs:
+            p.join()

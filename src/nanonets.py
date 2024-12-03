@@ -524,7 +524,7 @@ class model_class():
             
             self.update_floating_electrode(idx_np_target)
             
-        return i
+        return n_jumps
     
     def run_equilibration_steps_var_resistance(self, n_jumps=10000, slope=0.8, shift=7.5,
                                                tau_0=1e-8, R_max=25, R_min=10):
@@ -1485,20 +1485,22 @@ class simulation(tunneling.tunnel_class):
         """
 
         # Simulation Parameter
-        if sim_dic is not None:
-            error_th        = sim_dic['error_th']           # Target obervable's relative error
-            max_jumps       = sim_dic['max_jumps']          # Maximum number of KMC Steps
-            eq_steps        = sim_dic['eq_steps']           # Equilibration Steps
-            jumps_per_batch = sim_dic['jumps_per_batch']    # Number of Jumps per batch
-            kmc_counting    = sim_dic['kmc_counting']       # Current calculation based on counting jumps
-            min_batches     = sim_dic['min_batches']        # Minimum number of batches 
-        else:
-            error_th        = 0.0
-            max_jumps       = 100000
-            eq_steps        = 100000
-            jumps_per_batch = 1000
-            kmc_counting    = False
-            min_batches     = 10
+        if sim_dic is None:
+            sim_dic =   {
+                "error_th"        : 0.05,
+                "max_jumps"       : 10000000,
+                "eq_steps"        : 100000,
+                "jumps_per_batch" : 5000,
+                "kmc_counting"    : False,
+                "min_batches"     : 10
+            }
+
+        error_th        = sim_dic['error_th']           # Target obervable's relative error
+        max_jumps       = sim_dic['max_jumps']          # Maximum number of KMC Steps
+        eq_steps        = sim_dic['eq_steps']           # Equilibration Steps
+        jumps_per_batch = sim_dic['jumps_per_batch']    # Number of Jumps per batch
+        kmc_counting    = sim_dic['kmc_counting']       # Current calculation based on counting jumps
+        min_batches     = sim_dic['min_batches']        # Minimum number of batches 
 
         # Electrode indices with floating or constant voltages
         floating_electrodes = np.where(self.electrode_type == 'floating')[0]
@@ -1713,7 +1715,7 @@ class simulation(tunneling.tunnel_class):
         else:
             eq_jumps    = 0
             self.q_eq   = init_charges
-            
+
         # Reset Obseravles
         self.output_values      = np.zeros(shape=(voltages.shape[0], 4))
         self.microstates        = np.zeros(shape=(voltages.shape[0], self.model.N_particles))
@@ -2187,7 +2189,7 @@ class Optimizer(simulation):
             return_dic[-1]  = charge_values
 
     def simulated_annealing(self, x : np.array, y : np.array, N_epochs : int, temp_init : float, cooling_rate=0.9, epsilon=0.01,
-                            time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.1, freq=2.0, batch_size=0, print_nth_epoch=1, save_nth_epoch=1):
+                            time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.02, freq=2.0, batch_size=0, print_nth_epoch=1, save_nth_epoch=1):
 
         # Target Values
         y           = (y - np.mean(y))/np.std(y)
@@ -2198,6 +2200,7 @@ class Optimizer(simulation):
 
         if batch_size == 0:
             N_batches   = 1
+            batch_size  = N_voltages
         else:
             N_batches   = N_voltages//batch_size
 
@@ -2268,7 +2271,7 @@ class Optimizer(simulation):
                 np.savetxt(fname=f"{self.folder}ypred_{epoch}.csv", X=self.y_pred)
 
     def gradient_decent(self, x : np.array, y : np.array, N_epochs : int, learning_rate : float, batch_size : int, epsilon=0.001, adam=False,
-                        time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.1, transient_steps=0, print_nth_batch=1, save_nth_epoch=1):
+                        time_step=1e-10, stat_size=500, p_init=0.1, amplitude=0.02, transient_steps=0, print_nth_batch=1, save_nth_epoch=1):
         
         # Target Values
         y   = (y - np.mean(y))/np.std(y)
@@ -2360,7 +2363,7 @@ class Optimizer(simulation):
                         p.join()
 
                     # Current charge vector given the last iteration
-                    charge_init = return_dic[0]
+                    charge_init = return_dic[-1]
                     
                     # Gradient Container
                     gradients = np.zeros_like(params)
@@ -2377,41 +2380,41 @@ class Optimizer(simulation):
                         gradients[int((i-1)/2)] = (perturbed_loss_pos - perturbed_loss_neg) / (2*epsilon)
 
                     
-                    if ((epoch != 1) and (batch != 0)):
+                    # if ((epoch != 1) and (batch != 0)):
                         
-                        # Current prediction and loss
-                        y_pred  = return_dic[0]
-                        y_pred  = (y_pred - np.mean(y_pred)) / np.std(y_pred)
-                        loss    = self.loss_function(y_pred=y_pred, y_real=y[(start+1):stop], transient=transient_steps)
-                        
-                        predictions[(start+1):stop] = y_pred
+                    # Current prediction and loss
+                    y_pred  = return_dic[0]
+                    y_pred  = (y_pred - np.mean(y_pred)) / np.std(y_pred)
+                    loss    = self.loss_function(y_pred=y_pred, y_real=y[(start+1):stop], transient=transient_steps)
+                    
+                    predictions[(start+1):stop] = y_pred
 
-                        # ADAM Optimization
-                        if adam:
+                    # ADAM Optimization
+                    if adam:
 
-                            beta1 = 0.9         # decay rate for the first moment
-                            beta2 = 0.999       # decay rate for the second moment
+                        beta1 = 0.9         # decay rate for the first moment
+                        beta2 = 0.999       # decay rate for the second moment
 
-                            # Update biased first and second moment estimate
-                            m = beta1 * m + (1 - beta1) * gradients
-                            v = beta2 * v + (1 - beta2) * (gradients ** 2)
+                        # Update biased first and second moment estimate
+                        m = beta1 * m + (1 - beta1) * gradients
+                        v = beta2 * v + (1 - beta2) * (gradients ** 2)
 
-                            # Compute bias-corrected first and second moment estimate
-                            m_hat = m / (1 - beta1 ** epoch)
-                            v_hat = v / (1 - beta2 ** epoch)
-
-                            # Update control voltages given the gradients
-                            control_voltages -= learning_rate * m_hat / (np.sqrt(v_hat) + 1e-8)
+                        # Compute bias-corrected first and second moment estimate
+                        m_hat = m / (1 - beta1 ** epoch)
+                        v_hat = v / (1 - beta2 ** epoch)
 
                         # Update control voltages given the gradients
-                        else:
-                            control_voltages -= learning_rate * gradients
+                        params -= learning_rate * m_hat / (np.sqrt(v_hat) + 1e-8)
 
-                        # Print infos
-                        if batch % print_nth_batch == 0:
-                            print(f'Epoch   : {epoch}')
-                            print(f'U_C     : {np.round(control_voltages,4)}')
-                            print(f"Loss    : {loss}")
+                    # Update control voltages given the gradients
+                    else:
+                        params -= learning_rate * gradients
+
+                    # Print infos
+                    if batch % print_nth_batch == 0:
+                        print(f'Epoch   : {epoch}')
+                        print(f'U_C     : {np.round(params,4)}')
+                        print(f"Loss    : {loss}")
 
                 # Save prediction
                 if epoch % save_nth_epoch == 0:

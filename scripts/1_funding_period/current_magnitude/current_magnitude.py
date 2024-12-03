@@ -31,15 +31,23 @@ def parallel_code(thread : int, N : int, V_arr : np.array, input_at : int, path 
         "min_batches"     : 10
     }
 
+    np_info = {
+        "eps_r"         : 2.6,
+        "eps_s"         : 3.9,
+        "mean_radius"   : 8.0,
+        "std_radius"    : 0.0,
+        "np_distance"   : 1.0
+    }
+
     jpb                 = sim_dic["jumps_per_batch"]
     voltages            = nanonets_utils.distribute_array_across_processes(process=thread, data=V_arr, N_processes=N_processes)
-    np_network_cubic    = nanonets.simulation(topology_parameter=topology_parameter, folder=path, add_to_path=f"_jpb_{jpb}_E{input_at}")
-    
+    np_network_cubic    = nanonets.simulation(topology_parameter=topology_parameter, folder=path,
+                                              add_to_path=f"_jpb_{jpb}_E{input_at}", np_info=np_info)
     np_network_cubic.run_const_voltages(voltages=voltages, target_electrode=7, save_th=10, sim_dic=sim_dic)
 
-N_data      = 1000
+N_data      = 200
 V_min       = 0.0
-V_max       = 0.1
+V_max       = 0.05
 N_processes = 10
 path        = "scripts/1_funding_period/current_magnitude/data/"
 

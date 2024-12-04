@@ -31,7 +31,7 @@ def run_sim(thread, x, params, rows, time_steps, topology, path, amplitude, freq
         sim_class   = nanonets.simulation(topology_parameter=topology, folder=path, seed=0, add_to_path=f'_{thread}_{n}')
         sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=200)
 
-path    = "scripts/2_funding_period/WP2/training/data/random_sample_volt/"
+path    = "scripts/2_funding_period/WP2/training/data/random_sample_phase/"
 N_p     = 7
 
 # Network Topology

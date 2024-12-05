@@ -103,17 +103,16 @@ N_procs     = 10
 amplitude   = 0.01
 freq        = 3.5
 time_step   = 1e-10
-N_periods   = 50
-N_voltages  = int(N_periods*np.pi/(freq*1e8*time_step))
+N_voltages  = 5000
 time_steps  = time_step*np.arange(N_voltages)
-x_vals      = amplitude*np.cos(freq*time_steps*1e8)
+x_vals      = np.random.uniform(-amplitude,amplitude,N_voltages)
 N_controls  = len(topology_parameter["e_pos"])-2
 index       = [i for i in range(N_samples)]
 rows        = [index[i::N_procs] for i in range(N_procs)]
 
 # Offset
 sim_type    = 'offset'
-path        = "scripts/2_funding_period/WP2/training/data/lhs_sample/offset/"
+path        = "scripts/2_funding_period/WP2/training/data/lhs_sample_noise/offset/"
 sample      = return_lhs_sample(-0.05, 0.05, N_controls, N_samples)
 procs       = []
 for i in range(N_procs):
@@ -127,7 +126,7 @@ for p in procs:
 
 # Amplitude
 sim_type    = 'amplitude'
-path        = "scripts/2_funding_period/WP2/training/data/lhs_sample/amplitude/"
+path        = "scripts/2_funding_period/WP2/training/data/lhs_sample_noise/amplitude/"
 sample      = return_lhs_sample(0.0, 0.05, N_controls, N_samples)
 procs       = []
 for i in range(N_procs):
@@ -141,7 +140,7 @@ for p in procs:
 
 # Frequency
 sim_type    = 'frequency'
-path        = "scripts/2_funding_period/WP2/training/data/lhs_sample/frequency/"
+path        = "scripts/2_funding_period/WP2/training/data/lhs_sample_noise/frequency/"
 sample      = return_lhs_sample(0.0, 6.0, N_controls, N_samples)
 procs       = []
 for i in range(N_procs):
@@ -156,7 +155,7 @@ for p in procs:
 
 # Phase
 sim_type    = 'phase'
-path        = "scripts/2_funding_period/WP2/training/data/lhs_sample/phase/"
+path        = "scripts/2_funding_period/WP2/training/data/lhs_sample_noise/phase/"
 sample      = return_lhs_sample(0.0, 2*np.pi, N_controls, N_samples)
 procs       = []
 for i in range(N_procs):

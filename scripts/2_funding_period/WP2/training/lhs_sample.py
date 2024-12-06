@@ -76,6 +76,19 @@ def run_sim(thread, x, params, rows, time_steps, topology, path, sim_type, ampli
 
             sim_class   = nanonets.simulation(topology_parameter=topology, folder=path, seed=0, add_to_path=f'_{thread}_{n}')
             sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=200)
+    
+    else:
+
+        for n, par in enumerate(params_new):
+            N_voltages      = len(time_steps)
+            voltages        = np.zeros((N_voltages, len(topology["e_pos"])+1))
+            voltages[:,0]   = x
+            for i, p in enumerate(par):
+                voltages[:,i+1] = p
+
+            sim_class   = nanonets.simulation(topology_parameter=topology, folder=path, seed=0, add_to_path=f'_{thread}_{n}')
+            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=200)
+
 
 N_p = 7
 
@@ -110,6 +123,20 @@ x_vals      = amplitude*np.cos(freq*time_steps*1e8)
 N_controls  = len(topology_parameter["e_pos"])-2
 index       = [i for i in range(N_samples)]
 rows        = [index[i::N_procs] for i in range(N_procs)]
+
+# Const
+# sim_type    = 'const'
+# path        = "scripts/2_funding_period/WP2/training/data/lhs_sample/const/"
+# sample      = return_lhs_sample(-0.05, 0.05, N_controls, N_samples)
+# procs       = []
+# for i in range(N_procs):
+    
+#     process = multiprocessing.Process(target=run_sim, args=(i, x_vals, sample, rows, time_steps,
+#                                                             topology_parameter, path, sim_type, amplitude, freq))
+#     process.start()
+#     procs.append(process)
+# for p in procs:
+#     p.join()
 
 # Offset
 sim_type    = 'offset'

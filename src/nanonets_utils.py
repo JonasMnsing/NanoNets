@@ -159,20 +159,24 @@ def logic_gate_sample(U_e : Union[float, List[float]], input_pos : List[int], N_
 
     return sample
 
-def sinusoidal_voltages(frequencies : Union[float, List[float]], amplitudes : Union[float, List[float]], N_samples : int,
-                        topology_parameter : dict, time_step : float=1e-10)->Tuple[np.array,np.array]:
+def sinusoidal_voltages(N_samples : int, topology_parameter : dict, amplitudes : Union[float, List[float]], frequencies : Union[float, List[float]]=0.0,
+                        phase : Union[float, List[float]]=0.0, offset : Union[float, List[float]]=0.0, time_step : float=1e-10)->Tuple[np.array,np.array]:
     """Return voltage array containing sinusoidal signals of given frequencies and amplitudes
 
     Parameters
     ----------
-    frequencies : Union[float, List[float]]
-        Single frequency for all constant electrodes or individual frequency for each electrode
-    amplitudes : Union[float, List[float]]
-        Single amplitude for all constant electrodes or individual amplitude for each electrode
     N_samples : int
         Number of voltage values
     topology_parameter : dict
         Network topology dictonary
+    amplitudes : Union[float, List[float]]
+        Single amplitude for all constant electrodes or individual amplitude for each electrode
+    frequencies : Union[float, List[float]]
+        Single frequency for all constant electrodes or individual frequency for each electrode, if set to zero voltages are constant
+    phase: Union[float, List[float]]
+        Single phase for all constant electrodes or individual phase for each electrode
+    offset: Union[float, List[float]]
+        Single offset for all constant electrodes or individual offset for each electrode
     time_step : float, optional
         Time step size, by default 1e-10
 
@@ -182,30 +186,24 @@ def sinusoidal_voltages(frequencies : Union[float, List[float]], amplitudes : Un
         Time and Voltages
     """
     # Voltages and Time Scale
-    voltages        = np.zeros(shape=(N_samples, len(topology_parameter["e_pos"])+1))
+    N_electrodes    = len(topology_parameter["e_pos"])
+    voltages        = np.zeros(shape=(N_samples, N_electrodes+1))
     time_steps      = time_step*np.arange(N_samples)
     
     # Parameter based on electrode specification
     electrode_types = np.array(topology_parameter["electrode_type"])
     floating_idx    = np.where(electrode_types=="floating")[0]
 
-    # For variable frequencies
-    if isinstance(frequencies, list):
-        # For variable amplitudes
-        if isinstance(amplitudes, list):
-            for i in range(voltages.shape[1]-1):
-                voltages[:,i]   = amplitudes[i]*np.cos(frequencies[i]*time_steps*1e8)
-        else:
-            for i in range(voltages.shape[1]-1):
-                voltages[:,i]   = amplitudes*np.cos(frequencies[i]*time_steps*1e8)
-    else:
-        if isinstance(amplitudes, list):
-            for i in range(voltages.shape[1]-1):
-                voltages[:,i]   = amplitudes[i]*np.cos(frequencies*time_steps*1e8)
-        else:
-            for i in range(voltages.shape[1]-1):
-                voltages[:,i]   = amplitudes*np.cos(frequencies*time_steps*1e8)
+    # Signal properties
+    frequencies = N_electrodes*[frequencies] if isinstance(frequencies, (int, float)) else frequencies
+    amplitudes  = N_electrodes*[amplitudes] if isinstance(amplitudes, (int, float)) else amplitudes
+    phase       = N_electrodes*[phase] if isinstance(phase, (int, float)) else phase
+    offset      = N_electrodes*[offset] if isinstance(offset, (int, float)) else offset
 
+    # Voltages for each electrode
+    for i in range(N_electrodes):
+        voltages[:,i]   = amplitudes[i]*np.cos(frequencies[i]*time_steps*1e8+phase[i])
+    
     # Set floating electrodes to 0V
     voltages[:,floating_idx] = 0.0
     
@@ -612,9 +610,98 @@ def poincare_map_zero_corssing(arr : np.array)->np.array:
     return crossing
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
-#
+# PLOTS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_landscape=None, pos=None, fig=None, ax=None,
+                             arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628',
+                             position_by_currents=False, display_path=None, edge_vmin=0, edge_vmax=1):
+
+    # Initialize figure and axis if not provided
+    if fig is None:
+        fig = plt.figure()
+    if ax is None:
+        ax = fig.add_subplot()
+        
+    ax.axis('off')
+
+    # Extract values based on row specification
+    if isinstance(row, tuple):
+        values  = df.loc[row[0]:row[1],:].mean().values
+    else:
+        values  = df.loc[row,:].values
+
+    junctions                   = np.array([eval(val) for val in df.columns])
+    values_new, junctions_new   = [], []
+
+    # Process the currents and prepare for plotting
+    for n1, junction in enumerate(junctions):
+
+        i       = junction[0]
+        j       = junction[1]
+        val1    = values[n1]
+        n2      = np.where(((junctions[:,0]==j) & (junctions[:,1]==i)))[0][0]
+
+        if n2 > n1:
+            
+            val2  = values[n2]
+            values_new.append(np.abs(val2-val1))
+            
+            if val1 > val2:
+                junctions_new.append([i-N_electrodes,j-N_electrodes])
+            else:
+                junctions_new.append([j-N_electrodes,i-N_electrodes])
+
+    values_new = arrow_scale*(values_new - np.min(values_new))/(np.max(values_new) - np.min(values_new))
+
+    G = nx.DiGraph()
+    G.add_nodes_from(np.arange(np.min(junctions)-N_electrodes, np.max(junctions)+1-N_electrodes))
+
+    if charge_landscape is not None:
+
+        if isinstance(row, tuple):
+            states  = charge_landscape.loc[row[0]:row[1],:].mean().values
+        else:
+            states  = charge_landscape.loc[row,:].values
+        colors  = np.repeat(blue_color, len(G.nodes)-N_electrodes)
+        colors[np.where(states < 0)] = red_color
+        colors  = np.insert(colors, 0, np.repeat(blue_color, N_electrodes))
+        states  = np.abs(states)
+        states  = node_size*(states - np.min(states))/(np.max(states)-np.min(states))
+        states  = np.insert(states, 0, np.repeat(node_size, N_electrodes))
+    else:
+        states  = np.repeat(node_size, len(G.nodes))
+        colors  = np.repeat(blue_color, len(G.nodes))
+
+    for val, junction in zip(values_new, junctions_new):
+
+        G.add_edge(junction[0], junction[1], width=val)
+
+    widths = [G[u][v]['width'] for u, v in G.edges]
+
+    if pos is None:
+        if position_by_currents:
+            pos = nx.kamada_kawai_layout(G=G, weight='width')
+        else:
+            pos = nx.kamada_kawai_layout(G=G)
+    else:
+        keys        = [-i for i in range(1, N_electrodes+1)]
+        key_vals    = [pos[i] for i in keys]
+        new_keys    = keys[::-1]
+
+        for key in keys:
+            pos.pop(key)
+        
+        for i, key in enumerate(new_keys):
+            pos[key] = key_vals[i]
+
+    nx.draw(G=G, pos=pos, ax=ax, edge_color=widths, arrowsize=arrowsize, node_size=states, edge_cmap=plt.cm.Reds, node_color=colors, edge_vmin=edge_vmin, edge_vmax=edge_vmax)
+
+    return fig, ax
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+# PLOTS
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 def store_average_time_results(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
     
@@ -1035,93 +1122,6 @@ def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm
 
     if colorbar:
         fig.colorbar(im, label=cbar_label)
-
-    return fig, ax
-
-def display_network_currents(path : str, row, N_electrodes : int, charge_landscape=False, pos=None, fig=None, ax=None,
-                             arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628',
-                             position_by_currents=False, display_path=None, edge_vmin=0, edge_vmax=1):
-
-    if fig == None:
-        fig = plt.figure()
-    if ax == None:
-        ax = fig.add_subplot()
-        
-    ax.axis('off')
-
-    df          = pd.read_csv(path)
-
-    if type(row) != int:
-        values  = df.loc[row[0]:row[1],:].mean().values
-    else:
-        values  = df.loc[row,:].values
-    junctions   = np.array([eval(val) for val in df.columns])
-
-    values_new      = []
-    junctions_new   = []
-
-    for n1, junction in enumerate(junctions):
-
-        i       = junction[0]
-        j       = junction[1]
-        val1    = values[n1]
-        n2      = np.where(((junctions[:,0]==j) & (junctions[:,1]==i)))[0][0]
-
-        if n2 > n1:
-            
-            val2  = values[n2]
-            values_new.append(np.abs(val2-val1))
-            
-            if val1 > val2:
-                junctions_new.append([i-N_electrodes,j-N_electrodes])
-            else:
-                junctions_new.append([j-N_electrodes,i-N_electrodes])
-
-    values_new = arrow_scale*(values_new - np.min(values_new))/(np.max(values_new) - np.min(values_new))
-
-    G = nx.DiGraph()
-    G.add_nodes_from(np.arange(np.min(junctions)-N_electrodes, np.max(junctions)+1-N_electrodes))
-
-    if charge_landscape:
-
-        if type(row) != int:
-            states  = pd.read_csv(path.replace("net_currents", "mean_state")).loc[row[0]:row[1],:].mean().values
-        else:
-            states  = pd.read_csv(path.replace("net_currents", "mean_state")).loc[row,:].values
-        colors  = np.repeat(blue_color, len(G.nodes)-N_electrodes)
-        colors[np.where(states < 0)] = red_color
-        colors  = np.insert(colors, 0, np.repeat(blue_color, N_electrodes))
-        states  = np.abs(states)
-        states  = node_size*(states - np.min(states))/(np.max(states)-np.min(states))
-        states  = np.insert(states, 0, np.repeat(node_size, N_electrodes))
-    else:
-        states  = np.repeat(node_size, len(G.nodes))
-        colors  = np.repeat(blue_color, len(G.nodes))
-
-
-    for val, junction in zip(values_new, junctions_new):
-
-        G.add_edge(junction[0], junction[1], width=val)
-
-    widths = [G[u][v]['width'] for u, v in G.edges]
-
-    if pos == None:
-        if position_by_currents:
-            pos = nx.kamada_kawai_layout(G=G, weight='width')
-        else:
-            pos = nx.kamada_kawai_layout(G=G)
-    else:
-        keys        = [-i for i in range(1, N_electrodes+1)]
-        key_vals    = [pos[i] for i in keys]
-        new_keys    = keys[::-1]
-
-        for key in keys:
-            pos.pop(key)
-        
-        for i, key in enumerate(new_keys):
-            pos[key] = key_vals[i]
-
-    nx.draw(G=G, pos=pos, ax=ax, edge_color=widths, arrowsize=arrowsize, node_size=states, edge_cmap=plt.cm.Reds, node_color=colors, edge_vmin=edge_vmin, edge_vmax=edge_vmax)
 
     return fig, ax
 

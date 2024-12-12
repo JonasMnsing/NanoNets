@@ -1390,8 +1390,9 @@ def save_target_currents(output_values : List[np.array], voltages : np.array, pa
 
 def save_mean_microstate(microstates : List[np.array], path : str)->None:
 
-    ele_charge     = 0.160217662
-    microstates_df = pd.DataFrame(microstates)/ele_charge
+    # ele_charge     = 0.160217662
+    # microstates_df = pd.DataFrame(microstates)/ele_charge
+    microstates_df = pd.DataFrame(microstates)
 
     if (os.path.isfile(path)):
         microstates_df.to_csv(path, mode='a', header=False, index=False)
@@ -1877,8 +1878,10 @@ class simulation(tunneling.tunnel_class):
         V_safe_vals[:,-1]                   = voltages[:-1, -1]
 
         if save:
+            output_pots = self.landscape[:,self.N_electrodes:]
             save_target_currents(self.output_values, V_safe_vals, self.path1)
-            save_mean_microstate(self.microstates, self.path2)
+            save_mean_microstate(output_pots, self.path2)
+            # save_mean_microstate(self.microstates@self.inv_capacitance_matrix, self.path2)
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
         
     def train_time_series(self, x : np.array, y : np.array, learning_rate : float, batch_size : int, N_epochs : int, epsilon=0.001, adam=False,

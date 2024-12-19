@@ -7,24 +7,24 @@ from scipy.spatial import Delaunay
 
 class topology_class:
     """
-    Class to setup nanoparticle network topology and connect electrodes. The class supports regular cubic
-    grid and random topologies. Electrodes are connected to nanoparticle indices or nanopartciles closest
-    to a fixed position.   
+    Class to set up nanoparticle network topology and connect electrodes. The class supports regular cubic
+    grid and random topologies. Electrodes are connected to nanoparticle indices or nanoparticles closest
+    to a fixed position.  
 
     Attributes
     ----------
     N_particles : int
-        Number of nanoparticles
+        Number of nanoparticles.
     N_electrodes : int
-        Number of electrodes
+        Number of electrodes.
     N_junctions : int
-        Number of Junctions per Nanoparticle
-    rng : Generator
-        Bit Generator 
+        Number of junctions per nanoparticle.
+    rng : numpy.random.Generator
+        Random number generator instance.
     G : nx.DiGraph
-        NetworkX directed graph of the nanoparticle network
+        NetworkX directed graph of the nanoparticle network.
     pos : dict
-        dictonary of nanoparticle (keys) positions (values) 
+        Dictionary of nanoparticle (keys) positions (values).
     net_topology : array
         Network topology. Rows represent nanoparticles. First column stores connected electrodes.
         Second to last columns store connected nanoparticles.
@@ -49,25 +49,37 @@ class topology_class:
         return_net_topology()
     """
 
-    def __init__(self, electrode_type, seed=None)->None:
-
+    def __init__(self, electrode_type : List, seed: int = None) -> None:
+        """
+        Parameters
+        ----------
+        electrode_type : _type_
+            List indicating the type of electrodes.
+        seed : int, optional
+            Random seed for reproducibility, by default None.
+        """
         self.rng            = np.random.RandomState(seed)
         self.electrode_type = np.array(electrode_type)
         self.N_particles    = 0
         self.N_electrodes   = 0
 
-    def cubic_network(self, N_x : int, N_y : int, N_z : int)->None:
-        """Define a cubic lattice of nanoparticles
+    def cubic_network(self, N_x : int, N_y : int, N_z : int) -> None:
+        """
+        Define a cubic lattice of nanoparticles.
 
         Parameters
         ----------
         N_x : int
-            Number of nanoparticles in x-direction
+            Number of nanoparticles in x-direction.
         N_y : int
-            Number of nanoparticles in y-direction
+            Number of nanoparticles in y-direction.
         N_z : int
-            Number of nanoparticles in z-direction
+            Number of nanoparticles in z-direction.
         """
+
+        if N_x <= 0 or N_y <= 0 or N_z <= 0:
+            raise ValueError("Dimensions N_x, N_y, N_z must be positive integers.")
+        
         self.N_particles    = N_x*N_y*N_z
         nano_particles_pos  = []
         n_NN                = 0
@@ -82,19 +94,16 @@ class topology_class:
         self.G      = nx.DiGraph()
         self.G.add_nodes_from(np.arange(self.N_particles))
 
-        # Define max number of next neigbors by network dimension
+        # Set the number of junctions based on dimensionality
         if ((N_x > 1) and (N_y > 1) and (N_z > 1)):
             self.N_junctions = 6
-
         elif (((N_x > 1) and (N_y > 1)) or ((N_x > 1) and (N_z > 1)) or ((N_y > 1) and (N_z > 1))):
             self.N_junctions = 4
-
         else:
             self.N_junctions = 2
 
-        # Fill network topology with placeholder (-100)
-        self.net_topology = np.zeros(shape=(self.N_particles, self.N_junctions + 1))
-        self.net_topology.fill(-100)
+        # Initialize network topology with placeholders (-100)
+        self.net_topology = np.full((self.N_particles, self.N_junctions + 1), fill_value=-100)
 
         # Attach neighbors to each nanoparticle
         for i in range(0, self.N_particles):

@@ -230,6 +230,10 @@ class electrostatic_class(topology.topology_class):
             self.capacitance_matrix[i,i] = C_sum
             C_sum = 0.0
         
+        det = np.linalg.det(self.capacitance_matrix)
+        if abs(det) < 1e-10:
+            print("Warning: Capacitance matrix determinant is very small, results may be inaccurate.")
+
         # Get inverse matrix
         self.inv_capacitance_matrix = np.linalg.inv(self.capacitance_matrix)
 

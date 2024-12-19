@@ -61,7 +61,7 @@ spec = [
     ('N_corates', int64),
 ]
 
-@jitclass(spec)
+# @jitclass(spec)
 class model_class():
     """
     Numba optimized class to run the KMC procedure
@@ -1820,7 +1820,7 @@ class simulation(tunneling.tunnel_class):
         for s in range(stat_size):
             
             self.model.charge_vector = self.q_eq[s,:].copy()
-        
+
             # For each time step, i.e. voltage
             for i, voltage_values in enumerate(voltages[:-1]):
                 

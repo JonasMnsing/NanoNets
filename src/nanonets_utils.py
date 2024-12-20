@@ -6,7 +6,7 @@ import networkx as nx
 import nanonets
 import scienceplots
 import multiprocessing
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Dict
 from scipy.signal.windows import hann
 from pyDOE import lhs
 
@@ -289,7 +289,7 @@ def load_simulation_results(folder : str, N : Union[int, List[int]], N_e : Union
             if disordered:
                 data = {key : pd.read_csv(f"{folder}Np={N}_Nj=4_Ne={key}.csv") for key in N_e}
             else:
-                data = {key : pd.read_csv(f"{folder}Nx={N}_Ny={N}_Nz=1_Ne={N_e}.csv") for key in N_e}
+                data = {key : pd.read_csv(f"{folder}Nx={N}_Ny={N}_Nz=1_Ne={key}.csv") for key in N_e}
 
         else:
             for key in N_e:
@@ -336,7 +336,7 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
 
     # Copy DataFame and drop Zeros
     data    = df.copy()
-    data    = data[data['Observable'].abs() > 0.0] if drop_zero else data
+    data    = data[data['Current'].abs() > 0.0] if drop_zero else data
 
     # Sort the DataFrame by relevant columns
     data    = data.sort_values(by=sort_cols)
@@ -347,7 +347,8 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
     rows_to_drop    = []
     i_input1        = input_cols[0]
     i_input2        = input_cols[1]
-
+    i               = 0
+    
     while i < N_data-3:
 
         cond1   = (data[i_input1][i]      == off_state)   and (data[i_input2][i]      == off_state)
@@ -371,206 +372,314 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
 
     return data
 
-def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], disordered=False, boot_steps=0, i1_col=1, i2_col=3, o_col=7,
-                         min_currents=0.0, min_error=0.0, max_error=np.inf, dic=None, dic_nc=None, off_state=[0.0], on_state=[0.01])->Tuple[dict,dict]:
+def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], input_cols: List[str], disordered: bool = False, off_state: float = 0.0, on_state: float = 0.01) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
+    """Load and prepare simulation results.
 
-    # For variable numbers of nanoparticles
-    if (isinstance(N, list) and isinstance(N_e, int)):
+    Parameters
+    ----------
+    folder : str
+        Path to data folder
+    N : Union[int, List[int]]
+        Number of NPs in x,y direction or Number of NPs is disordered Network
+    N_e : Union[int, List[int]]
+        Number of Electrodes
+    input_cols : List[str], optional
+        List of input voltage columns
+    disordered : bool, optional
+        Disorderd network, by default False
+    off_state : float, optional
+        Value representing the off-state voltage, by default 0.0
+    on_state : float, optional
+        Value representing the on-state voltage, by default 0.01
 
-        # DataFrame Columns
-        columns = [f'C{i}' for i in range(1,N_e-2)] + ['G','Jumps_eq','Jumps','Current','Error']
-        columns.insert(i1_col,'I1')
-        columns.insert(i2_col,'I2')
-        columns.insert(o_col,'O')
-        new_cols = ['I1','I2'] + [f'C{i}' for i in range(1,N_e-2)] + ['G','Jumps_eq','Jumps','Current','Error']
+    Returns
+    -------
+    Union[pd.DataFrame, dict]
+        Prepared simulation data
+    """
+    
+    data = load_simulation_results(folder, N, N_e, disordered)
+    
+    if isinstance(N, list) and isinstance(N_e, int):
+        prepared_data = {key: prepare_for_fitness_calculation(data[key], N_e, input_cols, off_state=off_state, on_state=on_state) for key in data.keys()}
+    elif isinstance(N, int) and isinstance(N_e, list):
+        prepared_data = {key: prepare_for_fitness_calculation(data[key], key, input_cols, off_state=off_state, on_state=on_state) for key in data.keys()}
+    else:
+        prepared_data = prepare_for_fitness_calculation(data, N_e, input_cols, off_state=off_state, on_state=on_state)
 
-        # Without dictonary input make new
-        if (dic==None and dic_nc==None):
+    return prepared_data
 
-            dic     = {}
-            dic_nc  = {}
+def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame, df11 : pd.DataFrame, gate : str) -> pd.DataFrame:
+    """
+    Calculate the on and off states and the residual sums of squares (RSS) for the specified logic gate.
 
-        # For variable numbers of nanoparticles
-        for index,i in enumerate(N):
-            
-            if disordered:
-                df  = pd.read_csv(folder+f"Np={i}_Nj=4_Ne={N_e}.csv")
-            else:
-                df  = pd.read_csv(folder+f"Nx={i}_Ny={i}_Nz=1_Ne={N_e}.csv")
+    Parameters
+    ----------
+    df00 : pd.DataFrame
+        DataFrame containing input states I1=0, I2=0 (off state).
+    df01 : pd.DataFrame
+        DataFrame containing input states I1=0, I2=1 (on state).
+    df10 : pd.DataFrame
+        DataFrame containing input states I1=1, I2=0 (on state).
+    df11 : pd.DataFrame
+        DataFrame containing input states I1=1, I2=1 (on state).
+    gate : str
+        Type of logic gate ('AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'P', 'notP', 'Q', 'notQ', 'PnotQ', 'notPQ', 'notPandQ', 'PandnotQ').
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing off and on state currents, and residual sum of squares (RSS) for each gate.
+    """
+
+    df = pd.DataFrame()
+
+    if gate == 'AND':
+
+        df['off']   = (df00['Current'] + df01['Current'] + df10['Current'])/3
+        df['on']    = df11['Current']
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
+                               (df01['Current'] - df['off'])**2 +
+                               (df10['Current'] - df['off'])**2 +
+                               (df11['Current'] - df['on'])**2)/4)
+
+    elif gate == 'OR':
+
+        df['off']   = df00['Current']
+        df['on']    = (df01['Current'] + df10['Current'] + df11['Current'])/3
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
+                               (df01['Current'] - df['on'])**2 +
+                               (df10['Current'] - df['on'])**2 +
+                               (df11['Current'] - df['on'])**2)/4)
+
+    elif gate == 'XOR':
+
+        df['off']   = (df00['Current'] + df11['Current'])/2
+        df['on']    = (df01['Current'] + df10['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
+                               (df01['Current'] - df['on'])**2 +
+                               (df10['Current'] - df['on'])**2 +
+                               (df11['Current'] - df['off'])**2)/4)
+
+    elif gate == 'NAND':
+
+        df['on']    = (df00['Current'] + df01['Current'] + df10['Current'])/3
+        df['off']   = df11['Current']
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
+                               (df01['Current'] - df['on'])**2 +
+                               (df10['Current'] - df['on'])**2 +
+                               (df11['Current'] - df['off'])**2)/4)
+
+    elif gate == 'NOR':
+
+        df['on']    = df00['Current']
+        df['off']   = (df01['Current'] + df10['Current'] + df11['Current'])/3
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
+                               (df01['Current'] - df['off'])**2 +
+                               (df10['Current'] - df['off'])**2 +
+                               (df11['Current'] - df['off'])**2)/4)
+
+    elif gate == 'XNOR':
+
+        df['on']    = (df00['Current'] + df11['Current'])/2
+        df['off']   = (df01['Current'] + df10['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
+                               (df01['Current'] - df['off'])**2 +
+                               (df10['Current'] - df['off'])**2 +
+                               (df11['Current'] - df['on'])**2)/4)
+    
+    elif gate == 'P':
+
+        df['on']    = (df10['Current'] + df11['Current'])/2
+        df['off']   = (df00['Current'] + df01['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
+                               (df01['Current'] - df['off'])**2 +
+                               (df10['Current'] - df['on'])**2 +
+                               (df11['Current'] - df['on'])**2)/4)
+    
+    elif gate == 'notP':
+
+        df['on']    = (df00['Current'] + df01['Current'])/2
+        df['off']   = (df10['Current'] + df11['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
+                               (df01['Current'] - df['on'])**2 +
+                               (df10['Current'] - df['off'])**2 +
+                               (df11['Current'] - df['off'])**2)/4)
+
+    elif gate == 'Q':
+
+        df['on']    = (df01['Current'] + df11['Current'])/2
+        df['off']   = (df00['Current'] + df10['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
+                               (df01['Current'] - df['on'])**2 +
+                               (df10['Current'] - df['off'])**2 +
+                               (df11['Current'] - df['on'])**2)/4)
+    
+    elif gate == 'notQ':
+
+        df['on']    = (df00['Current'] + df10['Current'])/2
+        df['off']   = (df01['Current'] + df11['Current'])/2
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
+                               (df01['Current'] - df['off'])**2 +
+                               (df10['Current'] - df['on'])**2 +
+                               (df11['Current'] - df['off'])**2)/4)
+
+    elif gate == 'PnotQ':
+
+        df['on']    = df10['Current']
+        df['off']   = (df00['Current'] + df01['Current'] + df11['Current'])/3
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
+                               (df01['Current'] - df['off'])**2 +
+                               (df10['Current'] - df['on'])**2 +
+                               (df11['Current'] - df['off'])**2)/4)
+    
+    elif gate == 'notPQ':
+
+        df['on']    = df01['Current']
+        df['off']   = (df00['Current'] + df10['Current'] + df11['Current'])/3
+        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
+                               (df01['Current'] - df['on'])**2 +
+                               (df10['Current'] - df['off'])**2 +
+                               (df11['Current'] - df['off'])**2)/4)
+    
+    elif gate == 'notPandQ':
+
+        df['on']    = (df00['Current'] + df01['Current'] + df11['Current'])/3
+        df['off']   = df10['Current']
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
+                               (df01['Current'] - df['on'])**2 +
+                               (df10['Current'] - df['off'])**2 +
+                               (df11['Current'] - df['on'])**2)/4)
+    
+    elif gate == 'PandnotQ':
+
+        df['on']    = (df00['Current'] + df10['Current'] + df11['Current'])/3
+        df['off']   = df01['Current']
+        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
+                               (df01['Current'] - df['off'])**2 +
+                               (df10['Current'] - df['on'])**2 +
+                               (df11['Current'] - df['on'])**2)/4)
+
+    return df
+
+def fitness(df : pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_state:float = 0.0, on_state:float = 0.01,
+    gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']) -> pd.DataFrame:
+    """
+    Calculate the fitness of a set of logic gates based on their residual sum of squares (RSS).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing electric currents.
+    N_controls : int
+        Number of control signals.
+    input_cols : List[str]
+        List containing the names of the columns representing the two inputs.
+    delta : float, optional
+        A small value to regularize the division in the fitness calculation (default is 0.01).
+    off_state : float, optional
+        The current value considered as the 'off' state (default is 0.0).
+    on_state : float, optional
+        The current value considered as the 'on' state (default is 0.01).
+    gates : List[str], optional
+        List of gate types to calculate the fitness for (default is ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']).
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the fitness values for each gate.
+    """
+    if gates is None:
+        gates = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'P', 'notP', 'Q', 'notQ', 'PnotQ', 'notPQ', 'notPandQ', 'PandnotQ']
+
+    df00    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
+    df01    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
+    df10    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
+    df11    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
+    fitness = pd.DataFrame(0, index=np.arange(len(df00)), columns=list(df00.columns) + [g + ' Fitness' for g in gates])
+    fitness = fitness.drop(columns=['Current','Error'])
+
+    for col in list(df00.columns):
+        if col != 'Current' and col != 'Error':
+            fitness[col]    = (df00[col].values + df01[col].values + df10[col].values + df11[col].values)/4
+
+    for gate in gates:
+        gate_states                 = get_on_off_rss(df00=df00, df01=df01, df10=df10, df11=df11, gate=gate)
+        gate_states['m']            = gate_states['on'] - gate_states['off']
+        gate_states['denom']        = gate_states['res'] + delta*(gate_states['off'].abs())
+        fitness[gate + ' Fitness']  = gate_states['m']/gate_states['denom']
+
+    fitness = fitness.reset_index(drop=True)
+
+    return fitness
+
+def abundance(df : pd.DataFrame, gates: List[str] = ['AND Fitness', 'OR Fitness', 'XOR Fitness', 'NAND Fitness', 'NOR Fitness', 'XNOR Fitness'],
+              bins: Union[int, np.ndarray] = 0) -> pd.DataFrame:
+    """
+    Calculate empirical abundance based on fitness values.
+
+    This function computes the abundance of logic gates based on their fitness values. The abundance
+    is derived either through cumulative distribution functions (CDFs) or by sorting and ranking values.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing fitness values for different logic gates.
+    gates : List[str], optional
+        List of column names in the DataFrame corresponding to the fitness values of the gates 
+        (default is ['AND Fitness', 'OR Fitness', 'XOR Fitness', 'NAND Fitness', 'NOR Fitness', 'XNOR Fitness']).
+    bins : Union[int, np.ndarray], optional
+        Number of bins to use for histogram-based abundance calculation. If bins is 0, abundance is calculated
+        by ranking the sorted fitness values. If an array is provided, it is used as bin edges (default is 0).
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the fitness values and their corresponding abundance values for each gate.
+    """
+
+    df_abundance = pd.DataFrame()
+    
+    if isinstance(bins, int):  
+        if bins == 0:
+            for gate in gates:
+
+                df_curr = df.copy()
+
+                x = np.sort(np.array(df_curr[gate]))
                 
-            df          = df.round(4)
-            df.columns  = columns
-            df          = df[new_cols]
-            df1         = df.copy()
-
-            # Drop failed simulations
-            df1         = df1[df1['Error'] != 0].reset_index(drop=True)
-
-            # Drop simulations outsite accepted errors
-            df1         = df1[(np.round(df1['Error']/df1['Current'].abs(),2) >= min_error) &
-                              (np.round(df1['Error']/df1['Current'].abs(),2) < max_error)].reset_index(drop=True)
-
-            # Sort and prepare for fitness calculation (drop voltages without full set of input combinations)
-            df1         = df1.sort_values(by=['C1','G','I1','I2'], ignore_index=True)
-            df1         = prepare_for_fitness_calculation(df=df1, min_current=0.0, N_c=(N_e-3),
-                                                          off_state=off_state[index], on_state=on_state[index])
-            
-            # Copy all droped values to df2
-            df2         = df[~df['G'].isin(df1['G'])]
-            df2         = df2.sort_values(by=['C1','G','I1','I2'], ignore_index=True)
-
-            # For bootstrapping
-            if boot_steps != 0:
-
-                # Sample new currents based on errors
-                df_var1     = vary_currents_by_error(df=df1, M=boot_steps)
-                df_var2     = vary_currents_by_error(df=df2, M=boot_steps)
-                df_var2.loc[:,'Current'] = 0.0
-
-                # Set values below minimum current to minimum current
-                if min_currents != 0:
-
-                    df_var1.loc[(df_var1['Current'].abs() < min_currents) & (df_var1['Current'] >= 0), 'Current'] = min_currents
-                    df_var1.loc[(df_var1['Current'].abs() < min_currents) & (df_var1['Current'] < 0), 'Current'] = -min_currents
-                    df_var2.loc[(df_var2['Current'].abs() < min_currents) & (df_var2['Current'] >= 0), 'Current'] = min_currents
-                    df_var2.loc[(df_var2['Current'].abs() < min_currents) & (df_var2['Current'] < 0), 'Current'] = -min_currents
-
-                # Append to dictonaries
-                dic[i]      = df_var1
-                dic_nc[i]   = df_var2
-
-            else:
-
-                # Append to dictonaries
-                dic[i]      = df1
-                dic_nc[i]   = df2
-
-    # For variable numbers of electrodes
-    elif (isinstance(N, int) and isinstance(N_e, list)):
-        
-        # Without dictonary input make new
-        if (dic==None and dic_nc==None):
-
-            dic     = {}
-            dic_nc  = {}
-        
-        # For variable numbers of electrodes
-        for index, i in enumerate(N_e):
-
-            # DataFrame Columns
-            columns = [f'C{i}' for i in range(1,i-2)] + ['G','Jumps_eq','Jumps','Current','Error']
-            columns.insert(i1_col,'I1')
-            columns.insert(i2_col,'I2')
-            columns.insert(i-1,'O')
-            new_cols = ['I1','I2'] + [f'C{i}' for i in range(1,i-2)] + ['G','Jumps_eq','Jumps','Current','Error']
-            
-            if disordered:
-                df  = pd.read_csv(folder+f"Np={N}_Nj=4_Ne={i}.csv")
-            else:
-                df  = pd.read_csv(folder+f"Nx={N}_Ny={N}_Nz=1_Ne={i}.csv")
-            df.columns  = columns
-            df          = df[new_cols]
-            df1         = df.copy()
-
-            # Drop failed simulations
-            df1         = df1[df1['Error'] != 0].reset_index(drop=True)
-            
-            # Drop simulations outsite accepted errors
-            df1         = df1[(np.round(df1['Error']/df1['Current'].abs(),2) >= min_error) &
-                              (np.round(df1['Error']/df1['Current'].abs(),2) < max_error)].reset_index(drop=True)
-            
-            # Sort and prepare for fitness calculation (drop voltages without full set of input combinations)
-            df1         = df1.sort_values(by=['C1','G','I1','I2'], ignore_index=True)
-            df1         = prepare_for_fitness_calculation(df=df1, min_current=0.0, N_c=(i-3),
-                                                          off_state=off_state[index], on_state=on_state[index])
-            
-            # Copy all droped values to df2
-            df2         = df[~df['G'].isin(df1['G'])]
-            df2         = df2.sort_values(by=['C1','G','I1','I2'], ignore_index=True)
-
-            # For bootstrapping
-            if boot_steps != 0:
+                p_x = 1. * np.arange(len(x)) / float(len(x) - 1)
                 
-                # Sample new currents based on errors
-                df_var1     = vary_currents_by_error(df=df1, M=boot_steps)
-                df_var2     = vary_currents_by_error(df=df2, M=boot_steps)
-                df_var2.loc[:,'Current'] = 0.0
+                abundance = 100 - 100*p_x
+                
+                df_abundance[gate]     = x
+                df_abundance[gate+' Abundance']   = abundance
+        
+        else:
+            for gate in gates:
+            
+                df_curr = df.copy()
+                count, bins_count = np.histogram(np.array(df_curr[gate]), bins=bins)#, range=range)
+                pdf = count / np.sum(count)
+                cdf = np.cumsum(pdf)
 
-                # Set values below minimum current to minimum current
-                if min_currents != 0:
-                    df_var1.loc[(df_var1['Current'].abs() < min_currents) & (df_var1['Current'] >= 0), 'Current'] = min_currents
-                    df_var1.loc[(df_var1['Current'].abs() < min_currents) & (df_var1['Current'] < 0), 'Current'] = -min_currents
-                    df_var2.loc[(df_var2['Current'].abs() < min_currents) & (df_var2['Current'] >= 0), 'Current'] = min_currents
-                    df_var2.loc[(df_var2['Current'].abs() < min_currents) & (df_var2['Current'] < 0), 'Current'] = -min_currents
-
-                # Append to dictonaries
-                dic[i]      = df_var1
-                dic_nc[i]   = df_var2
-
-            else:
-
-                # Append to dictonaries
-                dic[i]      = df1
-                dic_nc[i]   = df2
-
+                abundance = 100 - 100*cdf
+                df_abundance[gate]     = bins_count[:-1]
+                df_abundance[gate+' Abundance']   = abundance
     else:
 
-        # DataFrame Columns
-        columns = [f'C{i}' for i in range(1,N_e-2)] + ['G','Jumps_eq','Jumps','Current','Error']
-        columns.insert(i1_col,'I1')
-        columns.insert(i2_col,'I2')
-        columns.insert(o_col,'O')
-        new_cols = ['I1','I2'] + [f'C{i}' for i in range(1,N_e-2)] + ['G','Jumps_eq','Jumps','Current','Error']
+        for gate in gates:
+            
+            df_curr = df.copy()
+            count, bins_count = np.histogram(np.array(df_curr[gate]), bins=bins)#, range=range)
+            pdf = count / np.sum(count)
+            cdf = np.cumsum(pdf)
 
-        # Load DataFrame
-        if disordered:
-            df  = pd.read_csv(folder+f"Np={N}_Nj=4_Ne={N_e}.csv")
-        else:
-            df  = pd.read_csv(folder+f"Nx={N}_Ny={N}_Nz=1_Ne={N_e}.csv")
-        df          = df.round(4)
-        df.columns  = columns
-        df          = df[new_cols]
-        df1         = df.copy()
-        
-        # Drop failed simulations
-        df1         = df1[df1['Error'] != 0].reset_index(drop=True)
+            abundance = 100 - 100*cdf
+            df_abundance[gate]     = bins_count[:-1]
+            df_abundance[gate+' Abundance']   = abundance
 
-        # Drop simulations outsite accepted errors
-        df1         = df1[(np.round(df1['Error']/df1['Current'].abs(),2) >= min_error) &
-                            (np.round(df1['Error']/df1['Current'].abs(),2) < max_error)].reset_index(drop=True)
-        
-        # Sort and prepare for fitness calculation (drop voltages without full set of input combinations)
-        df1         = df1.sort_values(by=['C1','G','I1','I2'], ignore_index=True)
-        df1         = prepare_for_fitness_calculation(df=df1, min_current=0.0, N_c=(N_e-3),
-                                                        off_state=off_state[0], on_state=on_state[0])
-        
-        # Copy all droped values to df2
-        df2         = df[~df['G'].isin(df1['G'])]
-        df2         = df2.sort_values(by=['C1','G','I1','I2'], ignore_index=True)
-
-        # For bootstrapping
-        if boot_steps != 0:
-
-            # Sample new currents based on errors
-            df_var1     = vary_currents_by_error(df=df1, M=boot_steps)
-            df_var2     = vary_currents_by_error(df=df2, M=boot_steps)
-            df_var2.loc[:,'Current'] = 0.0
-
-            # Set values below minimum current to minimum current
-            if min_currents != 0:
-
-                df_var1.loc[(df_var1['Current'].abs() < min_currents) & (df_var1['Current'] >= 0), 'Current']   = min_currents
-                df_var1.loc[(df_var1['Current'].abs() < min_currents) & (df_var1['Current'] < 0), 'Current']    = -min_currents
-                df_var2.loc[(df_var2['Current'].abs() < min_currents) & (df_var2['Current'] >= 0), 'Current']   = min_currents
-                df_var2.loc[(df_var2['Current'].abs() < min_currents) & (df_var2['Current'] < 0), 'Current']    = -min_currents
-
-            return df_var1, df_var2
-
-        else:
-
-            return df1, df2
-
-    return dic, dic_nc
+    return df_abundance
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # MISC
@@ -612,6 +721,51 @@ def poincare_map_zero_corssing(arr : np.array)->np.array:
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # PLOTS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XNOR', 'NAND', 'NOR'], 
+    dpi: int = 200, x_limits: List[float] = [0.1, 10], y_limits: List[float] = [0.1, 100], xlabel: str = 'Fitness', ylabel: str = 'Abundance') -> Tuple[plt.Figure, plt.Axes]:
+    """
+    Plot the abundance of logic gates as a function of their fitness values.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing fitness and abundance values for logic gates.
+    gates : List[str], optional
+        List of logic gate names to include in the plot (default is ['AND', 'OR', 'XOR', 'XNOR', 'NAND', 'NOR']).
+    dpi : int, optional
+        Resolution of the plot in dots per inch (default is 200).
+    x_limits : List[float], optional
+        List specifying the x-axis limits [min, max] (default is [0.1, 10]).
+    y_limits : List[float], optional
+        List specifying the y-axis limits [min, max] (default is [0.1, 100]).
+    xlabel : str, optional
+        Label for the x-axis (default is 'Fitness').
+    ylabel : str, optional
+        Label for the y-axis (default is 'Abundance').
+
+    Returns
+    -------
+    Tuple[plt.Figure, plt.Axes]
+        The matplotlib figure and axes objects for the plot.
+    """
+
+    marker = ['o','s','^','<','>','v','P']
+
+    with plt.style.context(["science","bright","grid"]):
+        fig, ax = plt.subplots(dpi=dpi)
+        for i, gate in enumerate(gates):
+            ax.plot(df[f'{gate} Fitness'], df[f'{gate} Fitness Abundance'], marker=marker[i % len(marker)], markevery=0.1, label=f'{gate}')
+
+        ax.set_xlim(x_limits[0], x_limits[1])
+        ax.set_ylim(y_limits[0], y_limits[1])
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.legend(fontsize='x-small', loc='upper right')
+
+    return fig, ax
 
 def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_landscape=None, pos=None, fig=None, ax=None,
                              arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628',
@@ -745,239 +899,6 @@ def autocorrelation(x : np.array, y : np.array, lags : int)->np.array:
 
     return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
 
-
-
-# def prepare_for_fitness_calculation(df : pd.DataFrame, N_c : int, min_current=None, input1_col='I1', input2_col='I2',
-#     gate_col='G', control_col='C', current_col='Current', off_state=0.0, on_state=0.01) -> pd.DataFrame:
-#     """
-#     Prepares a pandas Dataframe of electric currents for calculation of gate fitnesses\\
-#     Number of Controls NC must be provided as argument\\
-#     Allows to exclude any currents having an absolute value less than min_current if min_current != None\\
-#     Allows to check df if for each voltage combination exactly all possible input states are present\\ 
-#     Other Attributes define column names for various features
-#     """
-
-#     # Sort Dataframe by C1,C2,..G,I1,I2 and exclude Currents if min_current != None
-#     sort_cols = [control_col + '{}'.format(i) for i in range(1, N_c + 1)]
-#     sort_cols.extend([gate_col, input1_col, input2_col])
-    
-#     data    = df.copy()
-    
-#     if min_current != None:
-#         # data.loc[data[current_col].abs() <= min_current, current_col] = min_current
-#         data = data[data[current_col].abs() > min_current]
-    
-#     data    = data.sort_values(by=sort_cols)
-#     data    = data.reset_index(drop=True)
-
-#     # Move through each row and proof that for each electrode voltage combination all possible input states are present
-#     i       = 0
-#     rows    = np.floor(len(data))
-
-#     while (i < rows):
-
-#         try:
-
-#             cond1 = ((data[input1_col][i]   == off_state) and (data[input2_col][i]   == off_state))
-#             cond2 = ((data[input1_col][i+1] == off_state) and (data[input2_col][i+1] == on_state))
-#             cond3 = ((data[input1_col][i+2] == on_state)  and (data[input2_col][i+2] == off_state))
-#             cond4 = ((data[input1_col][i+3] == on_state)  and (data[input2_col][i+3] == on_state))
-            
-#             cond5 = (data[gate_col][i] == data[gate_col][i+1]) 
-#             cond6 = (data[gate_col][i] == data[gate_col][i+2]) 
-#             cond7 = (data[gate_col][i] == data[gate_col][i+3])
-
-#             cond8 = (data[control_col + '1'][i] == data[control_col + '1'][i+1]) 
-#             cond9 = (data[control_col + '1'][i] == data[control_col + '1'][i+2]) 
-#             cond10= (data[control_col + '1'][i] == data[control_col + '1'][i+3])
-        
-#         except:
-
-#             try:
-#                 data = data.drop(i)
-#             except:
-#                 pass
-
-#             try:
-#                 data = data.drop(i+1)
-#             except:
-#                 pass
-
-#             try:
-#                 data = data.drop(i+2)
-#             except:
-#                 pass
-
-#             data = data.reset_index(drop=True)
-#             break
-
-#         if not(cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7 and cond7 and cond8 and cond9 and cond10):
-
-#             data    = data.drop(i)
-#             data    = data.reset_index(drop=True)
-#             rows    = rows - 1
-#             continue
-
-#         i = i + 4
-    
-#     return data
-
-def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame, df11 : pd.DataFrame, gate : str, all=False) -> pd.DataFrame:
-    """
-    Get off and on state for fitness calculation for gate provided as string\\
-    Get residual sums of squares as sqrt(RSS/4)
-    """
-
-    df = pd.DataFrame()
-
-    if gate == 'AND':
-
-        df['off']   = (df00['Current'] + df01['Current'] + df10['Current'])/3
-        df['on']    = df11['Current']
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['on'])**2)/4)
-
-    elif gate == 'OR':
-
-        df['off']   = df00['Current']
-        df['on']    = (df01['Current'] + df10['Current'] + df11['Current'])/3
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['on'])**2)/4)
-
-    elif gate == 'XOR':
-
-        df['off']   = (df00['Current'] + df11['Current'])/2
-        df['on']    = (df01['Current'] + df10['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['off'])**2)/4)
-
-    elif gate == 'NAND':
-
-        df['on']    = (df00['Current'] + df01['Current'] + df10['Current'])/3
-        df['off']   = df11['Current']
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['off'])**2)/4)
-
-    elif gate == 'NOR':
-
-        df['on']    = df00['Current']
-        df['off']   = (df01['Current'] + df10['Current'] + df11['Current'])/3
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['off'])**2)/4)
-
-    elif gate == 'XNOR':
-
-        df['on']    = (df00['Current'] + df11['Current'])/2
-        df['off']   = (df01['Current'] + df10['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['on'])**2)/4)
-    
-    elif gate == 'P':
-
-        df['on']    = (df10['Current'] + df11['Current'])/2
-        df['off']   = (df00['Current'] + df01['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['on'])**2)/4)
-    
-    elif gate == 'notP':
-
-        df['on']    = (df00['Current'] + df01['Current'])/2
-        df['off']   = (df10['Current'] + df11['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['off'])**2)/4)
-
-    elif gate == 'Q':
-
-        df['on']    = (df01['Current'] + df11['Current'])/2
-        df['off']   = (df00['Current'] + df10['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['on'])**2)/4)
-    
-    elif gate == 'notQ':
-
-        df['on']    = (df00['Current'] + df10['Current'])/2
-        df['off']   = (df01['Current'] + df11['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['off'])**2)/4)
-
-    elif gate == 'PnotQ':
-
-        df['on']    = df10['Current']
-        df['off']   = (df00['Current'] + df01['Current'] + df11['Current'])/3
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['off'])**2)/4)
-    
-    elif gate == 'notPQ':
-
-        df['on']    = df01['Current']
-        df['off']   = (df00['Current'] + df10['Current'] + df11['Current'])/3
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['off'])**2)/4)
-    
-    elif gate == 'notPandQ':
-
-        df['on']    = (df00['Current'] + df01['Current'] + df11['Current'])/3
-        df['off']   = df10['Current']
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['on'])**2 + (df10['Current'] - df['off'])**2 + (df11['Current'] - df['on'])**2)/4)
-    
-    elif gate == 'PandnotQ':
-
-        df['on']    = (df00['Current'] + df10['Current'] + df11['Current'])/3
-        df['off']   = df01['Current']
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 + (df01['Current'] - df['off'])**2 + (df10['Current'] - df['on'])**2 + (df11['Current'] - df['on'])**2)/4)
-
-    return df
-
-def fitness(df : pd.DataFrame, N_controls : int, delta=0.01, min_current=None, off_state=0.0, on_state=0.01,
-    gates=['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR'], input1_column = 'I1', input2_column = 'I2', gate_column = 'G',
-    controls_column = 'C', current_column = 'Current', error_column='Error') -> pd.DataFrame:
-    """
-    Calculate Fitness based on m/(sqrt(RSS/4) + delta*|c|)\\
-    Input pandas Dataframe of electric currents and provide number of controls Nc\\
-    Before starting the fitness calculation: Allows to exclude any currents having an absolute value less than min_current and check if all possible input states are present
-    """
-
-    if min_current != None:
-        df = prepare_for_fitness_calculation(df=df, N_c=N_controls, min_current=min_current, input1_col=input1_column, input2_col=input2_column,
-                                             gate_col=gate_column, control_col=controls_column, current_col=current_column, off_state=off_state, on_state=on_state)
-
-    columns         = [gate_column] + [controls_column + '{}'.format(i) for i in range(1, N_controls+1)]
-    
-    df00            = df.copy()
-    df00            = df00[(df00[input1_column] == off_state) & (df00[input2_column] == off_state)]
-    df00            = df00.sort_values(by=columns)
-    df00            = df00.reset_index(drop=True)
-
-    df01            = df.copy()
-    df01            = df01[(df01[input1_column] == off_state) & (df01[input2_column] == on_state)]
-    df01            = df01.sort_values(by=columns)
-    df01            = df01.reset_index(drop=True)
- 
-    df10            = df.copy()
-    df10            = df10[(df10[input1_column] == on_state) & (df10[input2_column] == off_state)]
-    df10            = df10.sort_values(by=columns)
-    df10            = df10.reset_index(drop=True)
-
-    df11            = df.copy()
-    df11            = df11[(df11[input1_column] == on_state) & (df11[input2_column] == on_state)]
-    df11            = df11.sort_values(by=columns)
-    df11            = df11.reset_index(drop=True)
-    
-    # Setup fitness dataframe with columns based on current dataframe columns except inputs and current + error
-    fitness         = pd.DataFrame(columns=list(df00.columns) + [g + ' Fitness' for g in gates])
-    if error_column != None:
-        fitness         = fitness.drop(columns=[current_column,error_column])
-    else:
-        fitness         = fitness.drop(columns=[current_column])
-
-    # Input Parameter and init gate fitness as nan
-    for col in list(df00.columns):
-
-        if ((col != "Current") and (col != "Error")):
-            
-            fitness[col] = (df00[col] + df01[col] + df10[col] + df11[col])/4
-
-    # Calculate Fitness for each Gate
-    for g in gates:
-
-        df_pre = get_on_off_rss(df00, df01, df10, df11, g)
-        
-        df_pre['m']                 = df_pre['on'] - df_pre['off']
-        df_pre['denom']             = df_pre['res'] + delta*(df_pre['off'].abs())
-        fitness[g + ' Fitness']     = df_pre['m']/df_pre['denom']
-    
-    fitness = fitness.reset_index(drop=True)
-
-    return fitness
-
 def vary_currents_by_error(df : pd.DataFrame, M : int, current_col='Current', error_col='Error') -> pd.DataFrame:
     """
     M times vary currents by error to get M sepearate datasets\\
@@ -1011,55 +932,7 @@ def vary_currents_by_error(df : pd.DataFrame, M : int, current_col='Current', er
 
     return df_norm
 
-def abundance(df : pd.DataFrame, gates=['AND Fitness', 'OR Fitness', 'XOR Fitness', 'NAND Fitness', 'NOR Fitness', 'XNOR Fitness'], bins=0, range=(-1,2)) -> pd.DataFrame:
-    """
-    Empirical Abundace based on pandas dataframe of fitness values for gates provided as list of strings
-    """
 
-    df_abundance = pd.DataFrame()
-    
-    if type(bins) == int: 
-        if bins == 0:
-            for gate in gates:
-
-                df_curr = df.copy()
-
-                x = np.sort(np.array(df_curr[gate]))
-                
-                p_x = 1. * np.arange(len(x)) / float(len(x) - 1)
-                
-                abundance = 100 - 100*p_x
-                
-                df_abundance[gate]     = x
-                df_abundance[gate+' Abundance']   = abundance
-        
-        else:
-            for gate in gates:
-            
-                df_curr = df.copy()
-                count, bins_count = np.histogram(np.array(df_curr[gate]), bins=bins)#, range=range)
-                pdf = count / np.sum(count)
-                cdf = np.cumsum(pdf)
-
-                abundance = 100 - 100*cdf
-                df_abundance[gate]     = bins_count[:-1]
-                df_abundance[gate+' Abundance']   = abundance
-    else:
-
-        for gate in gates:
-            
-            df_curr = df.copy()
-            count, bins_count = np.histogram(np.array(df_curr[gate]), bins=bins)#, range=range)
-            pdf = count / np.sum(count)
-            cdf = np.cumsum(pdf)
-
-            abundance = 100 - 100*cdf
-            df_abundance[gate]     = bins_count[:-1]
-            df_abundance[gate+' Abundance']   = abundance
-
-
-    
-    return df_abundance
 
 def display_network(np_network_sim : nanonets.simulation, fig=None, ax=None, blue_color='#348ABD', red_color='#A60628', save_to_path=False, 
                     style_context=['science','bright'], node_size=300, edge_width=1.0, font_size=12, title='', title_size='small',

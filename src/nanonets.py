@@ -1,4 +1,3 @@
-from time import time_ns
 import multiprocessing
 import tunneling
 import numpy as np
@@ -61,7 +60,7 @@ spec = [
     ('N_corates', int64),
 ]
 
-# @jitclass(spec)
+@jitclass(spec)
 class model_class():
     """
     Numba optimized class to run the KMC procedure

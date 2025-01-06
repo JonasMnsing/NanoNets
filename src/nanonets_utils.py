@@ -723,7 +723,7 @@ def poincare_map_zero_corssing(arr : np.array)->np.array:
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XNOR', 'NAND', 'NOR'], 
-    dpi: int = 200, x_limits: List[float] = [0.1, 10], y_limits: List[float] = [0.1, 100], xlabel: str = 'Fitness', ylabel: str = 'Abundance') -> Tuple[plt.Figure, plt.Axes]:
+    dpi: int = 200, x_limits: List[float] = [0.45, 10], y_limits: List[float] = [0.1, 100], xlabel: str = 'Fitness', ylabel: str = 'Abundance') -> Tuple[plt.Figure, plt.Axes]:
     """
     Plot the abundance of logic gates as a function of their fitness values.
 

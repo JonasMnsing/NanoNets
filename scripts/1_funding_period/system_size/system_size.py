@@ -45,7 +45,7 @@ def parallel_code(thread, rows, U_e, N_voltages, N_p_min, N_p_max):
 if __name__ == '__main__':
 
     # N_p x N_p Values for Network Size 
-    N_p_min = 3
+    N_p_min = 9
     N_p_max = 16
 
     # Number of voltages and CPU processes

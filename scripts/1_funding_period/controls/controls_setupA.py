@@ -15,7 +15,7 @@ import nanonets_utils
 import multiprocessing
 
 # Simulation Function
-def parallel_code(thread, rows, U_e, N_voltages, N_c, folder):
+def parallel_code(thread, rows, U_e, N_voltages, N_c):
 
     for N in N_c:
         

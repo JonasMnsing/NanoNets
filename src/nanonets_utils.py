@@ -685,6 +685,157 @@ def abundance(df : pd.DataFrame, gates: List[str] = ['AND Fitness', 'OR Fitness'
 # MISC
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+def get_best_logic_gate(df : pd.DataFrame, fitness : pd.DataFrame, gate: str, input_cols=['E1','E3'])->pd.DataFrame:
+    """Return best performing logic gate
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame containing Currents/Voltages
+    fitness : pd.DataFrame
+        Fitness
+    gate : str
+        Name of the gate
+    input_cols : list, optional
+        _description_, by default ['E1','E3']
+
+    Returns
+    -------
+    pd.DataFrame
+        Best gate
+    """
+    
+    df          = df.astype(float).round(6)
+    df_f        = fitness.astype(float).round(6)
+    volt        = df_f.sort_values(by=f'{gate} Fitness', ascending=False).reset_index(drop=True).loc[0,'E0':'E6'].values
+    df_gate     = df.copy()
+
+    for i, col in enumerate(['E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6']):
+        if col not in input_cols:
+            df_gate = df_gate[df_gate[col] == volt[i]]
+
+    df_gate = df_gate.reset_index(drop=True)
+
+    return df_gate
+
+def nonlinear_parameter(df : pd.DataFrame, input1_column: str = 'E1', input2_column: str = 'E3', off_state: float=0.0, on_state: float=0.01)->pd.DataFrame:
+    """
+    Compute nonlinear parameters based on input and output values.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame containing current and input state data.
+    input1_column : str, optional
+        Column name for the first input state, by default 'E1'.
+    input2_column : str, optional
+        Column name for the second input state, by default 'E2'.
+    off_state : float, optional
+        The value representing the 'off' state, by default 0.0.
+    on_state : float, optional
+        The value representing the 'on' state, by default 0.01.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the calculated nonlinear parameters:
+        - 'Iv': Average current.
+        - 'Ml': Difference between inputs 10/11 and 00/01 (left margin).
+        - 'Mr': Difference between inputs 01/11 and 00/10 (right margin).
+        - 'X': Nonlinear cross-term.
+    """
+
+    values_input    = pd.DataFrame()
+
+    # Extract current values for all input combinations
+    df_tmp              = df[(df[input1_column] == off_state) & (df[input2_column] == off_state)].reset_index(drop=True)
+    values_input['I00'] = df_tmp['Current']
+    df_tmp              = df[(df[input1_column] == off_state) & (df[input2_column] == on_state)].reset_index(drop=True)
+    values_input['I01'] = df_tmp['Current']
+    df_tmp              = df[(df[input1_column] == on_state) & (df[input2_column] == off_state)].reset_index(drop=True)
+    values_input['I10'] = df_tmp['Current']
+    df_tmp              = df[(df[input1_column] == on_state) & (df[input2_column] == on_state)].reset_index(drop=True)
+    values_input['I11'] = df_tmp['Current']
+
+    
+    # Remove zero values and drop missing data
+    values_input    = values_input.replace(0, np.nan).dropna().reset_index(drop=True)
+
+    # Initialize a DataFrame for the calculated nonlinear parameters
+    df_new          = pd.DataFrame()
+    df_new['Iv']    = (values_input["I11"] + values_input["I10"] + values_input["I01"] + values_input["I00"])/4
+    df_new['Ml']    = (values_input["I11"] + values_input["I10"] - values_input["I01"] - values_input["I00"])/4
+    df_new['Mr']    = (values_input["I11"] - values_input["I10"] + values_input["I01"] - values_input["I00"])/4
+    df_new['X']     = (values_input["I11"] - values_input["I10"] - values_input["I01"] + values_input["I00"])/4
+
+    return df_new
+
+def stat_moment(arr : np.array, order: int = 1, bins: int = 100)->float:
+    """
+    Compute the statistical moment of an array.
+
+    Parameters
+    ----------
+    arr : np.array
+        Input array containing numerical values.
+    order : int, optional
+        The order of the moment to compute (default is 1, i.e., the mean).
+    bins : int, optional
+        Number of bins for histogram-based approximation (default is 100).
+
+    Returns
+    -------
+    float
+        Expected value of the input array raised to the specified order.
+    """
+    count, bins = np.histogram(a=arr, bins=bins)
+    probs       = count / np.sum(count)
+    mids        = 0.5*(bins[1:]+ bins[:-1])
+    exp_val     = np.sum(probs * mids**order)
+
+    return exp_val
+
+def return_ndr(arr : np.array)->np.array:
+    """
+    Compute the Negative differential resistance for a given array.
+
+    Parameters
+    ----------
+    arr : np.array
+        Input array of numerical values.
+
+    Returns
+    -------
+    np.array
+        NDR value
+    """
+
+    return (1 - np.tanh(np.mean(arr)/np.std(arr)))/2
+
+def return_nls(df : pd.DataFrame, ml_col: str = 'Ml', mr_col: str = 'Mr', x_col: str = 'X', bins: int = 1000)->np.array:
+    """
+    Compute Nonlinear Seperability (NLS) based on input columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame containing the relevant columns for computation.
+    ml_col : str, optional
+        Column name representing the left-margin (Ml) values (default is 'Ml').
+    mr_col : str, optional
+        Column name representing the right-margin (Mr) values (default is 'Mr').
+    x_col : str, optional
+        Column name representing the cross-term (X) values (default is 'X').
+    bins : int, optional
+        Number of bins for histogram-based computation of expected values (default is 1000).
+
+    Returns
+    -------
+    np.array
+        NLS value
+    """
+    return stat_moment(df[x_col].values, order=2, bins=bins)/(stat_moment(df[ml_col].values, order=2, bins=bins) + stat_moment(df[mr_col].values, order=2, bins=bins))
+
 def standard_scale(arr : np.array)->np.array:
     """Standard scale: y = ( y - mean(y) ) / std(y) a 1D array
 
@@ -1042,58 +1193,6 @@ def animate_landscape(landscape : np.array, Nx, Ny, N_rows=None, fig=None, ax=No
     ani = animation.ArtistAnimation(fig, ims, interval=delay_between_frames, repeat_delay=delay_between_frames*10)
 
     return ani
-
-def nonlinear_parameter(df : pd.DataFrame, input1_column = 'I1', input2_column = 'I2', current_column='Current', on_state=0.01, off_state=0)->pd.DataFrame:
-
-    currents    = pd.DataFrame()
-
-    df_1 = df[df[input1_column] == off_state]
-    df_1 = df_1[df_1[input2_column] == off_state]
-    df_1 = df_1.reset_index(drop=True)
-    currents['I00'] = df_1[current_column]
-
-    df_1 = df[df[input1_column] == off_state]
-    df_1 = df_1[df_1[input2_column] == on_state]
-    df_1 = df_1.reset_index(drop=True)
-    currents['I01'] = df_1[current_column]
-
-    df_1 = df[df[input1_column] == on_state]
-    df_1 = df_1[df_1[input2_column] == off_state]
-    df_1 = df_1.reset_index(drop=True)
-    currents['I10'] = df_1[current_column]
-
-    df_1 = df[df[input1_column] == on_state]
-    df_1 = df_1[df_1[input2_column] == on_state]
-    df_1 = df_1.reset_index(drop=True)
-    currents['I11'] = df_1[current_column]
-
-    currents    = currents.replace(0, np.nan)
-    currents    = currents.dropna()
-    currents    = currents.reset_index(drop=True)
-
-    df_new = pd.DataFrame()
-
-    df_new['Iv']    = (currents["I11"] + currents["I10"] + currents["I01"] + currents["I00"])/4
-    df_new['Ml']    = (currents["I11"] + currents["I10"] - currents["I01"] - currents["I00"])/4
-    df_new['Mr']    = (currents["I11"] - currents["I10"] + currents["I01"] - currents["I00"])/4
-    df_new['X']     = (currents["I11"] - currents["I10"] - currents["I01"] + currents["I00"])/4
-
-    return df_new
-
-def expected_value(arr : np.array, order=1, bins=1000)->float:
-
-    count, bins = np.histogram(a=arr, bins=bins)
-    probs       = count / np.sum(count)
-    mids        = 0.5*(bins[1:]+ bins[:-1])
-    exp_val     = np.sum(probs * mids**order)
-
-    return exp_val
-
-def return_ndr(arr : np.array)->np.array:
-    return (1 - np.tanh(np.mean(arr)/np.std(arr)))/2
-
-def return_nls(df : pd.DataFrame, ml_col='Ml', mr_col='Mr', x_col='X', bins=1000)->np.array:
-    return expected_value(df[x_col].values, order=2, bins=bins)/(expected_value(df[ml_col].values, order=2, bins=bins) + expected_value(df[mr_col].values, order=2, bins=bins))
 
 def fft(signal, dt, n_padded=0, use_hann=True):
 

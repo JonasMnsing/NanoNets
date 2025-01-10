@@ -51,9 +51,9 @@ def parallel_code(thread, rows, U_e, N_voltages, N_c):
         voltages            = nanonets_utils.logic_gate_sample(U_e=U_e, input_pos=[1,3], N_samples=N_voltages, topology_parameter=topology_parameter)
 
         if topology_parameter["electrode_type"][-1] == "constant":
-            folder  = "/home/j/j_mens07/phd/data/1_funding_period/current/electrode_pos/"
+            folder  = "/home/j/j_mens07/phd/data/1_funding_period/current/electrode_pos/setupA/"
         else:
-            folder  = "/home/j/j_mens07/phd/data/1_funding_period/potential/electrode_pos/"
+            folder  = "/home/j/j_mens07/phd/data/1_funding_period/potential/electrode_pos/setupA/"
 
         voltages            = nanonets_utils.logic_gate_sample(U_e=U_e, input_pos=[1,2], N_samples=N_voltages, topology_parameter=topology_parameter)
         target_electrode    = len(topology_parameter["e_pos"]) - 1

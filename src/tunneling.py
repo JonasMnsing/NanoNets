@@ -299,6 +299,45 @@ class tunnel_class(electrostatic.electrostatic_class):
             "Random resistance not supported in tunnel_order >= 2"
 
         return const_R, const_R_co1, const_R_co2
+
+    def ensure_undirected_resistances(self, resistances: np.array, average: bool = False)->np.array:
+        """
+        Ensures that resistances are undirected by making R(i, j) = R(j, i).
+        
+        Parameters
+        ----------
+        resistances : np.array
+            1D array of resistance values corresponding to the junction pairs.
+        average : bool, optional
+            If True, the resistance values for both directions (i, j) and (j, i) are averaged.
+            If False, the resistance value of (i, j) overwrites (j, i). Default is False.
+
+        Returns
+        -------
+        np.array
+            Updated resistance values with undirected property enforced.
+        """
+        # Create a dictionary to map (i, j) to resistance
+        pair_to_index = {}
+        for idx, (i, j) in enumerate(zip(self.adv_index_rows, self.adv_index_cols)):
+            pair_to_index[(i, j)] = idx
+        
+        # Iterate through each resistance and enforce symmetry
+        for idx, (i, j) in enumerate(zip(self.adv_index_rows, self.adv_index_cols)):
+            # Get the reverse pair (j, i)
+            reverse_pair = (j, i)
+            if reverse_pair in pair_to_index:
+                reverse_idx = pair_to_index[reverse_pair]
+
+                # Ensure symmetry
+                if average:
+                    average_resistance          = (resistances[idx] + resistances[reverse_idx]) / 2.0
+                    resistances[idx]            = average_resistance
+                    resistances[reverse_idx]    = average_resistance
+                else:
+                    resistances[reverse_idx]    = resistances[idx]
+
+        return resistances
     
     def update_junction_resistances(self, resistance_arr, junctions : list, R=25)->np.array:
         

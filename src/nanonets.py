@@ -1632,6 +1632,7 @@ class simulation(tunneling.tunnel_class):
             adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3             = self.return_advanced_indices()
             temperatures, temperatures_co                                                           = self.return_const_temperatures(T=T_val)
             resistances, resistances_co1, resistances_co2                                           = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
+            resistances                                                                             = self.ensure_undirected_resistances(resistances=resistances)
 
             # If second type of resistances is provided
             if self.res_info2 != None:

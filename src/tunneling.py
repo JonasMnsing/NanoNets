@@ -56,7 +56,7 @@ class tunnel_class(electrostatic.electrostatic_class):
     -------
     """
 
-    def __init__(self, electrode_type, tunnel_order=1, seed=None)->None:
+    def __init__(self, electrode_type, tunnel_order=1, seed=None, magic_cable=None)->None:
         """
         Parameters
         ----------
@@ -64,7 +64,7 @@ class tunnel_class(electrostatic.electrostatic_class):
             Consider either next neighbor hopping (tunnel_order=1) or also second neighbor hopping (tunnel_order=1)
         """
 
-        super().__init__(electrode_type, seed)
+        super().__init__(electrode_type, seed, magic_cable)
         
         self.tunnel_order = tunnel_order
 

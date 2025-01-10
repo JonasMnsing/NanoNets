@@ -172,13 +172,13 @@ def sinusoidal_voltages(N_samples : int, topology_parameter : dict, amplitudes :
     amplitudes : Union[float, List[float]]
         Single amplitude for all constant electrodes or individual amplitude for each electrode
     frequencies : Union[float, List[float]]
-        Single frequency for all constant electrodes or individual frequency for each electrode, if set to zero voltages are constant
+        Single frequency for all constant electrodes or individual frequency for each electrode in Hz, if set to zero voltages are constant
     phase: Union[float, List[float]]
         Single phase for all constant electrodes or individual phase for each electrode
     offset: Union[float, List[float]]
         Single offset for all constant electrodes or individual offset for each electrode
     time_step : float, optional
-        Time step size, by default 1e-10
+        Time step size in seconds, by default 1e-10
 
     Returns
     -------
@@ -202,7 +202,7 @@ def sinusoidal_voltages(N_samples : int, topology_parameter : dict, amplitudes :
 
     # Voltages for each electrode
     for i in range(N_electrodes):
-        voltages[:,i]   = amplitudes[i]*np.cos(frequencies[i]*time_steps*1e8+phase[i])
+        voltages[:,i]   = amplitudes[i]*np.cos(2*np.pi*frequencies[i]*time_steps+phase[i]) + offset[i]
     
     # Set floating electrodes to 0V
     voltages[:,floating_idx] = 0.0

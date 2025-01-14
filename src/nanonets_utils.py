@@ -336,6 +336,7 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
 
     # Copy DataFame and drop Zeros
     data    = df.copy()
+    data    = data[data['Error'] != 0.0]
     data    = data[data['Current'].abs() > 0.0] if drop_zero else data
 
     # Sort the DataFrame by relevant columns
@@ -596,6 +597,7 @@ def fitness(df : pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_s
     df01    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
     df10    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
     df11    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
+
     fitness = pd.DataFrame(0, index=np.arange(len(df00)), columns=list(df00.columns) + [g + ' Fitness' for g in gates])
     fitness = fitness.drop(columns=['Current','Error'])
 

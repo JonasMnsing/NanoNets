@@ -234,6 +234,20 @@ def distribute_array_across_processes(process : int, data : np.array, N_processe
 
     return data[process_rows,:]
 
+def logic_gate_time_series(U_e : List[float], input_pos : List[int], U_i : float=0.01,
+                           U_g : float=0.0, step_size : float = 1e-9, N_samples : int = 10000)->Tuple[np.array,np.array]:
+
+    voltages    = np.tile(U_e+[U_g],(N_samples,1))
+    time_steps  = step_size*np.arange(N_samples)
+    U_i1        = [0.0,U_i,0.0,U_i]
+    U_i2        = [0.0,0.0,U_i,U_i]
+
+    for i in range(4):
+        voltages[i*N_samples//4:((i+1)*N_samples)//4, input_pos[0]] = U_i1[i]
+        voltages[i*N_samples//4:((i+1)*N_samples)//4, input_pos[1]] = U_i2[i]
+    
+    return time_steps, voltages
+
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # LOAD SIMULATION RESULTS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------

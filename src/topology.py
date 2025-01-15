@@ -132,7 +132,7 @@ class topology_class:
                     break
                 
             n_NN = 0
-        
+         
     def random_network(self, N_particles : int, N_junctions : int)->None:
         """Setup a random network of nanoparticles. The resulting network might be higher dimensional.
 
@@ -170,6 +170,24 @@ class topology_class:
             self.G.add_edges_from(edges)
             self.pos = {i : p for i, p in enumerate(pos)}
 
+            # # Restrict each node to a maximum of six neighbors
+            # for node in list(self.G.nodes):
+            #     neighbors = list(self.G.neighbors(node))
+            #     if len(neighbors) > 6:
+            #         # Calculate distances to all neighbors
+            #         distances = [
+            #             (neighbor, np.linalg.norm(np.array(self.pos[node]) - np.array(self.pos[neighbor])))
+            #             for neighbor in neighbors
+            #         ]
+            #         # Sort neighbors by distance
+            #         distances.sort(key=lambda x: x[1])
+            #         # Keep only the closest six neighbors
+            #         closest_neighbors = {neighbor for neighbor, _ in distances[:6]}
+            #         # Remove excess edges
+            #         for neighbor in neighbors:
+            #             if neighbor not in closest_neighbors:
+            #                 self.G.remove_edge(node, neighbor)
+
             self.N_junctions = np.max([val for (node, val) in self.G.degree()])
 
         else:
@@ -187,6 +205,20 @@ class topology_class:
             self.pos = nx.kamada_kawai_layout(self.G)
             self.pos = nx.spring_layout(self.G, pos=self.pos)
 
+    def add_np_to_e_pos(self):
+
+        floating_electrodes = np.where(self.electrode_type == 'floating')[0]
+        self.N_particles    += len(floating_electrodes)
+
+        for electrode_index in floating_electrodes:
+
+            adj_np                      = np.where(self.net_topology[:,0]==(electrode_index+1))[0][0]
+            new_nn                      = np.repeat(-100,self.net_topology.shape[1])
+            new_nn[0]                   = electrode_index+1
+            new_nn[1]                   = adj_np
+            self.net_topology           = np.vstack((self.net_topology,new_nn))
+            self.net_topology[adj_np,0] = -100
+               
     def attach_np_to_gate(self, gate_nps=None)->None:
         """ Attach NPs to gate electrode. If gate_nps==None, all NPs are attached
         

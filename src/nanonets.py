@@ -6,7 +6,8 @@ import os.path
 import copy
 from typing import List
 from numba.experimental import jitclass
-from numba import int64, float64, boolean, types
+# from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_uniform_float32, xoroshiro128p_type
+from numba import int64, float64, boolean
 
 spec = [
     ('charge_vector', float64[::1]),
@@ -182,6 +183,8 @@ class model_class():
                 temperatures, temperatures_co, resistances, resistances_co1,
                 resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1,
                 co_adv_index2, co_adv_index3, N_electrodes, N_particles, floating_electrodes):
+
+        np.random.seed(42)
 
         # CONST
         self.ele_charge     = 0.160217662
@@ -1499,6 +1502,7 @@ class simulation(tunneling.tunnel_class):
             # Cubic Network Topology
             self.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
             self.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
+            # self.add_np_to_e_pos()
             self.attach_np_to_gate()
             
             # Delete Junctions if porvided in kwargs
@@ -1617,7 +1621,7 @@ class simulation(tunneling.tunnel_class):
         
         # For each combination of electrode voltages
         for i, voltage_values in enumerate(voltages):
-            
+        
             # Based on current voltages get charges and potentials
             self.init_charge_vector(voltage_values=voltage_values)
             self.init_potential_vector(voltage_values=voltage_values)

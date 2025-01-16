@@ -19,8 +19,6 @@ class electrostatic_class(topology.topology_class):
     net_topology : array
         Network topology. Rows represent nanoparticles. First column stores connected electrodes.
         Second to last columns store connected nanoparticles.
-    gate_nps : array
-        Nanoparticles capacitively couple to gate
     eps_r : float
         Permittivity of insulating material in between nanoparticles
     eps_s : float
@@ -64,43 +62,7 @@ class electrostatic_class(topology.topology_class):
         super().__init__(electrode_type, seed)
         self.floating_indices = np.where(self.electrode_type == 'floating')[0]
 
-    def delete_n_junctions(self, n : int)->None:
-        """ Delete n junctions in network at random
-
-        Parameters
-        ----------
-        n : int
-            Number of junctions to delete
-        """
-
-        for i in range(n):
-            
-            not_found   = True
-            runs        = 0
-
-            # Find a junction to be deleted
-            while (not_found == True):
-
-                np1 = np.random.randint(0, self.N_particles)
-                np2 = np.random.randint(1, self.N_junctions+1)
-
-                # Select to nanoparticles at random which are connected and not connected to an electrode
-                if (self.net_topology[np1,np2] != -100) and (self.net_topology[np1,0] == -100):
-                    not_found = False
-                
-                runs += 1
-
-                if (runs > 5000):
-                    print("No Junction found!!!")
-                    return
-            
-            # Remove Junction
-            np1_2 = int(self.net_topology[np1,np2])
-            np2_2 = np.where(self.net_topology[np1_2,1:]==np1)[0][0]
-            self.net_topology[np1,np2]          = -100
-            self.net_topology[np1_2,np2_2+1]    = -100
-
-    def mutal_capacitance_adjacent_spheres(self, eps_r : float, np_radius1 : float, np_radius2 : float, np_distance : float)->float:
+    def mutal_capacitance_adjacent_spheres(self, eps_r: float, np_radius1: float, np_radius2: float, np_distance: float)->float:
         """
         Calculate capacitance in between a spherical conductors - insulator - spherical conductors setup.
         This is a thrid order Taylor Expansion based on the Image Charge method.
@@ -131,7 +93,7 @@ class electrostatic_class(topology.topology_class):
 
         return cap
 
-    def self_capacitance_sphere(self, eps_s : float, np_radius : float)->float:
+    def self_capacitance_sphere(self, eps_s: float, np_radius: float)->float:
         """
         Calculate self capacitance of a sphere in an insulating enverionment
 
@@ -166,7 +128,7 @@ class electrostatic_class(topology.topology_class):
 
         self.radius_vals  = np.abs(self.rng.normal(loc=mean_radius, scale=std_radius, size=self.N_particles))
 
-    def update_nanoparticle_radius(self, nanoparticles : list, mean_radius=10.0, std_radius=0.0)->None:
+    def update_nanoparticle_radius(self, nanoparticles: list, mean_radius=10.0, std_radius=0.0)->None:
         """Sample new radii for given nanoparticles from |Gaus(mean_radius,std_radius)|
 
         Parameters
@@ -181,8 +143,8 @@ class electrostatic_class(topology.topology_class):
 
         self.radius_vals[nanoparticles] = np.abs(self.rng.normal(loc=mean_radius, scale=std_radius, size=len(nanoparticles)))
         
-    def calc_capacitance_matrix(self, eps_r=2.6, eps_s=3.9, np_distance=1.0)->None:
-        """Calculate capacitance matrix.
+    def calc_capacitance_matrix(self, eps_r: float = 2.6, eps_s: float = 3.9, np_distance: float = 1.0)->None:
+        """Calculate the capacitance matrix of the nanoparticle network.
 
         Parameters
         ----------
@@ -193,102 +155,79 @@ class electrostatic_class(topology.topology_class):
         np_distance : float
             Spacing in between nanoparticles (edge to edge)
         """
-
+        # Initialize capacitance matrix
         self.capacitance_matrix = np.zeros((self.N_particles,self.N_particles))
         self.eps_r              = eps_r
         self.eps_s              = eps_s
         self.np_distance        = np_distance
-        C_sum                   = 0.0
 
-        # Fill Capacitance Matrix based on Net Topology
+        # Loop over each particle to calculate capacitance contributions
         for i in range(self.N_particles):
+            C_sum = 0.0
+            # Iterate over the junctions of the current nanoparticle
             for j in range(self.N_junctions+1):
-            
                 neighbor = self.net_topology[i,j]
 
-                # If neighbor is present
-                if (neighbor != (-100)):
+                # Skip if the neighbor is invalid
+                if neighbor == self.NO_CONNECTION:
+                    continue
 
-                    # If electrode is connected
-                    if (j == 0):
-                        
-                        if neighbor-1 not in self.floating_indices:
-                            # Add electrode capacitance
-                            C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], 10, np_distance)
+                # Capacitance with the electrode (j == 0)
+                if (j == 0):
+                    if neighbor-1 not in self.floating_indices:
+                        # Add electrode capacitance (using mutual capacitance formula)
+                        C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], 10, np_distance)
 
-                    else:
-                        
-                        # Calc mutual capacitance
-                        val = self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[int(neighbor)], np_distance)
-                        self.capacitance_matrix[i,int(self.net_topology[i,j])] = -val
-                        C_sum += val # self.C_node[i,j]
+                else:
+                    # Calc mutual capacitance
+                    val = self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[int(neighbor)], np_distance)
+                    self.capacitance_matrix[i,int(neighbor)] = -val
+                    C_sum += val
 
-            # If Nanoparticle is affacted by Gate
-            if (self.gate_nps[i] == 1):
-                C_sum += self.self_capacitance_sphere(eps_s, self.radius_vals[i])
+            # Self Capacitance
+            C_sum += self.self_capacitance_sphere(eps_s, self.radius_vals[i])
             
-            # Add total Capacitance to diagonal component
+            # Set diagonal element (total capacitance)
             self.capacitance_matrix[i,i] = C_sum
-            C_sum = 0.0
         
-        det = np.linalg.det(self.capacitance_matrix)
-        if abs(det) < 1e-10:
-            print("Warning: Capacitance matrix determinant is very small, results may be inaccurate.")
-
-        # Get inverse matrix
+        # Calculate the inverse capacitance matrix
         self.inv_capacitance_matrix = np.linalg.inv(self.capacitance_matrix)
 
-    def init_charge_vector(self, voltage_values : np.array)->None:
-        """Initialize offset of charges put into the system by electrodes
+    def init_charge_vector(self, voltage_values: np.array)->None:
+        """Initialize the charge vector based on electrode voltages.
 
         Parameters
         ----------
         voltage_values : array
-           Electrode voltages as np.array([V_e1, V_e2, V_e3, ... V_G])
+           Electrode voltages as np.array([V_e1, V_e2, V_e3, ..., V_G])
         """
 
-        assert len(voltage_values) == self.N_electrodes + 1, "voltages_values has to have the same length as N_electrodes + 1"
+        if len(voltage_values) != self.N_electrodes + 1:
+            raise ValueError("voltages_values has to have the same length as N_electrodes + 1")
+        if np.sum([voltage_values[i] for i in self.floating_indices]) != 0.0:
+            raise ValueError("Floating electrode voltages have to be initialized at Zero voltage")
 
+        # Initialize charge vector
         self.charge_vector = np.zeros(self.N_particles)
 
-        # For each charge
+        # Iterate over all nanoparticles
         for i in range(self.N_particles):
+            electrode_index             = int(self.net_topology[i,0] - 1)
 
-            # NP without an electrode connection
-            if (self.net_topology[i,0] == -100):
-
-                # If they are connected to gate
-                if self.gate_nps[i] == 1:
-                    
-                    # Add induced charges given gate electrode voltage
-                    C_self                  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
-                    self.charge_vector[i]   = voltage_values[-1]*C_self
-
+            if self.net_topology[i,0] != self.NO_CONNECTION:
+                # If connected to an electrode, calculate charge from electrode voltage
+                if electrode_index not in self.floating_indices:
+                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
                 else:
-                    self.charge_vector[i] = 0.0
-
-            else:
-
-                electrode_index = int(self.net_topology[i,0] - 1)
+                    C_lead  = 0.0
                 
-                # If they are connected to gate
-                if self.gate_nps[i] == 1:
-
-                    # Add induced charges given electrode and gate voltages
-                    if self.net_topology[i,0]-1 not in self.floating_indices:
-                        C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
-                    else:
-                        C_lead  = 0.0
-                    C_self                  = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
-                    self.charge_vector[i]   = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
-                else:
-                    
-                    # Add induced charges given electrode voltages
-                    if self.net_topology[i,0]-1 not in self.floating_indices:
-                        C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
-                    else:
-                        C_lead  = 0.0
-                    self.charge_vector[i]   = voltage_values[electrode_index]*C_lead
+                C_self = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
+                self.charge_vector[i] = voltage_values[electrode_index] * C_lead + voltage_values[-1] * C_self
+            
+            else:
+                # If not connected to an electrode
+                C_self = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
+                self.charge_vector[i] = voltage_values[-1] * C_self
 
     def get_charge_vector_offset(self, voltage_values : np.array)->np.array:
         """
@@ -349,6 +288,42 @@ class electrostatic_class(topology.topology_class):
 
         return offset
 
+    def delete_n_junctions(self, n : int)->None:
+        """ Delete n junctions in network at random
+
+        Parameters
+        ----------
+        n : int
+            Number of junctions to delete
+        """
+
+        for i in range(n):
+            
+            not_found   = True
+            runs        = 0
+
+            # Find a junction to be deleted
+            while (not_found == True):
+
+                np1 = np.random.randint(0, self.N_particles)
+                np2 = np.random.randint(1, self.N_junctions+1)
+
+                # Select to nanoparticles at random which are connected and not connected to an electrode
+                if (self.net_topology[np1,np2] != -100) and (self.net_topology[np1,0] == -100):
+                    not_found = False
+                
+                runs += 1
+
+                if (runs > 5000):
+                    print("No Junction found!!!")
+                    return
+            
+            # Remove Junction
+            np1_2 = int(self.net_topology[np1,np2])
+            np2_2 = np.where(self.net_topology[np1_2,1:]==np1)[0][0]
+            self.net_topology[np1,np2]          = -100
+            self.net_topology[np1_2,np2_2+1]    = -100
+    
     def return_charge_vector(self)->np.array:
         """
         Returns
@@ -401,14 +376,13 @@ if __name__ == '__main__':
     radius, radius_std  = 10.0, 0.0
     eps_r, eps_s        = 2.6, 3.9
     np_distance         = 1
-    voltage_values      = [0.1,0.2,-0.1,0.3,0.0]
-    electrode_type      = ['constant','floating','floating','floating']
+    voltage_values      = [0.8,0.0,-0.4,0.0,0.1]
+    electrode_type      = ['constant','floating','constant','floating']
 
     # Electrostatic
     cubic_electrostatic = electrostatic_class(electrode_type)
     cubic_electrostatic.cubic_network(N_x, N_y, N_z)
     cubic_electrostatic.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
-    cubic_electrostatic.attach_np_to_gate()
     cubic_electrostatic.init_nanoparticle_radius(radius, radius_std)
     cubic_electrostatic.calc_capacitance_matrix(eps_r, eps_s, np_distance)
     cubic_electrostatic.init_charge_vector(voltage_values)
@@ -418,7 +392,6 @@ if __name__ == '__main__':
     charge_vector           = cubic_electrostatic.return_charge_vector()
 
     print("Capacitance Matrix:\n", capacitance_matrix)
-    # print("Inverse Capacitance Matrix:\n", inv_capacitance_matrix)
     print("Initial Charge Vector:\n", charge_vector)
 
     

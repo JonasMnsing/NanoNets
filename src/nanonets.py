@@ -1431,7 +1431,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 class simulation(tunneling.tunnel_class):
 
     def __init__(self, topology_parameter : dict, folder='', add_to_path="", res_info=None, res_info2=None,
-                 np_info=None, np_info2=None, seed=None, magic_cable=None, **kwargs):
+                 np_info=None, np_info2=None, seed=None, **kwargs):
         """Defines network topology, electrostatic properties and tunneling junctions for a given type of topology. 
 
         Parameters
@@ -1463,7 +1463,7 @@ class simulation(tunneling.tunnel_class):
         electrode_type  = topology_parameter['electrode_type']
 
         # Inheritance 
-        super().__init__(electrode_type, 1, seed, magic_cable)
+        super().__init__(electrode_type, 1, seed)
 
         # Type of Network Topology:
         if 'Nx' in topology_parameter:

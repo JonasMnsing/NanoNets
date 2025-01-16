@@ -935,9 +935,9 @@ def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XN
     return fig, ax
 
 def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_landscape=None, pos=None, fig=None, ax=None,
-                             arrow_scale=2, arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628',
-                             position_by_currents=False, display_path=None, edge_vmin=0, edge_vmax=1):
-
+                             arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628',
+                             position_by_currents=False, display_path=None, edge_vmin=None, edge_vmax=None):
+    
     # Initialize figure and axis if not provided
     if fig is None:
         fig = plt.figure()
@@ -952,7 +952,7 @@ def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_
     else:
         values  = df.loc[row,:].values
 
-    junctions                   = np.array([eval(val) for val in df.columns])
+    junctions                   = np.array([val for val in df.columns])
     values_new, junctions_new   = [], []
 
     # Process the currents and prepare for plotting
@@ -973,7 +973,14 @@ def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_
             else:
                 junctions_new.append([j-N_electrodes,i-N_electrodes])
 
-    values_new = arrow_scale*(values_new - np.min(values_new))/(np.max(values_new) - np.min(values_new))
+    values_new  = np.log1p(values_new)
+    values_new  = (values_new - np.min(values_new))/(np.max(values_new) - np.min(values_new))
+
+    if edge_vmin is None:
+        edge_vmin = np.min(values_new)
+    
+    if edge_vmax is None:
+        edge_vmax = np.max(values_new)
 
     G = nx.DiGraph()
     G.add_nodes_from(np.arange(np.min(junctions)-N_electrodes, np.max(junctions)+1-N_electrodes))
@@ -1002,10 +1009,11 @@ def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_
 
     if pos is None:
         if position_by_currents:
-            pos = nx.kamada_kawai_layout(G=G, weight='width')
+            pos = nx.kamada_kawai_layout(G=G, weight='width', seed=42)
         else:
-            pos = nx.kamada_kawai_layout(G=G)
+            pos = nx.kamada_kawai_layout(G=G, seed=42)
     else:
+        pos         = pos.copy()
         keys        = [-i for i in range(1, N_electrodes+1)]
         key_vals    = [pos[i] for i in keys]
         new_keys    = keys[::-1]
@@ -1016,7 +1024,8 @@ def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_
         for i, key in enumerate(new_keys):
             pos[key] = key_vals[i]
 
-    nx.draw(G=G, pos=pos, ax=ax, edge_color=widths, arrowsize=arrowsize, node_size=states, edge_cmap=plt.cm.Reds, node_color=colors, edge_vmin=edge_vmin, edge_vmax=edge_vmax)
+    nx.draw(G=G, pos=pos, ax=ax, edge_color=widths, arrowsize=arrowsize, node_size=states,
+            edge_cmap=plt.cm.Reds, node_color=colors, edge_vmin=edge_vmin, edge_vmax=edge_vmax)
 
     return fig, ax
 
@@ -1098,8 +1107,6 @@ def vary_currents_by_error(df : pd.DataFrame, M : int, current_col='Current', er
     df_norm = df_norm.reset_index(drop=True)
 
     return df_norm
-
-
 
 def display_network(np_network_sim : nanonets.simulation, fig=None, ax=None, blue_color='#348ABD', red_color='#A60628', save_to_path=False, 
                     style_context=['science','bright'], node_size=300, edge_width=1.0, font_size=12, title='', title_size='small',

@@ -406,7 +406,6 @@ if __name__ == "__main__":
     cubic_system  = tunnel_class(electrode_type, tunnel_order)
     cubic_system.cubic_network(N_x, N_y, N_z)
     cubic_system.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
-    cubic_system.attach_np_to_gate()
     cubic_system.init_nanoparticle_radius(radius, radius_std)
     cubic_system.calc_capacitance_matrix(eps_r, eps_s, np_distance)
     cubic_system.init_charge_vector(voltage_values)

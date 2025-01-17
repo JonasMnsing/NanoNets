@@ -184,7 +184,7 @@ class model_class():
                 resistances_co2, adv_index_rows, adv_index_cols, co_adv_index1,
                 co_adv_index2, co_adv_index3, N_electrodes, N_particles, floating_electrodes):
 
-        np.random.seed(42)
+        # np.random.seed(42)
 
         # CONST
         self.ele_charge     = 0.160217662
@@ -324,7 +324,6 @@ class model_class():
 
         self.co_tunnel_rates = factor*val1*val2
     
-    # TODO Use 95% confidence?
     def calc_rel_error(self, N_calculations):
         """Calculate relative error and standard deviation of target observable via welford one pass 
         """
@@ -654,13 +653,15 @@ class model_class():
             self.jump_dist_per_it           = np.zeros((int(max_jumps/jumps_per_batch), len(self.adv_index_rows)))      # Jumps occured during each batch for each junction
 
         count       = 0     # Number of while loops
+        below_rel   = 0     # Number of consecutive sample below relative error
         time_total  = 0.0   # Total time passed
 
         # Calculate potential landscape once
         self.calc_potentials()
 
         # While relative error or maximum amount of KMC steps not reached
-        while(((self.target_observable_error_rel > error_th) and (self.total_jumps < max_jumps)) or (count < min_batches)):
+        # while(((self.target_observable_error_rel > error_th) and (self.total_jumps < max_jumps)) or (below_rel < min_batches)):
+        while((below_rel < min_batches) and (self.total_jumps < max_jumps)):
             
             # Counting or not
             if kmc_counting:
@@ -790,6 +791,11 @@ class model_class():
 
             if (self.target_observable_mean != 0):
                 self.calc_rel_error(count)
+
+            if self.target_observable_error_rel < error_th:
+                below_rel += 1
+            else:
+                below_rel = 0
         
         if count != 0:
             self.I_network      = self.I_network/count
@@ -1503,7 +1509,6 @@ class simulation(tunneling.tunnel_class):
             self.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
             self.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
             # self.add_np_to_e_pos()
-            self.attach_np_to_gate()
             
             # Delete Junctions if porvided in kwargs
             if 'del_n_junctions' in kwargs:
@@ -1529,7 +1534,6 @@ class simulation(tunneling.tunnel_class):
             self.random_network(N_particles=topology_parameter["Np"], N_junctions=topology_parameter["Nj"])
             self.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
             self.graph_to_net_topology()
-            self.attach_np_to_gate()
                             
             # Electrostatic Properties
             self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])

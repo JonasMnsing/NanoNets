@@ -679,9 +679,6 @@ class model_class():
 
             # KMC Run for a batch
             for i in range(jumps_per_batch):
-
-                if (self.jump == -1):
-                    break
                 
                 # Start time
                 t1 = self.time
@@ -707,6 +704,9 @@ class model_class():
                     
                     # KMC Step and evolve in time
                     self.select_event(random_number1, random_number2)
+
+                    if (self.jump == -1):
+                        break
 
                     # Occured jump
                     np1 = self.adv_index_rows[self.jump]
@@ -785,9 +785,10 @@ class model_class():
             if (self.jump == -1):
                 if not(output_potential):
                     self.target_observable_mean = 0.0
+                    break
                 else:
-                    self.target_observable_mean = self.potential_vector[target_electrode]
-                break
+                    self.target_observable_mean = 0.0 #self.potential_vector[target_electrode]
+                # break
 
             if (self.target_observable_mean != 0):
                 self.calc_rel_error(count)
@@ -796,7 +797,7 @@ class model_class():
                 below_rel += 1
             else:
                 below_rel = 0
-        
+
         if count != 0:
             self.I_network      = self.I_network/count
             self.charge_mean    = self.charge_mean/time_total

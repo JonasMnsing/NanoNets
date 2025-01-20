@@ -18,7 +18,9 @@ def parallel_code(thread : int, N : int, V_arr : np.array, input_at : int, path 
         "Nx"                : N,
         "Ny"                : N,
         "Nz"                : 1,
-        "e_pos"             : [[0,0,0],[(N-1)//2,0,0],[0,(N-1)//2,0],[N-1,0,0],[0,N-1,0],[N-1,(N-1)//2,0],[(N-1)//2,N-1,0],[N-1,N-1,0]],
+        "e_pos"             : [[(N-1)//2,0,0],[0,0,0],[N-1,0,0],
+                               [0,(N-1)//2,0],[N-1,(N-1)//2,0],[0,N-1,0],
+                               [N-1,N-1,0],[(N-1)//2,N-1,0]],
         "electrode_type"    : ['constant','constant','constant','constant','constant','constant','constant','floating']
     }
 
@@ -28,17 +30,17 @@ def parallel_code(thread : int, N : int, V_arr : np.array, input_at : int, path 
         "eq_steps"        : 100000,
         "jumps_per_batch" : 5000,
         "kmc_counting"    : False,
-        "min_batches"     : 10
+        "min_batches"     : 5
     }
 
     np_info = {
         "eps_r"         : 2.6,
         "eps_s"         : 3.9,
-        "mean_radius"   : 8.0,
+        "mean_radius"   : 10.0,
         "std_radius"    : 0.0,
         "np_distance"   : 1.0
     }
-
+    
     jpb                 = sim_dic["jumps_per_batch"]
     voltages            = nanonets_utils.distribute_array_across_processes(process=thread, data=V_arr, N_processes=N_processes)
     np_network_cubic    = nanonets.simulation(topology_parameter=topology_parameter, folder=path,

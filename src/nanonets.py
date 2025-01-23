@@ -350,7 +350,7 @@ class model_class():
         event       = random_number1 * k_tot
 
         if (k_tot == 0.0):
-            self.time   = 1.0
+            # self.time   = 1.0
             self.jump   = -1
             return
         
@@ -499,6 +499,7 @@ class model_class():
         idx_np_target = self.adv_index_cols[self.floating_electrodes]
 
         self.calc_potentials()
+        self.update_floating_electrode(idx_np_target)
 
         for i in range(n_jumps):
 
@@ -603,7 +604,7 @@ class model_class():
         return mean_value, mean_value2, count
     
     def kmc_simulation(self, target_electrode : int, error_th = 0.05, max_jumps=10000000,
-                             jumps_per_batch=1000, output_potential=False, kmc_counting=False, min_batches=10, verbose=False):
+                             jumps_per_batch=5000, output_potential=False, kmc_counting=False, min_batches=10, verbose=False):
         """Runs kinetic Monte Carlo simulation until target observable reached desired relative error or
         maximum number of steps is exceeded. This algorithm calculates an observalbe for fixed batches (number of jumps) and
         updates the average and standard error of the observable according to those batches.     
@@ -659,8 +660,10 @@ class model_class():
         # Calculate potential landscape once
         self.calc_potentials()
 
+        # Calculate floating electrode voltages once
+        self.update_floating_electrode(idx_np_target)
+
         # While relative error or maximum amount of KMC steps not reached
-        # while(((self.target_observable_error_rel > error_th) and (self.total_jumps < max_jumps)) or (below_rel < min_batches)):
         while((below_rel < min_batches) and (self.total_jumps < max_jumps)):
             
             # Counting or not
@@ -687,52 +690,31 @@ class model_class():
                 random_number1  = np.random.rand()
                 random_number2  = np.random.rand()
 
-                # Without cotunneling
-                if self.cotunneling == False:
-                    
-                    # T=0 Approximation of Rates
-                    if not(self.zero_T):
-                        self.calc_tunnel_rates()
-                    else:
-                        self.calc_tunnel_rates_zero_T()
-
-                    # Without counting, extract rate difference
-                    if kmc_counting == False:
-                        # rate_diffs[i] = self.tunnel_rates[rate_index1] - self.tunnel_rates[rate_index2]
-                        rate1   = self.tunnel_rates[rate_index1]
-                        rate2   = self.tunnel_rates[rate_index2]
-                    
-                    # KMC Step and evolve in time
-                    self.select_event(random_number1, random_number2)
-
-                    if (self.jump == -1):
-                        break
-
-                    # Occured jump
-                    np1 = self.adv_index_rows[self.jump]
-                    np2 = self.adv_index_cols[self.jump]
-                    jump_storage_vals[self.jump]    += 1
-
-                # With cotunneling (ignore this one)
+                # T=0 Approximation of Rates
+                if not(self.zero_T):
+                    self.calc_tunnel_rates()
                 else:
-                    
-                    if not(self.zero_T):
-                        self.calc_tunnel_rates()
-                        self.calc_cotunnel_rates()
-                    else:
-                        self.calc_tunnel_rates_zero_T()
-                        self.calc_cotunnel_rates_zero_T()
+                    self.calc_tunnel_rates_zero_T()
 
-                    self.select_co_event(random_number1, random_number2)
+                # Without counting, extract rate difference
+                if kmc_counting == False:
+                    # rate_diffs[i] = self.tunnel_rates[rate_index1] - self.tunnel_rates[rate_index2]
+                    rate1   = self.tunnel_rates[rate_index1]
+                    rate2   = self.tunnel_rates[rate_index2]
+                
+                # KMC Step and evolve in time
+                self.select_event(random_number1, random_number2)
 
-                    if self.co_event_selected:
-                        np1 = self.co_adv_index1[self.jump]
-                        np2 = self.co_adv_index3[self.jump]
-                        self.I_network_co[self.jump] += 1
-                    else:
-                        np1 = self.adv_index_rows[self.jump]
-                        np2 = self.adv_index_cols[self.jump]
-                        self.I_network[self.jump]    += 1
+                # Update potentials of floating electrodes
+                self.update_floating_electrode(idx_np_target)
+
+                if (self.jump == -1):
+                    break
+
+                # Occured jump
+                np1 = self.adv_index_rows[self.jump]
+                np2 = self.adv_index_cols[self.jump]
+                jump_storage_vals[self.jump]    += 1
 
                 # End time and difference
                 t2              = self.time
@@ -742,9 +724,6 @@ class model_class():
                 charge_values       += self.charge_vector*(t2-t1)
                 potential_values    += self.potential_vector*(t2-t1)
 
-                # Update potentials of floating electrodes
-                self.update_floating_electrode(idx_np_target)
-                
                 if output_potential:
                     target_value += self.potential_vector[target_electrode]*(t2-t1)
                 else:
@@ -761,12 +740,13 @@ class model_class():
 
             # Update total jumps, average charges, and average potentials
             self.total_jumps    += i+1
-            self.charge_mean    += charge_values
-            self.potential_mean += potential_values
             time_total          += self.time
 
             if self.time != 0:
-                
+
+                self.charge_mean    += charge_values
+                self.potential_mean += potential_values
+
                 # Calc new average currents
                 if kmc_counting and not(output_potential):
                     target_observable   = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
@@ -778,27 +758,93 @@ class model_class():
                     self.time_values[count]                 = self.time
                     self.landscape_per_it[count,:]          = potential_values/self.time
                     self.jump_dist_per_it[count,:]          = jump_storage_vals
-
+                
                 self.target_observable_mean, self.target_observable_mean2, count    = self.return_next_means(target_observable, self.target_observable_mean, self.target_observable_mean2, count)
                 self.I_network                                                      += jump_storage_vals/self.time
 
-            if (self.jump == -1):
+                if (self.target_observable_mean != 0):
+                    self.calc_rel_error(count)
+
+                if self.target_observable_error_rel < error_th:
+                    below_rel += 1
+                else:
+                    below_rel = 0
+
+            else:
+                self.charge_mean    += self.charge_vector
+                self.potential_mean += self.potential_vector
+                self.I_network      = jump_storage_vals/self.total_jumps
+
                 if not(output_potential):
                     self.target_observable_mean = 0.0
-                    break
                 else:
-                    self.target_observable_mean = 0.0 #self.potential_vector[target_electrode]
-                # break
+                    self.target_observable_mean = self.potential_vector[target_electrode]
+            
+            if (self.jump == -1):
+                break
 
-            if (self.target_observable_mean != 0):
-                self.calc_rel_error(count)
 
-            if self.target_observable_error_rel < error_th:
-                below_rel += 1
-            else:
-                below_rel = 0
 
-        if count != 0:
+            # if (self.jump == -1):
+
+            #     self.charge_mean    += charge_values
+            #     self.potential_mean += potential_values
+            #     self.I_network      = jump_storage_vals/self.total_jumps
+            #     time_total          += self.time
+
+            #     if self.time != 0:
+            #         target_observable   = target_value/self.time
+            #     else:
+            #         target_observable   = self.potential_vector[target_electrode]
+
+            #     # self.charge_mean    = self.charge_vector
+            #     # self.potential_mean = self.potential_vector
+            #     # self.I_network      = jump_storage_vals/self.total_jumps
+
+            #     # if not(output_potential):
+            #     #     self.target_observable_mean = 0.0
+            #     # else:
+            #     #     self.target_observable_mean = self.potential_vector[target_electrode]
+            #     break
+
+            # else:
+            #     self.charge_mean    += charge_values
+            #     self.potential_mean += potential_values
+            #     time_total          += self.time
+
+            #     if self.time != 0:
+                    
+            #         # Calc new average currents
+            #         if kmc_counting and not(output_potential):
+            #             target_observable   = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
+            #         else:
+            #             target_observable   = target_value/self.time
+
+            #         if verbose:
+            #             self.target_observable_values[count]    = target_observable
+            #             self.time_values[count]                 = self.time
+            #             self.landscape_per_it[count,:]          = potential_values/self.time
+            #             self.jump_dist_per_it[count,:]          = jump_storage_vals
+
+            #         self.target_observable_mean, self.target_observable_mean2, count    = self.return_next_means(target_observable, self.target_observable_mean, self.target_observable_mean2, count)
+            #         self.I_network                                                      += jump_storage_vals/self.time
+
+            # # if (self.jump == -1):
+            # #     if not(output_potential):
+            # #         self.target_observable_mean = 0.0
+            # #     else:
+            # #         self.target_observable_mean = self.potential_vector[target_electrode]
+            # #     break
+
+            #         if (self.target_observable_mean != 0):
+            #             self.calc_rel_error(count)
+
+            #         if self.target_observable_error_rel < error_th:
+            #             below_rel += 1
+            #         else:
+            #             below_rel = 0
+
+        if ((count != 0) and (self.jump != -1)):
             self.I_network      = self.I_network/count
             self.charge_mean    = self.charge_mean/time_total
             self.potential_mean = self.potential_mean/time_total
@@ -852,6 +898,12 @@ class model_class():
             self.select_event(random_number1, random_number2)
 
             if (self.jump == -1):
+    
+                # Update Observables
+                rate_diffs                  += (rate1 - rate2)*(time_target-last_time)
+                self.charge_mean            += self.charge_vector*(time_target-last_time)
+                self.potential_mean         += self.potential_vector*(time_target-last_time)
+
                 break
 
             # Occured jump
@@ -860,29 +912,33 @@ class model_class():
 
             # If time exceeds target time
             if (self.time >= time_target):
+
                 self.neglect_last_event(np1,np2)
+                
+                # Update Observables
+                rate_diffs                  += (rate1 - rate2)*(time_target-last_time)
+                self.charge_mean            += self.charge_vector*(time_target-last_time)
+                self.potential_mean         += self.potential_vector*(time_target-last_time)
+
                 break
 
-            # Update Observables
-            rate_diffs                  += (rate1 - rate2)*(self.time-last_time)
-            self.charge_mean            += self.charge_vector*(self.time-last_time)
-            self.potential_mean         += self.potential_vector*(self.time-last_time)
-            self.I_network[self.jump]   += 1
-            self.total_jumps            += 1
+            else:
+
+                # Update Observables
+                rate_diffs                  += (rate1 - rate2)*(self.time-last_time)
+                self.charge_mean            += self.charge_vector*(self.time-last_time)
+                self.potential_mean         += self.potential_vector*(self.time-last_time)
+                self.I_network[self.jump]   += 1
+                self.total_jumps            += 1
         
-        if (self.jump == -1):
-            self.target_observable_mean = 0.0
-
-        if (last_time-inner_time) != 0:
-            
-            self.target_observable_mean = rate_diffs/(time_target-inner_time)
-            self.I_network              = self.I_network/self.total_jumps
-            self.charge_mean            = self.charge_mean/(time_target-inner_time)
-            self.potential_mean         = self.potential_mean/(time_target-inner_time)
-
+        self.target_observable_mean = rate_diffs/(time_target-inner_time)
+        if self.total_jumps != 0:
+            self.I_network          = self.I_network/self.total_jumps
         else:
-            self.target_observable_mean = 0
-    
+            self.I_network          = np.zeros(len(self.adv_index_rows))
+        self.charge_mean            = self.charge_mean/(time_target-inner_time)
+        self.potential_mean         = self.potential_mean/(time_target-inner_time)
+            
     def kmc_time_simulation_potential(self, target_electrode : int, time_target : float):
         """
         Runs KMC until KMC time exceeds a target value
@@ -903,6 +959,9 @@ class model_class():
         self.potential_mean = np.zeros(len(self.potential_vector))
         self.I_network      = np.zeros(len(self.adv_index_rows))
         idx_np_target       = self.adv_index_cols[self.floating_electrodes]
+        
+        # Adjust floating target electrode once
+        self.update_floating_electrode(idx_np_target)
 
         inner_time          = self.time
         last_time           = 0.0        
@@ -927,6 +986,15 @@ class model_class():
             self.select_event(random_number1, random_number2)
 
             if (self.jump == -1):
+
+                # Update potential of floating target electrode
+                self.update_floating_electrode(idx_np_target)
+
+                # Update Observables
+                target_potential    += self.potential_vector[target_electrode]*(time_target-last_time)
+                self.charge_mean    += self.charge_vector*(time_target-last_time)
+                self.potential_mean += self.potential_vector*(time_target-last_time)
+
                 break
 
             # Occured jump
@@ -936,6 +1004,9 @@ class model_class():
             # If time exceeds target time
             if (self.time >= time_target):
                 self.neglect_last_event(np1,np2)
+
+                # Update potential of floating target electrode
+                self.update_floating_electrode(idx_np_target)
 
                 # Update Observables
                 target_potential    += self.potential_vector[target_electrode]*(time_target-last_time)
@@ -948,30 +1019,21 @@ class model_class():
 
                 # Update potential of floating target electrode
                 self.update_floating_electrode(idx_np_target)
-                target_potential += self.potential_vector[target_electrode]*(self.time-last_time)
 
                 # Update Observables
+                target_potential            += self.potential_vector[target_electrode]*(self.time-last_time)
                 self.charge_mean            += self.charge_vector*(self.time-last_time)
                 self.potential_mean         += self.potential_vector*(self.time-last_time)
                 self.I_network[self.jump]   += 1            
                 self.total_jumps            += 1           
         
-        if (self.jump == -1):
-            self.target_observable_mean  = self.potential_vector[target_electrode]
-
-        # TODO If not necessary
-        if (last_time-inner_time) != 0:
-            
-            self.target_observable_mean = target_potential/(time_target-inner_time)
-            self.I_network              = self.I_network/self.total_jumps
-            self.charge_mean            = self.charge_mean/(time_target-inner_time)
-            self.potential_mean         = self.potential_mean/(time_target-inner_time)
-            
+        self.target_observable_mean = target_potential/(time_target-inner_time)
+        if self.total_jumps != 0:
+            self.I_network          = self.I_network/self.total_jumps
         else:
-            self.target_observable_mean = self.potential_vector[target_electrode]
-            self.I_network              = self.I_network
-            self.charge_mean            = self.charge_vector
-            self.potential_mean         = self.potential_vector
+            self.I_network          = np.zeros(len(self.adv_index_rows))
+        self.charge_mean            = self.charge_mean/(time_target-inner_time)
+        self.potential_mean         = self.potential_mean/(time_target-inner_time)
     
     def kmc_time_simulation_potential2(self, target_electrode : int, time_target : float):
         """

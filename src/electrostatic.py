@@ -212,7 +212,7 @@ class electrostatic_class(topology.topology_class):
 
         # Iterate over all nanoparticles
         for i in range(self.N_particles):
-            electrode_index             = int(self.net_topology[i,0] - 1)
+            electrode_index = int(self.net_topology[i,0] - 1)
 
             if self.net_topology[i,0] != self.NO_CONNECTION:
                 # If connected to an electrode, calculate charge from electrode voltage
@@ -244,47 +244,27 @@ class electrostatic_class(topology.topology_class):
             Charge offset
         """
 
-        assert len(voltage_values) == self.N_electrodes + 1, "voltages_values has to have the same length as N_electrodes + 1"
-
         offset = np.zeros(self.N_particles)
 
         # For each charge
         for i in range(self.N_particles):
 
-            # NP without an electrode connection
-            if (self.net_topology[i,0] == -100):
+            electrode_index = int(self.net_topology[i,0] - 1)
 
-                # If they are connected to gate
-                if self.gate_nps[i] == 1:
-                    
-                    # Add induced charges given gate electrode voltage
-                    C_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
-                    offset[i]   = voltage_values[-1]*C_self
-
+            if self.net_topology[i,0] != self.NO_CONNECTION:
+                # If connected to an electrode, calculate charge from electrode voltage
+                if electrode_index not in self.floating_indices:
+                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
                 else:
-                    offset[i] = 0.0
-
-            else:
-
-                electrode_index = int(self.net_topology[i,0] - 1)
+                    C_lead  = 0.0
                 
-                # If they are connected to gate
-                if self.gate_nps[i] == 1:
-
-                    # Add induced charges given electrode and gate voltages
-                    if self.net_topology[i,0]-1 not in self.floating_indices:
-                        C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
-                    else:
-                        C_lead  = 0.0
-                    C_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
-                    offset[i]   = voltage_values[electrode_index]*C_lead + voltage_values[-1]*C_self
-                else:
-
-                    if self.net_topology[i,0]-1 not in self.floating_indices:
-                        C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], 10, self.np_distance)
-                    else:
-                        C_lead  = 0.0
-                    offset[i]   = voltage_values[electrode_index]*C_lead
+                C_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
+                offset[i]   = voltage_values[electrode_index] * C_lead + voltage_values[-1] * C_self
+            
+            else:
+                # If not connected to an electrode
+                C_self      = self.self_capacitance_sphere(self.eps_s, self.radius_vals[i])
+                offset[i]   = voltage_values[-1] * C_self
 
         return offset
 

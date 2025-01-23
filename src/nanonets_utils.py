@@ -1219,28 +1219,29 @@ def animate_landscape(landscape : np.array, Nx, Ny, N_rows=None, fig=None, ax=No
 
 def fft(signal, dt, n_padded=0, use_hann=True):
 
+    # Apply windowing if requested
     if use_hann:
-
         bm          = hann(len(signal))
         signal_w    = signal*bm
     else:
         signal_w    = signal.copy()
     
+    # Padding signal if needed
     if n_padded != 0:
         signal_p    = np.pad(signal_w, (0, n_padded - len(signal_w)), 'constant')
     else:
         signal_p    = signal_w.copy()
 
-    n_0         = int(signal.shape[-1]/2)
+    # Perform FFT
     signal_fft  = np.fft.fft(signal_p)
 
+    # Compute frequency axis
     if n_padded == 0:
-        freq    = 2 * np.pi * np.fft.fftfreq(signal.shape[-1]) / dt
-
+        freq    = np.fft.fftfreq(signal.shape[-1]) / dt
     else:
-        freq    = 2 * np.pi * np.fft.fftfreq(n_padded) / dt
+        freq    = np.fft.fftfreq(n_padded) / dt
 
-    return freq[:len(freq)//2]*1e-9, np.abs(signal_fft[:len(freq)//2])
+    return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
 
 ##################################################################################
 ################################ TRAINING ########################################

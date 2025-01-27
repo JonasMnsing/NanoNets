@@ -6,6 +6,8 @@ import networkx as nx
 import nanonets
 import scienceplots
 import multiprocessing
+
+from scipy.interpolate import interp1d
 from typing import Union, Tuple, List, Dict
 from scipy.signal.windows import hann
 from pyDOE import lhs
@@ -885,6 +887,43 @@ def poincare_map_zero_corssing(arr : np.array)->np.array:
     
     return crossing
 
+def harmonic_strength(signal : np.array, f0 : float, dt : float, N_f=10, dB=True):
+    """
+    Calculate the harmonic strength of a signal relative to its fundamental frequency.
+
+    Parameters
+    ----------
+    signal : np.array
+        The input time-domain signal.
+    f0 : float
+        The fundamental frequency of the signal.
+    dt : float
+        Time step between samples.
+    N_f : int, optional
+        The number of harmonics to consider, default is 10.
+    dB : bool, optional
+         Whether to return the result in decibels, default is True.
+
+    Returns
+    -------
+    np.array
+        Array of harmonic strength values relative to the fundamental.    
+    """
+
+    # Fourier spectrum and interpolation
+    xf, yf  = fft(signal, dt, n_padded=4096)
+    func    = interp1d(xf, yf, kind='linear', fill_value="extrapolate")
+
+    # Get FFT values for higher harmonics
+    val     = func(np.arange(1,N_f+1)*f0)
+
+    # Harmonic strength in dB or linear
+    if dB:
+        val_rel = 10*np.log(val/val[0])
+    else:
+        val_rel = val/val[0]
+
+    return val_rel
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # PLOTS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------

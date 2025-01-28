@@ -87,7 +87,12 @@ def lhs_sample(U_e : Union[float, List[float]], N_samples : int, topology_parame
     floating_idx    = np.where(electrode_types=="floating")[0]
 
     # lhs sample between [0,1]
-    lhs_samples     = lhs(N_electrodes+1, samples=N_samples)
+    lhs_samples = np.zeros((N_samples, N_electrodes+1))
+    for i in range(N_electrodes+1):
+        intervals   = np.linspace(0, 1, N_samples + 1)
+        points      = np.random.uniform(intervals[:-1], intervals[1:])
+        np.random.shuffle(points)
+        lhs_samples[:, i] = points
     scaled_samples  = np.zeros_like(lhs_samples)
 
     # Sample Control Voltages
@@ -204,7 +209,7 @@ def sinusoidal_voltages(N_samples : int, topology_parameter : dict, amplitudes :
 
     # Voltages for each electrode
     for i in range(N_electrodes):
-        voltages[:,i]   = amplitudes[i]*np.cos(2*np.pi*frequencies[i]*time_steps+phase[i]) + offset[i]
+        voltages[:,i]   = amplitudes[i]*np.sin(2*np.pi*frequencies[i]*time_steps+phase[i]) + offset[i]
     
     # Set floating electrodes to 0V
     voltages[:,floating_idx] = 0.0

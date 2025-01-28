@@ -34,6 +34,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
 
     thread_rows     = rows[thread]
     params_new      = params[thread_rows,:]
+    N_electrodes    = len(topology["e_pos"])
     
     if sim_type == 'offset':
 
@@ -43,8 +44,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
                                                                         frequencies=freq*1e5, offset=par, time_step=time_step)
             sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
                                                           add_to_path=f'_{thread}_{n}', np_info2=np_info2)
-            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps,
-                                       target_electrode=7, stat_size=10)
+            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=10)
 
     elif sim_type == 'amplitude':
 
@@ -54,8 +54,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
                                                                         frequencies=freq*1e5, time_step=time_step)
             sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
                                                           add_to_path=f'_{thread}_{n}', np_info2=np_info2)
-            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps,
-                                       target_electrode=7, stat_size=10)
+            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=10)
 
     elif sim_type == 'frequency':
 
@@ -65,8 +64,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
                                                                         frequencies=par*1e5, time_step=time_step)
             sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
                                                           add_to_path=f'_{thread}_{n}', np_info2=np_info2)
-            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps,
-                                       target_electrode=7, stat_size=10)
+            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=10)
 
     elif sim_type == 'phase':
 
@@ -76,22 +74,20 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
                                                                         frequencies=freq*1e5, phase=par, time_step=time_step)
             sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
                                                           add_to_path=f'_{thread}_{n}', np_info2=np_info2)
-            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps,
-                                       target_electrode=7, stat_size=10)
+            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=10)
 
     else:
-        pass
-        # for n, par in enumerate(params_new):
+
+        amplitude_vals      = np.zeros(N_electrodes+1)
+        amplitude_vals[0]   = amplitude
+
+        for n, par in enumerate(params_new):
             
-        #     N_voltages      = len(time_steps)
-        #     voltages        = np.zeros((N_voltages, len(topology["e_pos"])+1))
-        #     voltages[:,0]   = x
-        #     for i, p in enumerate(par):
-        #         voltages[:,i+1] = p
-
-        #     sim_class   = nanonets.simulation(topology_parameter=topology, folder=path, seed=0, add_to_path=f'_{thread}_{n}', np_info2=np_info2)
-        #     sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=10)
-
+            time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter=topology, amplitudes=amplitude_vals,
+                                                                        frequencies=freq*1e5, phase=par, time_step=time_step)
+            sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
+                                                          add_to_path=f'_{thread}_{n}', np_info2=np_info2)
+            sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=10)
 
 N_p = 7
 
@@ -188,7 +184,7 @@ for p in procs:
 # Const
 sim_type    = 'const'
 path        = "scripts/2_funding_period/WP2/training/data/lhs_sample_noise/const/"
-sample      = return_lhs_sample(-0.05, 0.05, N_controls, N_samples)
+sample      = return_lhs_sample(-0.1, 0.1, N_controls, N_samples)
 sample      = np.column_stack((sample,np.zeros(N_samples)))
 sample      = np.column_stack((np.zeros(N_samples),sample))
 procs       = []

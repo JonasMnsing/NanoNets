@@ -1571,7 +1571,7 @@ class simulation(tunneling.tunnel_class):
             # Cubic Network Topology
             self.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
             self.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
-            # self.add_np_to_e_pos()
+            self.add_np_to_e_pos()
             
             # Delete Junctions if porvided in kwargs
             if 'del_n_junctions' in kwargs:

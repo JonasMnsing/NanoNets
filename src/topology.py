@@ -280,7 +280,10 @@ class topology_class:
             self.net_topology           = np.vstack((self.net_topology,new_nn))
 
             # Update the adjacent nanoparticle's connection to remove the floating electrode
-            self.net_topology[adj_np,0] = self.NO_CONNECTION
+            first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
+            self.net_topology[adj_np,first_free_spot]   = self.net_topology.shape[0]-1 
+            self.net_topology[adj_np,0]                 = self.NO_CONNECTION
+
                
     def graph_to_net_topology(self)->None:
         """Transfer directed graph to net_topology array.

@@ -48,3 +48,4 @@ if __name__ == '__main__':
         for N_p in N_p_vals:
             process = multiprocessing.Process(target=run_simulation, args=(i, time_steps, voltages, radius, N_p, folder, stat_size))
             process.start()
+

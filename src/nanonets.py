@@ -1779,7 +1779,7 @@ class simulation(tunneling.tunnel_class):
                 j                    = i+1
 
     def run_var_voltages(self, voltages : np.array, time_steps : np.array, target_electrode : int, T_val=0.0, eq_steps=0, save=True,
-                         stat_size=500, init_charges=None, verbose=False):
+                         stat_size=10, init_charges=None, verbose=False):
         """Run a kinetic monte carlo simulation for time dependent electrode voltages to estimate either the electric current of
         the target electrode at variable target electrode voltage or the variable potential of a floating target electrode.
 

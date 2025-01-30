@@ -1650,7 +1650,7 @@ class simulation(tunneling.tunnel_class):
                 "eq_steps"        : 100000,
                 "jumps_per_batch" : 5000,
                 "kmc_counting"    : False,
-                "min_batches"     : 10
+                "min_batches"     : 5
             }
 
         error_th        = sim_dic['error_th']           # Target obervable's relative error

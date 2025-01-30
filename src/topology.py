@@ -75,6 +75,10 @@ class topology_class:
         if N_x <= 0 or N_y <= 0 or N_z <= 0:
             raise ValueError("Dimensions N_x, N_y, N_z must be positive integers.")
         
+        self.N_x    = N_x
+        self.N_y    = N_y
+        self.N_z    = N_z
+        
         # Calculate total number of NPs
         self.N_particles    = N_x*N_y*N_z
 
@@ -264,10 +268,11 @@ class topology_class:
         floating_electrodes = np.where(self.electrode_type == 'floating')[0]
         
         # Increase the number of nanoparticles based on the number of floating electrodes
-        self.N_particles    += len(floating_electrodes)
+        prev_particle_count =   self.N_particles
+        self.N_particles    +=  len(floating_electrodes)
 
         # Loop through each floating electrode
-        for electrode_index in floating_electrodes:
+        for i, electrode_index in enumerate(floating_electrodes):
             # Find the nanoparticle that is connected to the floating electrode
             adj_np  = np.where(self.net_topology[:,0]==(electrode_index+1))[0][0]
             
@@ -277,14 +282,34 @@ class topology_class:
             new_nn[1]   = adj_np                                                    # Second column: connect to the adjacent nanoparticle
 
             # Add the new nanoparticle and its connections to the network topology
-            self.net_topology           = np.vstack((self.net_topology,new_nn))
+            self.net_topology   = np.vstack((self.net_topology,new_nn))
 
             # Update the adjacent nanoparticle's connection to remove the floating electrode
             first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
             self.net_topology[adj_np,first_free_spot]   = self.net_topology.shape[0]-1 
             self.net_topology[adj_np,0]                 = self.NO_CONNECTION
+            self.pos[prev_particle_count+i]             = self.pos[-electrode_index-1]
 
-               
+            # Update node positions
+            x, y    = self.pos[-electrode_index-1]
+            if x == self.N_x:
+                self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0]+1,self.pos[-electrode_index-1][1])
+            elif x == -1:
+                self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0]-1,self.pos[-electrode_index-1][1])
+            elif y == self.N_y:
+                self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0],self.pos[-electrode_index-1][1]+1)
+            elif y == -1:
+                self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0],self.pos[-electrode_index-1][1]-1)
+
+            self.G.add_node(prev_particle_count+i)
+            self.G.remove_edge(adj_np,-electrode_index-1)
+            self.G.remove_edge(-electrode_index-1,adj_np)
+            self.G.add_edge(prev_particle_count+i,adj_np)
+            self.G.add_edge(adj_np,prev_particle_count+i)
+            self.G.add_edge(prev_particle_count+i,-electrode_index-1)
+            self.G.add_edge(-electrode_index-1,prev_particle_count+i)
+            
+
     def graph_to_net_topology(self)->None:
         """Transfer directed graph to net_topology array.
     

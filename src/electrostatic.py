@@ -359,7 +359,7 @@ if __name__ == '__main__':
     voltage_values      = [0.8,0.0,0.0]
     electrode_type      = ['constant','floating']
     high_cap_nps        = [N_x*N_y]
-    high_cap            = 1e7
+    high_cap            = 1e1
 
     # Electrostatic
     cubic_electrostatic = electrostatic_class(electrode_type)
@@ -378,6 +378,6 @@ if __name__ == '__main__':
     print(cubic_electrostatic)
     print("Capacitance Matrix:\n", np.round(capacitance_matrix,2))
     print("Initial Charge Vector:\n", np.round(charge_vector,2))
-
-    
-
+    print("Graph Positions:\n", cubic_electrostatic.pos)
+    print("Graph Nodes:\n", cubic_electrostatic.G.nodes)
+    print("Graph Edges:\n", cubic_electrostatic.G.edges)

@@ -34,7 +34,6 @@ if __name__ == '__main__':
     time_step           = 1e-7
     time_steps          = np.arange(N_voltages)*time_step
     voltages            = np.zeros(shape=(N_voltages,9))
-    voltages[:,0]       = 0.05
     voltages[:1000,0]   = 0.1
 
     folder      = "/scratch/j_mens07/data/2_funding_period/potential/time_scale/"
@@ -48,4 +47,3 @@ if __name__ == '__main__':
         for N_p in N_p_vals:
             process = multiprocessing.Process(target=run_simulation, args=(i, time_steps, voltages, radius, N_p, folder, stat_size))
             process.start()
-

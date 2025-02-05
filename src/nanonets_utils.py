@@ -10,7 +10,6 @@ import multiprocessing
 from scipy.interpolate import interp1d
 from typing import Union, Tuple, List, Dict
 from scipy.signal.windows import hann
-from pyDOE import lhs
 
 blue_color  = '#348ABD'
 red_color   = '#A60628'

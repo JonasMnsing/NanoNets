@@ -1,11 +1,10 @@
-from pyDOE import lhs
 import numpy as np
 import sys
 import multiprocessing
 
 # Add to path
 sys.path.append("/home/jonas/phd/NanoNets/src/")
-sys.path.append("/home/j/j_mens07/phd/NanoNets/src/")
+sys.path.append("/home/j/j_mens07/NanoNets/src/")
 sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
 sys.path.append("/home/jonasmensing/phd/NanoNets/src/")
 
@@ -16,7 +15,12 @@ import nanonets_utils
 def return_lhs_sample(pmin, pmax, N_controls, N_samples):
 
     p_range     = [[pmin,pmax] for _ in range(N_controls)]
-    lhs_sample  = lhs(N_controls, N_samples)
+    lhs_sample = np.zeros((N_samples, N_controls))
+    for i in range(N_controls):
+        intervals   = np.linspace(0, 1, N_samples + 1)
+        points      = np.random.uniform(intervals[:-1], intervals[1:])
+        np.random.shuffle(points)
+        lhs_sample[:, i] = points
     lhs_rescale = np.zeros_like(lhs_sample)
 
     for i in range(N_controls):
@@ -28,24 +32,21 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
 
     np_info2 = {
         'np_index'      : [int(topology["Nx"]**2-(topology["Nx"]+1)//2)], 
-        'mean_radius'   : 1e5,
+        'mean_radius'   : 1e6,
         'std_radius'    : 0.0
     }
 
-    rs  = np.random.RandomState(seed=thread)
-
     thread_rows     = rows[thread]
     params_new      = params[thread_rows,:]
-    noise           = rs.uniform(-amplitude, amplitude, N_voltages)
+    rs              = np.random.RandomState(seed=0)
 
     if sim_type == 'offset':
         for n, par in enumerate(params_new):
             
             time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter=topology, amplitudes=amplitude,
                                                                          frequencies=freq*1e5, offset=par, time_step=time_step)
-            voltages[:,0]           = noise
-            sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
-                                                          add_to_path=f'_{thread}_{n}', np_info2=np_info2)
+            voltages[:,0]           = rs.uniform(-amplitude,amplitude,len(time_steps))
+            sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0, add_to_path=f'_{thread}_{n}', np_info2=np_info2)
             sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=stat_size)
 
     elif sim_type == 'amplitude':
@@ -53,7 +54,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
 
             time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter=topology, amplitudes=par,
                                                                         frequencies=freq*1e5, time_step=time_step)
-            voltages[:,0]           = noise
+            voltages[:,0]           = rs.uniform(-amplitude,amplitude,len(time_steps))
             sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
                                                           add_to_path=f'_{thread}_{n}', np_info2=np_info2)
             sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=stat_size)
@@ -63,7 +64,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
            
             time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter=topology, amplitudes=amplitude,
                                                                         frequencies=par*1e5, time_step=time_step)
-            voltages[:,0]           = noise
+            voltages[:,0]           = rs.uniform(-amplitude,amplitude,len(time_steps))
             sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
                                                           add_to_path=f'_{thread}_{n}', np_info2=np_info2)
             sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=stat_size)
@@ -73,7 +74,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
 
             time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter=topology, amplitudes=amplitude,
                                                                         frequencies=freq*1e5, phase=par, time_step=time_step)
-            voltages[:,0]           = noise
+            voltages[:,0]           = rs.uniform(-amplitude,amplitude,len(time_steps))
             sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
                                                           add_to_path=f'_{thread}_{n}', np_info2=np_info2)
             sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=stat_size)
@@ -83,7 +84,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
             
             time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter=topology, amplitudes=amplitude,
                                                                         frequencies=0.0, offset=par, time_step=time_step)
-            voltages[:,0]           = noise
+            voltages[:,0]           = rs.uniform(-amplitude,amplitude,len(time_steps))
             sim_class               = nanonets.simulation(topology_parameter=topology, folder=path, seed=0,
                                                           add_to_path=f'_{thread}_{n}', np_info2=np_info2)
             sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=7, stat_size=stat_size)
@@ -91,7 +92,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
 if __name__ == '__main__':
 
     # Network Topology
-    N_p                 = 7
+    N_p                 = 13
     topology_parameter  = {
         "Nx"                : N_p,
         "Ny"                : N_p,
@@ -104,7 +105,7 @@ if __name__ == '__main__':
 
     # Parameter
     N_voltages  = 1000
-    N_samples   = 4 #500
+    N_samples   = 504
     stat_size   = 10
     N_procs     = 10
     amplitude   = 0.1
@@ -114,7 +115,8 @@ if __name__ == '__main__':
     index       = [i for i in range(N_samples)]
     rows        = [index[i::N_procs] for i in range(N_procs)]
     # path        = "/home/j/j_mens07/phd/NanoNets/scripts/2_funding_period/WP2/magic_cable/data/"
-    path        = "/mnt/c/Users/jonas/Desktop/phd/NanoNets/scripts/2_funding_period/WP2/magic_cable/data/"
+    # path        = "/mnt/c/Users/jonas/Desktop/phd/NanoNets/scripts/2_funding_period/WP2/magic_cable/data/"
+    path        = "/scratch/tmp/j_mens07/data/2_funding_period/potential/magic_cable/noise/"
     
 
     # Offset
@@ -145,7 +147,7 @@ if __name__ == '__main__':
 
     # Frequency
     sim_type    = 'frequency'
-    sample      = return_lhs_sample(0.0, 6.0, N_electrode, N_samples)
+    sample      = return_lhs_sample(0.5, 2.0, N_electrode, N_samples)
     procs       = []
     for i in range(N_procs):
         

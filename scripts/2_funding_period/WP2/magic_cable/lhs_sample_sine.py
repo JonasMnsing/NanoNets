@@ -32,7 +32,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
 
     np_info2 = {
         'np_index'      : [int(topology["Nx"]**2-(topology["Nx"]+1)//2)], 
-        'mean_radius'   : 1e5,
+        'mean_radius'   : 1e6,
         'std_radius'    : 0.0
     }
 
@@ -91,7 +91,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
 if __name__ == '__main__':
 
     # Network Topology
-    N_p                 = 7
+    N_p                 = 13
     topology_parameter  = {
         "Nx"                : N_p,
         "Ny"                : N_p,

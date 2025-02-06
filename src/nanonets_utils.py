@@ -583,7 +583,7 @@ def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame
 
     return df
 
-def fitness(df : pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_state:float = 0.0, on_state:float = 0.01,
+def fitness(df: pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_state:float = 0.0, on_state:float = 0.01,
     gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']) -> pd.DataFrame:
     """
     Calculate the fitness of a set of logic gates based on their residual sum of squares (RSS).
@@ -635,7 +635,7 @@ def fitness(df : pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_s
 
     return fitness
 
-def abundance(df : pd.DataFrame, gates: List[str] = ['AND Fitness', 'OR Fitness', 'XOR Fitness', 'NAND Fitness', 'NOR Fitness', 'XNOR Fitness'],
+def abundance(df: pd.DataFrame, gates: List[str] = ['AND Fitness', 'OR Fitness', 'XOR Fitness', 'NAND Fitness', 'NOR Fitness', 'XNOR Fitness'],
               bins: Union[int, np.ndarray] = 0) -> pd.DataFrame:
     """
     Calculate empirical abundance based on fitness values.
@@ -707,7 +707,7 @@ def abundance(df : pd.DataFrame, gates: List[str] = ['AND Fitness', 'OR Fitness'
 # MISC
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def get_best_logic_gate(df : pd.DataFrame, fitness : pd.DataFrame, gate: str, input_cols=['E1','E3'])->pd.DataFrame:
+def get_best_logic_gate(df: pd.DataFrame, fitness : pd.DataFrame, gate: str, input_cols=['E1','E3'])->pd.DataFrame:
     """Return best performing logic gate
 
     Parameters
@@ -740,7 +740,7 @@ def get_best_logic_gate(df : pd.DataFrame, fitness : pd.DataFrame, gate: str, in
 
     return df_gate
 
-def nonlinear_parameter(df : pd.DataFrame, input1_column: str = 'E1', input2_column: str = 'E3', off_state: float=0.0, on_state: float=0.01)->pd.DataFrame:
+def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_column: str = 'E3', off_state: float=0.0, on_state: float=0.01)->pd.DataFrame:
     """
     Compute nonlinear parameters based on input and output values.
 
@@ -792,7 +792,7 @@ def nonlinear_parameter(df : pd.DataFrame, input1_column: str = 'E1', input2_col
 
     return df_new
 
-def stat_moment(arr : np.array, order: int = 1, bins: int = 100)->float:
+def stat_moment(arr: np.array, order: int = 1, bins: int = 100)->float:
     """
     Compute the statistical moment of an array.
 
@@ -817,7 +817,7 @@ def stat_moment(arr : np.array, order: int = 1, bins: int = 100)->float:
 
     return exp_val
 
-def return_ndr(arr : np.array)->np.array:
+def return_ndr(arr: np.array)->np.array:
     """
     Compute the Negative differential resistance for a given array.
 
@@ -834,7 +834,7 @@ def return_ndr(arr : np.array)->np.array:
 
     return (1 - np.tanh(np.mean(arr)/np.std(arr)))/2
 
-def return_nls(df : pd.DataFrame, ml_col: str = 'Ml', mr_col: str = 'Mr', x_col: str = 'X', bins: int = 1000)->np.array:
+def return_nls(df: pd.DataFrame, ml_col: str = 'Ml', mr_col: str = 'Mr', x_col: str = 'X', bins: int = 1000)->np.array:
     """
     Compute Nonlinear Seperability (NLS) based on input columns.
 
@@ -858,13 +858,13 @@ def return_nls(df : pd.DataFrame, ml_col: str = 'Ml', mr_col: str = 'Mr', x_col:
     """
     return stat_moment(df[x_col].values, order=2, bins=bins)/(stat_moment(df[ml_col].values, order=2, bins=bins) + stat_moment(df[mr_col].values, order=2, bins=bins))
 
-def standard_scale(arr : np.array)->np.array:
-    """Standard scale: y = ( y - mean(y) ) / std(y) a 1D array
+def standard_scale(arr: np.array)->np.array:
+    """Standard scale: y = ( y - mean(y) ) / std(y) a Numpy array
 
     Parameters
     ----------
     arr : np.array
-        Data
+        Numpy array to be scaled
 
     Returns
     -------
@@ -872,6 +872,56 @@ def standard_scale(arr : np.array)->np.array:
         Standard scaled data
     """
     return (arr - np.mean(arr))/np.std(arr)
+
+def min_max_scale(arr: np.array, min_val: float = 0, max_val: float = 1)->np.array:
+    """Min-Max scale arr to [min_val,max_val]
+
+    Parameters
+    ----------
+    arr : np.array
+        Numpy array to be scaled
+    min_val : float, optional
+        Minimum, by default 0
+    max_val : float, optional
+        Maximum, by default 1
+
+    Returns
+    -------
+    np.array
+        Min Max scaled Array
+    """
+    arr = (arr-np.min(arr))/(np.max(arr)-np.min(arr))
+    arr = arr * (max_val - min_val) + min_val
+    return arr
+
+def standard_norm(arr: np.array, min_val: float = 0, max_val: float = 1)->np.array:
+    """Standard normalize an array to [min_val,max_val] range
+
+    Parameters
+    ----------
+    arr : np.array
+        Numpy array to be scaled
+
+    Returns
+    -------
+    np.array
+        Scaled Numpy array
+    """
+    arr = standard_scale(arr)
+    arr = min_max_scale(arr, min_val, max_val)
+    return arr
+
+def error_norm(arr1: np.array, arr2: np.array, norm:Union[int,str] = 1)->float:
+
+    diff = arr1 - arr2
+    if norm == 1:
+        return np.linalg.norm(diff, 1)  # L1 norm
+    elif norm == 2:
+        return np.linalg.norm(diff, 2)  # L2 norm
+    elif norm == 'inf':
+        return np.linalg.norm(diff, np.inf)  # L∞ norm
+    else:
+        raise ValueError(f"Unsupported norm type: {norm}. Choose 1, 2, or 'inf'.")
 
 def poincare_map_zero_corssing(arr : np.array)->np.array:
     """For a 1D array, return all idx at which array crosses zero line

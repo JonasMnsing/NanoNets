@@ -10,6 +10,7 @@ import multiprocessing
 from scipy.interpolate import interp1d
 from typing import Union, Tuple, List, Dict
 from scipy.signal.windows import hann
+from scipy.stats import entropy
 
 blue_color  = '#348ABD'
 red_color   = '#A60628'
@@ -978,6 +979,77 @@ def harmonic_strength(signal : np.array, f0 : float, dt : float, N_f=10, dB=True
         val_rel = val/val[0]
 
     return val_rel
+
+def shannon_entropy(state: np.array, bins: int = 20)->np.array:
+    """Shannon entropy for a 2D array representing (Time Step, Node Signal)
+
+    Parameters
+    ----------
+    state : np.array
+        2D array where each column represents the signal of a single neuron across time steps.
+    bins : int, optional
+        Number of bins for histogram, by default 10
+
+    Returns
+    -------
+    np.array
+        Entropy for each node (neuron) in the system.
+    """
+    entropies   = np.zeros(state.shape[1])
+
+    for i in range(state.shape[1]):
+        arr             = state[:,i]
+        hist, _         = np.histogram(arr, bins=bins, density=True)
+        entropies[i]    = entropy(hist)
+
+    return entropies
+
+def shannon_rank(state : np.array)->float:
+    """Calculate the Shannon rank of a 2D array representing (Time Step, Node Signal)
+
+    The Shannon rank is based on the Shannon entropy of the normalized singular values 
+    from the Singular Value Decomposition (SVD) of the input matrix. It quantifies 
+    the diversity or richness of the system's dynamics.
+
+    Parameters
+    ----------
+    state : np.array
+        2D array where each column represents the signal of a single neuron across time steps.
+    bins : int, optional
+        Number of bins for histogram, by default 10
+
+    Returns
+    -------
+    float
+        Shannon rank, a measure of the complexity/diversity of the system.
+    """
+
+    U, S, Vt    = np.linalg.svd(state)
+    p           = S / np.sum(S)
+    rank        = np.exp(-np.sum(p*np.log(p)))
+
+    return rank
+
+def autocorrelation(x : np.array, y : np.array, lags : int)->np.array:
+    """Compute autocorrelation between two arrays "x" and "y" for a range of lags
+
+    Parameters
+    ----------
+    x : np.array
+        First time series array
+    y : np.array
+        Second time series array
+    lags : int
+        Number of lags
+
+    Returns
+    -------
+    np.array
+        Autocorrelation for each lag from 0 to lags-1
+    """
+
+    return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
+
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # PLOTS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1147,26 +1219,6 @@ def store_average_time_currents(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
     means   = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns).round(3)
     
     means.to_csv(folder+f"/net_currents_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
-
-def autocorrelation(x : np.array, y : np.array, lags : int)->np.array:
-    """Compute autocorrelation between two arrays "x" and "y" for a range of lags
-
-    Parameters
-    ----------
-    x : np.array
-        First time series array
-    y : np.array
-        Second time series array
-    lags : int
-        Number of lags
-
-    Returns
-    -------
-    np.array
-        Autocorrelation for each lag from 0 to lags-1
-    """
-
-    return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
 
 def vary_currents_by_error(df : pd.DataFrame, M : int, current_col='Current', error_col='Error') -> pd.DataFrame:
     """

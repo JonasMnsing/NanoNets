@@ -92,7 +92,7 @@ def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude
 if __name__ == '__main__':
 
     # Network Topology
-    N_p                 = 13
+    N_p                 = 11
     topology_parameter  = {
         "Nx"                : N_p,
         "Ny"                : N_p,
@@ -104,20 +104,56 @@ if __name__ == '__main__':
     }
 
     # Parameter
-    N_voltages  = 1000
-    N_samples   = 504
+    N_voltages  = 10000
+    N_samples   = 512
     stat_size   = 10
-    N_procs     = 10
+    N_procs     = 36
     amplitude   = 0.1
     freq        = 1.0
     time_step   = 1e-7
     N_electrode = len(topology_parameter["e_pos"])
     index       = [i for i in range(N_samples)]
     rows        = [index[i::N_procs] for i in range(N_procs)]
-    # path        = "/home/j/j_mens07/phd/NanoNets/scripts/2_funding_period/WP2/magic_cable/data/"
-    # path        = "/mnt/c/Users/jonas/Desktop/phd/NanoNets/scripts/2_funding_period/WP2/magic_cable/data/"
     path        = "/scratch/tmp/j_mens07/data/2_funding_period/potential/magic_cable/noise/"
     
+    # Const
+    sim_type    = 'const'
+    sample      = return_lhs_sample(-0.1, 0.1, N_electrode, N_samples)
+    procs       = []
+    for i in range(N_procs):
+        
+        process = multiprocessing.Process(target=run_sim, args=(i, sample, rows, time_step, topology_parameter, path+f'{sim_type}/',
+                                                                sim_type, amplitude, freq, N_voltages, stat_size))
+        process.start()
+        procs.append(process)
+    for p in procs:
+        p.join()
+    
+    # Amplitude
+    sim_type    = 'amplitude'
+    sample      = return_lhs_sample(0.0, 0.1, N_electrode, N_samples)
+    procs       = []
+    for i in range(N_procs):
+        
+        process = multiprocessing.Process(target=run_sim, args=(i, sample, rows, time_step, topology_parameter, path+f'{sim_type}/',
+                                                                sim_type, amplitude, freq, N_voltages, stat_size))
+        process.start()
+        procs.append(process)
+    for p in procs:
+        p.join()
+    
+    # Phase
+    sim_type    = 'phase'
+    sample      = return_lhs_sample(0.0, 2*np.pi, N_electrode, N_samples)
+    procs       = []
+    for i in range(N_procs):
+        
+        process = multiprocessing.Process(target=run_sim, args=(i, sample, rows, time_step, topology_parameter, path+f'{sim_type}/',
+                                                                sim_type, amplitude, freq, N_voltages, stat_size))
+        process.start()
+        procs.append(process)
+    for p in procs:
+        p.join()
 
     # Offset
     sim_type    = 'offset'
@@ -132,48 +168,9 @@ if __name__ == '__main__':
     for p in procs:
         p.join()
 
-    # Amplitude
-    sim_type    = 'amplitude'
-    sample      = return_lhs_sample(0.0, 0.1, N_electrode, N_samples)
-    procs       = []
-    for i in range(N_procs):
-        
-        process = multiprocessing.Process(target=run_sim, args=(i, sample, rows, time_step, topology_parameter, path+f'{sim_type}/',
-                                                                sim_type, amplitude, freq, N_voltages, stat_size))
-        process.start()
-        procs.append(process)
-    for p in procs:
-        p.join()
-
     # Frequency
     sim_type    = 'frequency'
     sample      = return_lhs_sample(0.5, 2.0, N_electrode, N_samples)
-    procs       = []
-    for i in range(N_procs):
-        
-        process = multiprocessing.Process(target=run_sim, args=(i, sample, rows, time_step, topology_parameter, path+f'{sim_type}/',
-                                                                sim_type, amplitude, freq, N_voltages, stat_size))
-        process.start()
-        procs.append(process)
-    for p in procs:
-        p.join()
-
-    # Phase
-    sim_type    = 'phase'
-    sample      = return_lhs_sample(0.0, 2*np.pi, N_electrode, N_samples)
-    procs       = []
-    for i in range(N_procs):
-        
-        process = multiprocessing.Process(target=run_sim, args=(i, sample, rows, time_step, topology_parameter, path+f'{sim_type}/',
-                                                                sim_type, amplitude, freq, N_voltages, stat_size))
-        process.start()
-        procs.append(process)
-    for p in procs:
-        p.join()
-
-    # Const
-    sim_type    = 'const'
-    sample      = return_lhs_sample(-0.1, 0.1, N_electrode, N_samples)
     procs       = []
     for i in range(N_procs):
         

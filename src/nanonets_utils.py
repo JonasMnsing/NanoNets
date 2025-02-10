@@ -19,7 +19,7 @@ red_color   = '#A60628'
 # SAMPLING METHODS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def uniform_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict, U_g : Union[float, List[float]]=0.0)->np.array:
+def uniform_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict, U_g : Union[float, List[float]]=0.0)->np.ndarray:
     """Returns a uniform sample of electrode voltages, with floating electrodes set Zero and Gate electrode defined individually.
 
     Parameters
@@ -61,7 +61,7 @@ def uniform_sample(U_e : Union[float, List[float]], N_samples : int, topology_pa
 
     return sample
 
-def lhs_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict, U_g : Union[float, List[float]]=0.0)->np.array:
+def lhs_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict, U_g : Union[float, List[float]]=0.0)->np.ndarray:
     """Returns a Latin Hypercube sample of electrode voltages, with floating electrodes set Zero and Gate electrode defined individually.
 
     Parameters
@@ -216,7 +216,7 @@ def sinusoidal_voltages(N_samples : int, topology_parameter : dict, amplitudes :
     
     return time_steps, voltages 
 
-def distribute_array_across_processes(process : int, data : np.array, N_processes : int)->np.array:
+def distribute_array_across_processes(process : int, data : np.ndarray, N_processes : int)->np.ndarray:
     """Returns part of an array to be simulated by a certain process
 
     Parameters
@@ -793,7 +793,7 @@ def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_colu
 
     return df_new
 
-def stat_moment(arr: np.array, order: int = 1, bins: int = 100)->float:
+def stat_moment(arr: np.ndarray, order: int = 1, bins: int = 100)->float:
     """
     Compute the statistical moment of an array.
 
@@ -818,7 +818,7 @@ def stat_moment(arr: np.array, order: int = 1, bins: int = 100)->float:
 
     return exp_val
 
-def return_ndr(arr: np.array)->np.array:
+def return_ndr(arr: np.ndarray)->np.ndarray:
     """
     Compute the Negative differential resistance for a given array.
 
@@ -835,7 +835,7 @@ def return_ndr(arr: np.array)->np.array:
 
     return (1 - np.tanh(np.mean(arr)/np.std(arr)))/2
 
-def return_nls(df: pd.DataFrame, ml_col: str = 'Ml', mr_col: str = 'Mr', x_col: str = 'X', bins: int = 1000)->np.array:
+def return_nls(df: pd.DataFrame, ml_col: str = 'Ml', mr_col: str = 'Mr', x_col: str = 'X', bins: int = 1000)->np.ndarray:
     """
     Compute Nonlinear Seperability (NLS) based on input columns.
 
@@ -859,7 +859,7 @@ def return_nls(df: pd.DataFrame, ml_col: str = 'Ml', mr_col: str = 'Mr', x_col: 
     """
     return stat_moment(df[x_col].values, order=2, bins=bins)/(stat_moment(df[ml_col].values, order=2, bins=bins) + stat_moment(df[mr_col].values, order=2, bins=bins))
 
-def standard_scale(arr: np.array)->np.array:
+def standard_scale(arr: np.ndarray)->np.ndarray:
     """Standard scale: y = ( y - mean(y) ) / std(y) a Numpy array
 
     Parameters
@@ -874,7 +874,7 @@ def standard_scale(arr: np.array)->np.array:
     """
     return (arr - np.mean(arr))/np.std(arr)
 
-def min_max_scale(arr: np.array, min_val: float = 0, max_val: float = 1)->np.array:
+def min_max_scale(arr: np.ndarray, min_val: float = 0, max_val: float = 1)->np.ndarray:
     """Min-Max scale arr to [min_val,max_val]
 
     Parameters
@@ -895,7 +895,7 @@ def min_max_scale(arr: np.array, min_val: float = 0, max_val: float = 1)->np.arr
     arr = arr * (max_val - min_val) + min_val
     return arr
 
-def standard_norm(arr: np.array, min_val: float = 0, max_val: float = 1)->np.array:
+def standard_norm(arr: np.ndarray, min_val: float = 0, max_val: float = 1)->np.ndarray:
     """Standard normalize an array to [min_val,max_val] range
 
     Parameters
@@ -912,7 +912,7 @@ def standard_norm(arr: np.array, min_val: float = 0, max_val: float = 1)->np.arr
     arr = min_max_scale(arr, min_val, max_val)
     return arr
 
-def error_norm(arr1: np.array, arr2: np.array, norm:Union[int,str] = 1)->float:
+def error_norm(arr1: np.ndarray, arr2: np.ndarray, norm:Union[int,str] = 1)->float:
 
     diff = arr1 - arr2
     if norm == 1:
@@ -924,7 +924,7 @@ def error_norm(arr1: np.array, arr2: np.array, norm:Union[int,str] = 1)->float:
     else:
         raise ValueError(f"Unsupported norm type: {norm}. Choose 1, 2, or 'inf'.")
 
-def poincare_map_zero_corssing(arr : np.array)->np.array:
+def poincare_map_zero_corssing(arr : np.ndarray)->np.ndarray:
     """For a 1D array, return all idx at which array crosses zero line
 
     Parameters
@@ -942,7 +942,7 @@ def poincare_map_zero_corssing(arr : np.array)->np.array:
     
     return crossing
 
-def harmonic_strength(signal : np.array, f0 : float, dt : float, N_f=10, dB=True):
+def harmonic_strength(signal : np.ndarray, f0 : float, dt : float, N_f=10, dB=True):
     """
     Calculate the harmonic strength of a signal relative to its fundamental frequency.
 
@@ -980,7 +980,7 @@ def harmonic_strength(signal : np.array, f0 : float, dt : float, N_f=10, dB=True
 
     return val_rel
 
-def shannon_entropy(state: np.array, bins: int = 20)->np.array:
+def shannon_entropy(state: np.ndarray, bins: int = 20)->np.ndarray:
     """Shannon entropy for a 2D array representing (Time Step, Node Signal)
 
     Parameters
@@ -1004,7 +1004,7 @@ def shannon_entropy(state: np.array, bins: int = 20)->np.array:
 
     return entropies
 
-def shannon_rank(state : np.array)->float:
+def shannon_rank(state : np.ndarray)->float:
     """Calculate the Shannon rank of a 2D array representing (Time Step, Node Signal)
 
     The Shannon rank is based on the Shannon entropy of the normalized singular values 
@@ -1030,7 +1030,7 @@ def shannon_rank(state : np.array)->float:
 
     return rank
 
-def autocorrelation(x : np.array, y : np.array, lags : int)->np.array:
+def autocorrelation(x : np.ndarray, y : np.ndarray, lags : int)->np.ndarray:
     """Compute autocorrelation between two arrays "x" and "y" for a range of lags
 
     Parameters
@@ -1049,6 +1049,101 @@ def autocorrelation(x : np.array, y : np.array, lags : int)->np.array:
     """
 
     return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
+
+def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True) -> tuple[np.ndarray,np.ndarray]:
+    """
+    Compute the Fast Fourier Transform (FFT) of a given signal.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        The input time-domain signal.
+    dt : float
+        The time step (sampling period) of the signal.
+    n_padded : int, optional
+        The number of points for zero-padding in the FFT, by default 0 (no padding).
+    use_hann : bool, optional
+        If True, applies a Hann window before computing the FFT, by default True.
+
+    Returns
+    -------
+    freq : np.ndarray
+        The one-sided frequency axis (positive frequencies only).
+    magnitude : np.ndarray
+        The magnitude of the FFT spectrum, corresponding to `freq`.
+    """
+
+    # Apply windowing if requested
+    if use_hann:
+        signal_w    = signal*hann(len(signal))
+    else:
+        signal_w    = signal.copy()
+    
+    # Padding signal if needed
+    if n_padded > len(signal_w):
+        signal_p    = np.pad(signal_w, (0, n_padded - len(signal_w)), mode='constant')
+    else:
+        signal_p    = signal_w.copy()
+
+    # Compute FFT
+    signal_fft  = np.fft.fft(signal_p)
+
+    # Compute frequency axis
+    if n_padded == 0:
+        freq    = np.fft.fftfreq(signal.shape[-1]) / dt
+    else:
+        freq    = np.fft.fftfreq(n_padded) / dt
+
+    return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
+
+def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True, n_padded: int = 4096, dB: bool = False)->np.ndarray:
+    """Compute the harmonic strength of a signal relative to its fundamental frequency.
+
+    Parameters
+    ----------
+    signal : np.array
+        The input time-domain signal
+    f0 : float
+        The fundamental frequency (Hz)
+    dt : float
+        The time step (sampling period) of the signal
+    N_f : int
+        The number of harmonics to compute.
+    use_hann : bool, optional
+        If True, applies a Hann window before computing the FFT, by default True
+    n_padded : int, optional
+        The number of points used for zero-padding in the FFT, by default 4096
+    dB : bool, optional
+        Harmonic strength in decibel, by default False
+
+    Returns
+    -------
+    np.array
+        An array containing the relative amplitude of the first `N_f` harmonics 
+        normalized to the fundamental frequency.
+    """
+
+    # Remove DC offset
+    arr         = signal - np.mean(signal) 
+    
+    # Compute FFT and extract frequency and amplitude spectrum
+    xf, yf      = fft(signal=arr, dt=dt, n_padded=n_padded, use_hann=use_hann)
+    
+    # Interpolation function for FFT spectrum
+    func        = interp1d(xf, yf)
+
+    # Get amplitude at the fundamental frequency
+    y_f0        = func(f0)
+
+    # Compute harmonic strength
+    nth_h       = np.arange(2,N_f+2)
+
+    if dB:
+        h_strength  = 10*np.log(func(nth_h*f0)/y_f0)
+    else:
+        h_strength  = func(nth_h*f0)/y_f0
+
+    return h_strength
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # PLOTS
@@ -1363,32 +1458,6 @@ def animate_landscape(landscape : np.array, Nx, Ny, N_rows=None, fig=None, ax=No
     ani = animation.ArtistAnimation(fig, ims, interval=delay_between_frames, repeat_delay=delay_between_frames*10)
 
     return ani
-
-def fft(signal, dt, n_padded=0, use_hann=True):
-
-    # Apply windowing if requested
-    if use_hann:
-        bm          = hann(len(signal))
-        signal_w    = signal*bm
-    else:
-        signal_w    = signal.copy()
-    
-    # Padding signal if needed
-    if n_padded != 0:
-        signal_p    = np.pad(signal_w, (0, n_padded - len(signal_w)), 'constant')
-    else:
-        signal_p    = signal_w.copy()
-
-    # Perform FFT
-    signal_fft  = np.fft.fft(signal_p)
-
-    # Compute frequency axis
-    if n_padded == 0:
-        freq    = np.fft.fftfreq(signal.shape[-1]) / dt
-    else:
-        freq    = np.fft.fftfreq(n_padded) / dt
-
-    return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
 
 ##################################################################################
 ################################ TRAINING ########################################

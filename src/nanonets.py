@@ -1765,7 +1765,6 @@ class simulation(tunneling.tunnel_class):
                 
             # Store Data
             if ((i+1) % save_th == 0):
-                
                 save_target_currents(np.array(self.output_values), voltages[j:(i+1),:], self.path1)
                 save_mean_microstate(self.microstates, self.path2)
                 save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)

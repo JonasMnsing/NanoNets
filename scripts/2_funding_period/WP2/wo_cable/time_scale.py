@@ -29,7 +29,8 @@ if __name__ == '__main__':
     voltages            = np.zeros(shape=(N_voltages,9))
     voltages[:1500,0]   = 0.1
 
-    folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/time_scale/"
+    # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/time_scale/"
+    folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/time_scale/"
     # N_p_vals    = [5,7,9,11]
     N_p_vals    = [3,13]
     N_processes = 2

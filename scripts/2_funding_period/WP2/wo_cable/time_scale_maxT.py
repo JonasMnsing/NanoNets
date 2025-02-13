@@ -18,8 +18,8 @@ if __name__ == '__main__':
     time_step   = 1e-10
     stat_size   = 500
     time_steps  = np.arange(N_voltages)*time_step
-    # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/time_scale/maxT/"
-    folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/time_scale/maxT/"
+    folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/time_scale/maxT/"
+    # folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/time_scale/maxT/"
     
     # String
     N_p_vals    = np.arange(2,13)

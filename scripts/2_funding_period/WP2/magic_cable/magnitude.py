@@ -59,13 +59,14 @@ def return_network_topology(N_p: int, floating_output: bool = True) -> dict:
 if __name__ == '__main__':
 
     N_processes = 10
-    # radius      = 1e6
-    radius      = 1e1
+    radius      = 1e6
+    # radius      = 1e1
     T_val       = 0.0
     stat_size   = 50
     time_step   = 1e-7
     procs       = []
-    path        = '/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/magnitude/'
+    # path        = '/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/magnitude/'
+    path        = '/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/magic_cable/magnitude/'
 
     # Voltage Paramter
     N_voltages      = 1000
@@ -81,7 +82,7 @@ if __name__ == '__main__':
         voltages        = np.zeros(shape=(N_voltages,3))
         voltages[:,0]   = np.linspace(0, 0.2, N_voltages, endpoint=False)
         np_info2        = {
-            'np_index'      : [string_topology["Nx"]-1], 
+            'np_index'      : [string_topology["Nx"]], 
             'mean_radius'   : radius,
             'std_radius'    : 0.0
         }
@@ -92,6 +93,8 @@ if __name__ == '__main__':
 
     for p in procs:
         p.join()
+
+    print('-----')
 
     # Voltage Paramter
     N_voltages      = 1000
@@ -106,7 +109,7 @@ if __name__ == '__main__':
         voltages            = np.zeros(shape=(N_voltages,9))
         voltages[:,0]       = np.linspace(0, 0.2, N_voltages, endpoint=False)
         np_info2            = {
-            'np_index'      : [int(string_topology["Nx"]*string_topology["Ny"]-(string_topology["Nx"]+1)//2)], 
+            'np_index'      : [int(network_topology["Nx"]*network_topology["Ny"])], 
             'mean_radius'   : radius,
             'std_radius'    : 0.0
         }

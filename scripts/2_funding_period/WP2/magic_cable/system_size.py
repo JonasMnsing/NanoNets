@@ -59,19 +59,20 @@ def return_network_topology(N_p: int, floating_output: bool = True) -> dict:
 if __name__ == '__main__':
 
     N_processes = 10
-    radius      = 1e6
-    T_val       = 0.0
+    radius      = 10.0 #1e6
+    T_val       = 5.0
     stat_size   = 50
     time_step   = 1e-7
     procs       = []
-    path        = '/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/system_size/'
+    # path        = '/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/system_size/'
+    path        = '/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/magic_cable/system_size/'
 
     # Voltage Paramter
     N_voltages      = 1000
     amplitudes      = [0.1,0.0]
     frequencies     = [1e5,0.0]
-    # N_min, N_max    = 2, 12
-    N_min, N_max    = 12, 22
+    N_min, N_max    = 2, 12
+    # N_min, N_max    = 12, 22
     N_vals          = np.arange(N_min, N_max)
 
     for i in range(N_processes):
@@ -81,7 +82,7 @@ if __name__ == '__main__':
         time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_samples=N_voltages, topology_parameter=string_topology,
                                                                     amplitudes=amplitudes, frequencies=frequencies, time_step=time_step)
         np_info2                = {
-            'np_index'      : [string_topology["Nx"]-1], 
+            'np_index'      : [string_topology["Nx"]], 
             'mean_radius'   : radius,
             'std_radius'    : 0.0
         }
@@ -107,7 +108,7 @@ if __name__ == '__main__':
         time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_samples=N_voltages, topology_parameter=network_topology,
                                                                     amplitudes=amplitudes, frequencies=frequencies, time_step=time_step)
         np_info2                = {
-            'np_index'      : [int(string_topology["Nx"]*string_topology["Ny"]-(string_topology["Nx"]+1)//2)], 
+            'np_index'      : [int(network_topology["Nx"]**2)], 
             'mean_radius'   : radius,
             'std_radius'    : 0.0
         }

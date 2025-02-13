@@ -31,7 +31,7 @@ def return_lhs_sample(pmin, pmax, N_controls, N_samples):
 def run_sim(thread, params, rows, time_step, topology, path, sim_type, amplitude, freq, N_voltages, stat_size):
 
     np_info2 = {
-        'np_index'      : [int(topology["Nx"]**2-(topology["Nx"]+1)//2)], 
+        'np_index'      : [int(topology["Nx"]**2)], 
         'mean_radius'   : 1e6,
         'std_radius'    : 0.0
     }

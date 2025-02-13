@@ -368,7 +368,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         nanoparticles : list
             Index of nanoparticle with new resistance value
         R : float
-            new resistance value
+            new resistance value in Mega Ohm
         resistance_arr : array
             Resistances for each tunneling event
 
@@ -386,7 +386,7 @@ class tunnel_class(electrostatic.electrostatic_class):
             resistance_arr[np.where(self.adv_index_rows == idx + self.N_electrodes)[0]] = R_megaO
 
         return resistance_arr
-    
+
 ###########################################################################################################################
 ###########################################################################################################################
 

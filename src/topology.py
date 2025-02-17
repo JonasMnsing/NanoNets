@@ -261,11 +261,60 @@ class topology_class:
             # Store the electrode position
             self.pos[-node-1] = e_pos
     
+    # def add_np_to_e_pos(self):
+    #     """Attach nanoparticles to all floating electrodes and update the network topology accordingly.
+    #     """
+    #     # Find indices of floating electrodes
+    #     floating_electrodes = np.where(self.electrode_type == 'floating')[0]
+        
+    #     # Increase the number of nanoparticles based on the number of floating electrodes
+    #     prev_particle_count =   self.N_particles
+    #     self.N_particles    +=  len(floating_electrodes)
+
+    #     # Loop through each floating electrode
+    #     for i, electrode_index in enumerate(floating_electrodes):
+    #         # Find the nanoparticle that is connected to the floating electrode
+    #         adj_np  = np.where(self.net_topology[:,0]==(electrode_index+1))[0][0]
+            
+    #         # Create a new row for the new nanoparticle and set the connections
+    #         new_nn      = np.full(self.net_topology.shape[1], self.NO_CONNECTION)   # Initialize with placeholders
+    #         new_nn[0]   = electrode_index+1                                         # First column: connect to the electrode   
+    #         new_nn[1]   = adj_np                                                    # Second column: connect to the adjacent nanoparticle
+
+    #         # Add the new nanoparticle and its connections to the network topology
+    #         self.net_topology   = np.vstack((self.net_topology,new_nn))
+
+    #         # Update the adjacent nanoparticle's connection to remove the floating electrode
+    #         first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
+    #         self.net_topology[adj_np,first_free_spot]   = self.net_topology.shape[0]-1 
+    #         self.net_topology[adj_np,0]                 = self.NO_CONNECTION
+    #         self.pos[prev_particle_count+i]             = self.pos[-electrode_index-1]
+
+    #         # Update node positions
+    #         x, y    = self.pos[-electrode_index-1]
+    #         if x == self.N_x:
+    #             self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0]+1,self.pos[-electrode_index-1][1])
+    #         elif x == -1:
+    #             self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0]-1,self.pos[-electrode_index-1][1])
+    #         elif y == self.N_y:
+    #             self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0],self.pos[-electrode_index-1][1]+1)
+    #         elif y == -1:
+    #             self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0],self.pos[-electrode_index-1][1]-1)
+
+    #         self.G.add_node(prev_particle_count+i)
+    #         self.G.remove_edge(adj_np,-electrode_index-1)
+    #         self.G.remove_edge(-electrode_index-1,adj_np)
+    #         self.G.add_edge(prev_particle_count+i,adj_np)
+    #         self.G.add_edge(adj_np,prev_particle_count+i)
+    #         self.G.add_edge(prev_particle_count+i,-electrode_index-1)
+    #         self.G.add_edge(-electrode_index-1,prev_particle_count+i)
+    
     def add_np_to_e_pos(self):
         """Attach nanoparticles to all floating electrodes and update the network topology accordingly.
         """
         # Find indices of floating electrodes
-        floating_electrodes = np.where(self.electrode_type == 'floating')[0]
+        # floating_electrodes = np.where(self.electrode_type == 'floating')[0]
+        floating_electrodes = [self.N_electrodes-1]
         
         # Increase the number of nanoparticles based on the number of floating electrodes
         prev_particle_count =   self.N_particles
@@ -351,21 +400,6 @@ class topology_class:
     
     def __str__(self):
         return f"Topology Class with {self.N_particles} particles, {self.N_junctions} junctions.\nNetwork Topology:\n{self.net_topology}"
-
-    # Delete this method
-    # def attach_np_to_gate(self, gate_nps=None)->None:
-    #     """ Attach NPs to gate electrode. If gate_nps==None, all NPs are attached
-        
-    #     Parameters
-    #     ----------
-    #     gate_nps : array
-    #         Nanoparticles capacitively coupled to gate
-    #     """
-
-    #     if gate_nps == None:
-    #         self.gate_nps = np.ones(self.N_particles)
-    #     else:
-    #         self.gate_nps = gate_nps
     
 ###########################################################################################################################
 ###########################################################################################################################

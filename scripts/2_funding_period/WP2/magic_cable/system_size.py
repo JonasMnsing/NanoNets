@@ -72,7 +72,7 @@ if __name__ == '__main__':
     N_voltages      = 1000
     amplitudes      = [0.1,0.0]
     frequencies     = [1e5,0.0]
-    N_min, N_max    = 2, 12
+    N_min, N_max    = [2,4,6,8,10,20,40,80]
     # N_min, N_max    = 12, 22
     N_vals          = np.arange(N_min, N_max)
 

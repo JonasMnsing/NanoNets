@@ -1500,7 +1500,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 class simulation(tunneling.tunnel_class):
 
     def __init__(self, topology_parameter : dict, folder='', add_to_path="", res_info=None, res_info2=None,
-                 np_info=None, np_info2=None, seed=None, **kwargs):
+                 np_info=None, np_info2=None, seed=None, high_C_output=True, **kwargs):
         """Defines network topology, electrostatic properties and tunneling junctions for a given type of topology. 
 
         Parameters
@@ -1521,6 +1521,8 @@ class simulation(tunneling.tunnel_class):
             Dictonary including information about the second type of nanoparticles, by default None
         seed : _type_, optional
             Seed in use, when network properties are randomly sampled, by default None
+        high_C_output: bool, optional
+            Add high capacitive output electrode, by default True
 
         Raises
         ------
@@ -1571,8 +1573,8 @@ class simulation(tunneling.tunnel_class):
             # Cubic Network Topology
             self.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
             self.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
-            self.add_high_capacitive_output()
-            # self.add_np_to_e_pos()
+            if high_C_output:
+                self.add_high_capacitive_output()
             
             # Delete Junctions if porvided in kwargs
             if 'del_n_junctions' in kwargs:
@@ -1618,8 +1620,8 @@ class simulation(tunneling.tunnel_class):
         # Save Paths
         self.folder = folder
         self.path1  = folder + path_var
-        self.path2  = folder + 'mean_state_' + path_var
-        self.path3  = folder + 'net_currents_' + path_var
+        self.path2  = folder + 'mean_state_'    + path_var
+        self.path3  = folder + 'net_currents_'  + path_var
 
     def run_const_voltages(self, voltages : np.array, target_electrode : int, T_val=0.0, sim_dic=None, save_th=10, verbose=False):
         """Run a kinetic monte carlo simulation for constant electrode voltages to estimate either the constant electric current of

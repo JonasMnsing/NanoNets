@@ -8,7 +8,7 @@ def run_simulation(thread, time_steps, voltages, radius, folder, stat_size, topo
     
     target_electrode    = len(topology_parameter["e_pos"])-1
     sim_class           = nanonets.simulation(topology_parameter=topology_parameter, folder=folder, np_info2=np_info2, add_to_path=f'_{thread}')
-    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, stat_size=stat_size, save=True)
+    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, stat_size=stat_size, save=True, T_val=5.0)
 
 if __name__ == '__main__':
 
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     N_voltages      = 10000
     time_step       = 1e-7
     time_steps      = np.arange(N_voltages)*time_step
-    radius_vals     = [1e1,1e2,1e3,1e4,1e5,1e6,1e7]
+    radius_vals     = [1e2,1e3,1e4,1e5,1e6,1e7]
     stat_size       = 10
     N_processes     = len(radius_vals)
     folder          = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/time_scale/"

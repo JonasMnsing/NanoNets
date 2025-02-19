@@ -14,6 +14,7 @@ from scipy.stats import entropy
 
 blue_color  = '#348ABD'
 red_color   = '#A60628'
+green_color = '#228833'
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # SAMPLING METHODS
@@ -942,44 +943,6 @@ def poincare_map_zero_corssing(arr : np.ndarray)->np.ndarray:
     
     return crossing
 
-def harmonic_strength(signal : np.ndarray, f0 : float, dt : float, N_f=10, dB=True):
-    """
-    Calculate the harmonic strength of a signal relative to its fundamental frequency.
-
-    Parameters
-    ----------
-    signal : np.array
-        The input time-domain signal.
-    f0 : float
-        The fundamental frequency of the signal.
-    dt : float
-        Time step between samples.
-    N_f : int, optional
-        The number of harmonics to consider, default is 10.
-    dB : bool, optional
-         Whether to return the result in decibels, default is True.
-
-    Returns
-    -------
-    np.array
-        Array of harmonic strength values relative to the fundamental.    
-    """
-
-    # Fourier spectrum and interpolation
-    xf, yf  = fft(signal, dt, n_padded=4096)
-    func    = interp1d(xf, yf, kind='linear', fill_value="extrapolate")
-
-    # Get FFT values for higher harmonics
-    val     = func(np.arange(1,N_f+1)*f0)
-
-    # Harmonic strength in dB or linear
-    if dB:
-        val_rel = 10*np.log(val/val[0])
-    else:
-        val_rel = val/val[0]
-
-    return val_rel
-
 def shannon_entropy(state: np.ndarray, bins: int = 20)->np.ndarray:
     """Shannon entropy for a 2D array representing (Time Step, Node Signal)
 
@@ -1096,7 +1059,7 @@ def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True)
 
     return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
 
-def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True, n_padded: int = 4096, dB: bool = False)->np.ndarray:
+def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True, n_padded: int = 0, dB: bool = False)->np.ndarray:
     """Compute the harmonic strength of a signal relative to its fundamental frequency.
 
     Parameters
@@ -1112,7 +1075,7 @@ def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_ha
     use_hann : bool, optional
         If True, applies a Hann window before computing the FFT, by default True
     n_padded : int, optional
-        The number of points used for zero-padding in the FFT, by default 4096
+        The number of points used for zero-padding in the FFT, by default 0
     dB : bool, optional
         Harmonic strength in decibel, by default False
 

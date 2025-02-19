@@ -351,21 +351,21 @@ class electrostatic_class(topology.topology_class):
 if __name__ == '__main__':
 
     # Parameter
-    N_x, N_y, N_z       = 2,2,1
-    electrode_pos       = [[0,0,0],[N_x-1,N_y-1,0]]
+    N_x, N_y, N_z       = 3,3,1
+    electrode_pos       = [[0,0,0],[1,2,0]]
     radius, radius_std  = 10.0, 0.0
     eps_r, eps_s        = 2.6, 3.9
     np_distance         = 1
     voltage_values      = [0.8,0.0,0.0]
     electrode_type      = ['constant','floating']
     high_cap_nps        = [N_x*N_y]
-    high_cap            = 1e1
+    high_cap            = 1e2
 
     # Electrostatic
     cubic_electrostatic = electrostatic_class(electrode_type)
     cubic_electrostatic.cubic_network(N_x, N_y, N_z)
     cubic_electrostatic.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
-    cubic_electrostatic.add_np_to_e_pos()
+    cubic_electrostatic.add_high_capacitive_output()
     cubic_electrostatic.init_nanoparticle_radius(radius, radius_std)
     cubic_electrostatic.update_nanoparticle_radius(high_cap_nps, high_cap)
     cubic_electrostatic.calc_capacitance_matrix(eps_r, eps_s, np_distance)

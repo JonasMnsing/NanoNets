@@ -394,19 +394,22 @@ if __name__ == "__main__":
 
     # Parameter
     N_x, N_y, N_z       = 3,3,1
-    electrode_pos       = [[0,0,0],[2,0,0],[0,2,0],[2,2,0]]
-    electrode_type      = ['constant','floating','floating','constant']
+    electrode_pos       = [[0,0,0],[1,2,0]]
     radius, radius_std  = 10.0, 0.0
     eps_r, eps_s        = 2.6, 3.9
     np_distance         = 1
-    voltage_values      = [0.1,0.2,-0.1,0.3,-0.8]
-    tunnel_order        = 1
+    voltage_values      = [0.8,0.0,0.0]
+    electrode_type      = ['constant','floating']
+    high_cap_nps        = [N_x*N_y]
+    high_cap            = 1e2
 
     # Network Initialization
-    cubic_system  = tunnel_class(electrode_type, tunnel_order)
+    cubic_system  = tunnel_class(electrode_type)
     cubic_system.cubic_network(N_x, N_y, N_z)
     cubic_system.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
+    cubic_system.add_high_capacitive_output()
     cubic_system.init_nanoparticle_radius(radius, radius_std)
+    cubic_system.update_nanoparticle_radius(high_cap_nps, high_cap)
     cubic_system.calc_capacitance_matrix(eps_r, eps_s, np_distance)
     cubic_system.init_charge_vector(voltage_values)
     cubic_system.init_adv_indices()
@@ -418,10 +421,9 @@ if __name__ == "__main__":
     charge_vector           = cubic_system.return_charge_vector()
 
     # Print Attributes
-    print("Cubic Network Topology:\n",      topology_arr)
-    print("Capacitance Matrix:\n",          capacitance_matrix)
-    print("Inverse Capacitance Matrix:\n",  inv_capacitance_matrix)
-    print("Initial Charge Vector:\n",       charge_vector)
+    print(cubic_system)
+    print("Capacitance Matrix:\n", np.round(capacitance_matrix,2))
+    print("Initial Charge Vector:\n", np.round(charge_vector,2))
 
     # Advanced Indices:
     adv_index_rows, adv_index_cols, co_adv_index1, co_adv_index2, co_adv_index3 = cubic_system.return_advanced_indices()

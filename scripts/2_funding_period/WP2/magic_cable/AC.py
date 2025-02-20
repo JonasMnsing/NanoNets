@@ -69,53 +69,53 @@ if __name__ == '__main__':
     # path        = '/home/jonasmensing/phd/data/2_funding_period/potential/magic_cable/alternating_current/'
 
     # Voltage Paramter
-    N_voltages      = 10000
-    N_min, N_max    = 2, 12
-    amplitudes      = [0.1,0.0]
-    frequencies     = [1e5,0.0]
-    N_vals          = np.arange(N_min, N_max)
-
-    for i in range(N_processes):
-
-        N_p                     = N_vals[i]
-        string_topology         = return_string_topology(N_p)
-        time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_samples=N_voltages, topology_parameter=string_topology,
-                                                                    amplitudes=amplitudes, frequencies=frequencies, time_step=time_step)
-        np_info2                = {
-            'np_index'      : [string_topology["Nx"]], 
-            'mean_radius'   : radius,
-            'std_radius'    : 0.0
-        }
-        process                 = multiprocessing.Process(target=run_simulation, args=(time_steps, voltages, string_topology, np_info2,
-                                                                                       path, radius, 0, T_val, stat_size))
-        process.start()
-        procs.append(process)
-
-    for p in procs:
-        p.join()
-
-    # Voltage Paramter
-    # N_voltages      = 1000
-    # N_processes     = 6
-    # amplitudes      = [0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
-    # frequencies     = [1e5,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
-    # N_vals          = [3,5,7,9,11,13]
+    # N_voltages      = 10000
+    # N_min, N_max    = 2, 12
+    # amplitudes      = [0.1,0.0]
+    # frequencies     = [1e5,0.0]
+    # N_vals          = np.arange(N_min, N_max)
 
     # for i in range(N_processes):
 
     #     N_p                     = N_vals[i]
-    #     network_topology        = return_network_topology(N_p)
-    #     time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_samples=N_voltages, topology_parameter=network_topology,
+    #     string_topology         = return_string_topology(N_p)
+    #     time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_samples=N_voltages, topology_parameter=string_topology,
     #                                                                 amplitudes=amplitudes, frequencies=frequencies, time_step=time_step)
     #     np_info2                = {
-    #         'np_index'      : [int(network_topology["Nx"]**2)], 
+    #         'np_index'      : [string_topology["Nx"]], 
     #         'mean_radius'   : radius,
     #         'std_radius'    : 0.0
     #     }
-    #     process                 = multiprocessing.Process(target=run_simulation, args=(time_steps, voltages, network_topology, np_info2,
+    #     process                 = multiprocessing.Process(target=run_simulation, args=(time_steps, voltages, string_topology, np_info2,
     #                                                                                    path, radius, 0, T_val, stat_size))
     #     process.start()
     #     procs.append(process)
 
     # for p in procs:
     #     p.join()
+
+    # Voltage Paramter
+    N_voltages      = 10000
+    N_processes     = 6
+    amplitudes      = [0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+    frequencies     = [1e5,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+    N_vals          = [3,5,7,9,11,13]
+
+    for i in range(N_processes):
+
+        N_p                     = N_vals[i]
+        network_topology        = return_network_topology(N_p)
+        time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_samples=N_voltages, topology_parameter=network_topology,
+                                                                    amplitudes=amplitudes, frequencies=frequencies, time_step=time_step)
+        np_info2                = {
+            'np_index'      : [int(network_topology["Nx"]**2)], 
+            'mean_radius'   : radius,
+            'std_radius'    : 0.0
+        }
+        process                 = multiprocessing.Process(target=run_simulation, args=(time_steps, voltages, network_topology, np_info2,
+                                                                                       path, radius, 0, T_val, stat_size))
+        process.start()
+        procs.append(process)
+
+    for p in procs:
+        p.join()

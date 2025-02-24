@@ -8,7 +8,7 @@ import multiprocessing
 def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, f0):
     
     target_electrode    = len(topology_parameter["e_pos"])-1
-    sim_class           = nanonets.simulation(topology_parameter=topology_parameter, folder=folder, high_C_output=True, add_to_path=f"_{f0}")
+    sim_class           = nanonets.simulation(topology_parameter=topology_parameter, folder=folder, high_C_output=False, add_to_path=f"_{f0}")
     sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, stat_size=stat_size, save=True, T_val=5.0)
 
 if __name__ == '__main__':
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     time_step   = 1e-10
     stat_size   = 100
     time_steps  = np.arange(N_voltages)*time_step
-    folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/magic_cable/frequency/"
+    folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/frequency/"
     # folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/frequency/"
     
     topology_parameter  = {
@@ -30,7 +30,8 @@ if __name__ == '__main__':
     }
 
     # String
-    freq_vals   = np.linspace(5.5,10,10)
+    # freq_vals   = np.linspace(20.5,25,10)
+    freq_vals   = np.linspace(25.5,30,10)
     N_processes = len(freq_vals)
     procs       = []
 

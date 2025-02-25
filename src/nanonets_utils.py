@@ -215,7 +215,7 @@ def sinusoidal_voltages(N_samples : int, topology_parameter : dict, amplitudes :
     # Set floating electrodes to 0V
     voltages[:,floating_idx] = 0.0
     
-    return time_steps, voltages 
+    return time_steps, voltages
 
 def distribute_array_across_processes(process : int, data : np.ndarray, N_processes : int)->np.ndarray:
     """Returns part of an array to be simulated by a certain process
@@ -1038,10 +1038,12 @@ def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True)
 
     # Apply windowing if requested
     if use_hann:
-        signal_w    = signal*hann(len(signal))
+        signal_w        = signal*hann(len(signal))
+        hann_correction = 1.63
     else:
-        signal_w    = signal.copy()
-    
+        signal_w        = signal.copy()
+        hann_correction = 1.0
+
     # Padding signal if needed
     if n_padded > len(signal_w):
         signal_p    = np.pad(signal_w, (0, n_padded - len(signal_w)), mode='constant')
@@ -1050,6 +1052,7 @@ def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True)
 
     # Compute FFT
     signal_fft  = np.fft.fft(signal_p)
+    N           = len(signal_p)
 
     # Compute frequency axis
     if n_padded == 0:
@@ -1057,7 +1060,10 @@ def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True)
     else:
         freq    = np.fft.fftfreq(n_padded) / dt
 
-    return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
+    magnitude_rms = (np.abs(signal_fft[:len(freq)//2]) / np.sqrt(2 * N)) * hann_correction
+
+    # return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
+    return freq[:len(freq)//2], magnitude_rms
 
 def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True, n_padded: int = 0, dB: bool = False)->np.ndarray:
     """Compute the harmonic strength of a signal relative to its fundamental frequency.

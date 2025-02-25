@@ -14,12 +14,12 @@ def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, 
 if __name__ == '__main__':
 
     # Global
-    N_voltages  = 200000
-    time_step   = 1e-10
-    stat_size   = 100
-    time_steps  = np.arange(N_voltages)*time_step
-    folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/frequency/"
-    # folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/frequency/"
+    N_periods   = 40
+    N_samples_P = 200
+    N_voltages  = N_periods * N_samples_P
+    stat_size   = 1000
+    # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/frequency/"
+    folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/frequency/"
     
     topology_parameter  = {
         "Nx"                : 10,
@@ -30,14 +30,16 @@ if __name__ == '__main__':
     }
 
     # String
-    # freq_vals   = np.linspace(20.5,25,10)
-    freq_vals   = np.linspace(25.5,30,10)
+    # freq_vals   = np.logspace(-3,3,7)
+    # freq_vals   = np.logspace(-3,2,6)*8
+    freq_vals   = [3,5,7,9,11,15,25]
     N_processes = len(freq_vals)
     procs       = []
 
     for i in range(N_processes):
         f0                  = freq_vals[i]
         frequencies         = [f0*1e6,0.0]
+        time_step           = 1 / (f0 * N_samples_P * 1e6)
         amplitudes          = [0.1,0.0]
         time_steps, volt    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter, amplitudes=amplitudes, frequencies=frequencies, time_step=time_step)
         process = multiprocessing.Process(target=run_simulation, args=(time_steps, volt, topology_parameter, folder, stat_size, f0))

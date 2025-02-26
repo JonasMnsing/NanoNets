@@ -10,7 +10,7 @@ def run_simulation(time_steps, voltages, topology_parameter, np_info2, path, rad
     target_electrode    = len(topology_parameter["e_pos"])-1
     sim_class           = nanonets.simulation(topology_parameter=topology_parameter, folder=path, np_info2=np_info2, add_to_path=f"_{radius}")
     sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode, T_val=T_val,
-                               stat_size=stat_size, save=True, eq_steps=eq_steps)
+                                stat_size=stat_size, save=True, eq_steps=eq_steps)
     
 def return_string_topology(N_p: int, floating_output: bool = True) -> dict:
 

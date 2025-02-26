@@ -350,8 +350,8 @@ class topology_class:
         self.G.remove_edge(-output_electrode_idx-1,adj_np)
 
         # Add new nanoparticles
+        self.G.add_node(prev_particle_count)
         self.G.add_node(prev_particle_count+1)
-        self.G.add_node(prev_particle_count+2)
 
         # Add new edges
         self.G.add_edge(prev_particle_count,adj_np)
@@ -362,6 +362,9 @@ class topology_class:
         self.G.add_edge(prev_particle_count+1,prev_particle_count)
         self.G.add_edge(prev_particle_count+1,-output_electrode_idx-1)
         self.G.add_edge(-output_electrode_idx-1,prev_particle_count+1)
+
+        print(self.G.nodes)
+
 
     def graph_to_net_topology(self)->None:
         """Transfer directed graph to net_topology array.

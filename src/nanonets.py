@@ -1500,7 +1500,7 @@ def save_cojump_storage(average_cojumps : List[np.array], co_adv_index1 : np.arr
 class simulation(tunneling.tunnel_class):
 
     def __init__(self, topology_parameter : dict, folder='', add_to_path="", res_info=None, res_info2=None,
-                 np_info=None, np_info2=None, seed=None, high_C_output=True, **kwargs):
+                 np_info=None, np_info2=None, seed=None, high_C_output=False, **kwargs):
         """Defines network topology, electrostatic properties and tunneling junctions for a given type of topology. 
 
         Parameters

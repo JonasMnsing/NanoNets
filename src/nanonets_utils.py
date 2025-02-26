@@ -1119,7 +1119,7 @@ def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_ha
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XNOR', 'NAND', 'NOR'], 
-    dpi: int = 200, x_limits: List[float] = [0.45, 10], y_limits: List[float] = [0.1, 100], xlabel: str = 'Fitness', ylabel: str = 'Abundance') -> Tuple[plt.Figure, plt.Axes]:
+    dpi: int = 200, x_limits: List[float] = [0.45, 10], y_limits: List[float] = [1.0, 100], xlabel: str = 'Fitness', ylabel: str = 'Abundance') -> Tuple[plt.Figure, plt.Axes]:
     """
     Plot the abundance of logic gates as a function of their fitness values.
 
@@ -1330,7 +1330,10 @@ def display_network(np_network_sim : nanonets.simulation, fig=None, ax=None, blu
         node_labels = {i : '' for i in np_network_sim.G.nodes}
 
     if provide_electrode_labels == None:
-        colors[np_network_sim.N_particles-n_floatings:-n_floatings] = red_color
+        if n_floatings == 0:
+            colors[np_network_sim.N_particles:] = red_color
+        else: 
+            colors[np_network_sim.N_particles-n_floatings:-n_floatings] = red_color
     else:
         colors[np_network_sim.N_particles-n_floatings:-n_floatings] = None
     

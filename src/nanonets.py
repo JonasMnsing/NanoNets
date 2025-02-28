@@ -1769,7 +1769,7 @@ class simulation(tunneling.tunnel_class):
                 
             # Store Data
             if ((i+1) % save_th == 0):
-                output_pots = self.landscape[:,self.N_electrodes:]
+                output_pots = self.landscape#[:,self.N_electrodes:]
                 save_target_currents(np.array(self.output_values), voltages[j:(i+1),:], self.path1)
                 save_mean_microstate(output_pots, self.path2)
                 save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)

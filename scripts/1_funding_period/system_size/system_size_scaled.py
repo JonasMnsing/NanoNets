@@ -15,7 +15,7 @@ import nanonets_utils
 import multiprocessing
 
 # Simulation Function
-def parallel_code(thread, rows, U_e, N_voltages, N_p_min, N_p_max):
+def parallel_code(thread, rows, U_e, N_voltages, N_p_min, N_p_max, alphas):
 
     for N in range(N_p_min, N_p_max+1):
         
@@ -25,7 +25,7 @@ def parallel_code(thread, rows, U_e, N_voltages, N_p_min, N_p_max):
             "Ny"                :   N,
             "Nz"                :   1,
             "e_pos"             :   [[0,0,0], [int((N-1)/2),0,0], [N-1,0,0], 
-                                    [0,int((N-1)/2),0], [0,N-1,0], [N-1,int((N)/2),0],
+                                    [0,int((N-1)/2),0], [N-1,int((N)/2),0], [0,N-1,0],
                                     [int((N)/2),(N-1),0], [N-1,N-1,0]],
             "electrode_type"    :   ['constant','constant','constant','constant','constant','constant','constant','constant']
         }
@@ -35,7 +35,9 @@ def parallel_code(thread, rows, U_e, N_voltages, N_p_min, N_p_max):
         else:
             folder  = "/home/j/j_mens07/phd/data/1_funding_period/potential/system_size/"
 
-        voltages            = nanonets_utils.logic_gate_sample(U_e=U_e, input_pos=[1,3], N_samples=N_voltages, topology_parameter=topology_parameter)
+        voltages            = nanonets_utils.logic_gate_sample(U_e=U_e, input_pos=[1,3], N_samples=N_voltages, sample_technique='uniform',
+                                                               topology_parameter=topology_parameter, U_i=0.01*alphas[thread])
+        voltages            = np.round(voltages,4)
         target_electrode    = len(topology_parameter["e_pos"]) - 1
         thread_rows         = rows[thread]
         
@@ -43,6 +45,9 @@ def parallel_code(thread, rows, U_e, N_voltages, N_p_min, N_p_max):
         sim_class.run_const_voltages(voltages=voltages[thread_rows,:], target_electrode=target_electrode, save_th=20)
 
 if __name__ == '__main__':
+
+    # Scaling factors
+    alphas  = []
 
     # N_p x N_p Values for Network Size 
     N_p_min = 9
@@ -52,14 +57,14 @@ if __name__ == '__main__':
     N_voltages  = 20000 #80640
     N_processes = 10 #36
 
-    # Maximum absolute voltage values
-    U_e = 0.1
-    
     # Simulated rows for each process
     index   = [i for i in range(N_voltages)]
     rows    = [index[i::N_processes] for i in range(N_processes)]
 
     for i in range(N_processes):
 
-        process = multiprocessing.Process(target=parallel_code, args=(i, rows, U_e, N_voltages, N_p_min, N_p_max))
+        # Maximum absolute voltage values
+        U_e = 0.1 * alphas[i]
+
+        process = multiprocessing.Process(target=parallel_code, args=(i, rows, U_e, N_voltages, N_p_min, N_p_max, alphas))
         process.start()

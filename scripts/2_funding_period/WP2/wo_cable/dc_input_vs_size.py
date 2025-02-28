@@ -17,7 +17,6 @@ if __name__ == '__main__':
     time_step   = 1e-10
     stat_size   = 200
     time_steps  = np.arange(N_voltages)*time_step
-    # folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/"
     
     # String
     N_p_vals    = [2,4,6,8,10,12,14,16,18,20]
@@ -32,12 +31,14 @@ if __name__ == '__main__':
             "Ny"                : 1,
             "Nz"                : 1,
             "e_pos"             : [[0,0,0],[N_p-1,0,0]],
-            "electrode_type"    : ['constant','constant']
+            "electrode_type"    : ['constant','floating']
         }
         if topology_parameter["electrode_type"][-1] == 'floating':
-            folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/"
+            # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/"
+            folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/"
         else:
-            folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/current/wo_magic_cable/dc_input_vs_size/"
+            # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/current/wo_magic_cable/dc_input_vs_size/"
+            folder      = "/home/j/j_mens07/phd/data/2_funding_period/current/wo_magic_cable/dc_input_vs_size/"
 
         process = multiprocessing.Process(target=run_simulation, args=(time_steps, volt, topology_parameter, folder, stat_size))
         process.start()

@@ -308,9 +308,50 @@ class topology_class:
     #         self.G.add_edge(adj_np,prev_particle_count+i)
     #         self.G.add_edge(prev_particle_count+i,-electrode_index-1)
     #         self.G.add_edge(-electrode_index-1,prev_particle_count+i)
+
+    #TODO Update self.pos (see previous method)
+    def add_np_to_e_pos(self):
+        """Attach one nanoparticle to the output electrode.
+        """
+        # Index of output electrode
+        output_electrode_idx    = self.N_electrodes-1
+        
+        # Increase the number of nanoparticles by two
+        prev_particle_count =   self.N_particles
+        self.N_particles    +=  1
+
+        # Find the nanoparticle that is connected to the floating electrode
+        adj_np  = np.where(self.net_topology[:,0]==(output_electrode_idx+1))[0][0]
+
+        # Create a new row for the first nanoparticle and set update connection
+        new_nn_1    = np.full(self.net_topology.shape[1], self.NO_CONNECTION)   # Initialize with placeholders
+        new_nn_1[0] = output_electrode_idx+1                                    # Connect to the electrode   
+        new_nn_1[1] = adj_np                                                    # Connect to the adjacent nanoparticle
+
+        # Add the new nanoparticles and their connections to the network topology
+        self.net_topology   = np.vstack((self.net_topology,new_nn_1))
+
+        # Update the adjacent nanoparticle's connection
+        first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
+        self.net_topology[adj_np,first_free_spot]   = self.net_topology.shape[0]-1
+        first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
+        self.net_topology[adj_np,0]                 = self.NO_CONNECTION
+
+        # Remove old electrode connection
+        self.G.remove_edge(adj_np,-output_electrode_idx-1)
+        self.G.remove_edge(-output_electrode_idx-1,adj_np)
+
+        # Add new nanoparticles
+        self.G.add_node(prev_particle_count)
+
+        # Add new edges
+        self.G.add_edge(prev_particle_count,adj_np)
+        self.G.add_edge(adj_np,prev_particle_count)
+        self.G.add_edge(prev_particle_count,-output_electrode_idx-1)
+        self.G.add_edge(-output_electrode_idx-1,prev_particle_count)
     
     #TODO Update self.pos (see previous method)
-    def add_high_capacitive_output(self):
+    def add_in_parallel_output_capacitor(self):
         """Attach two nanoparticles to the output electrode.
         """
         # Index of output electrode
@@ -364,7 +405,7 @@ class topology_class:
         self.G.add_edge(-output_electrode_idx-1,prev_particle_count+1)
 
     #TODO Update self.pos (see previous method)
-    def add_np_to_e_pos(self):
+    def add_in_series_output_capacitor(self):
         """Attach two nanoparticles to the output electrode.
         """
         # Index of output electrode

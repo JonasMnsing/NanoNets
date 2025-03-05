@@ -354,7 +354,7 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
     """
 
     # Prepare column names for sorting
-    sort_cols   = [f'E{i}' for i in range(N_e) if 'E{i}' not in input_cols] + ['G'] + input_cols
+    sort_cols   = [f'E{i}' for i in range(N_e) if f'E{i}' not in input_cols] + ['G'] + input_cols
 
     # Copy DataFame and drop Zeros
     data    = df.copy()
@@ -422,11 +422,15 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
     """
     
     data = load_simulation_results(folder, N, N_e, disordered)
-    
+
     if isinstance(N, list) and isinstance(N_e, int):
-        prepared_data = {key: prepare_for_fitness_calculation(data[key], N_e, input_cols, off_state=off_state, on_state=on_state) for key in data.keys()}
+        if isinstance(on_state, float):
+            on_state    = [on_state for _ in range(len(N))]
+        prepared_data   = {key: prepare_for_fitness_calculation(data[key], N_e, input_cols, off_state=off_state, on_state=on_state[i]) for i, key in enumerate(data.keys())}
     elif isinstance(N, int) and isinstance(N_e, list):
-        prepared_data = {key: prepare_for_fitness_calculation(data[key], key, input_cols, off_state=off_state, on_state=on_state) for key in data.keys()}
+        if isinstance(on_state, float):
+            on_state    = [on_state for _ in range(len(N_e))]
+        prepared_data = {key: prepare_for_fitness_calculation(data[key], key, input_cols, off_state=off_state, on_state=on_state[i]) for i, key in enumerate(data.keys())}
     else:
         prepared_data = prepare_for_fitness_calculation(data, N_e, input_cols, off_state=off_state, on_state=on_state)
 
@@ -742,7 +746,8 @@ def get_best_logic_gate(df: pd.DataFrame, fitness : pd.DataFrame, gate: str, inp
 
     return df_gate
 
-def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_column: str = 'E3', off_state: float=0.0, on_state: float=0.01)->pd.DataFrame:
+def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_column: str = 'E3',
+                        off_state: float=0.0, on_state: float=0.01, n_bootstrap: int=0)->pd.DataFrame:
     """
     Compute nonlinear parameters based on input and output values.
 
@@ -758,6 +763,8 @@ def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_colu
         The value representing the 'off' state, by default 0.0.
     on_state : float, optional
         The value representing the 'on' state, by default 0.01.
+    n_bootstrap : int, optional
+        Resample n_bootstrap times each nonlinear parameter and collect those in a list, by default 0. 
 
     Returns
     -------
@@ -770,29 +777,53 @@ def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_colu
     """
 
     values_input    = pd.DataFrame()
+    errors_input    = pd.DataFrame()
 
     # Extract current values for all input combinations
     df_tmp              = df[(df[input1_column] == off_state) & (df[input2_column] == off_state)].reset_index(drop=True)
     values_input['I00'] = df_tmp['Current']
+    errors_input['E00'] = df_tmp['Error']
     df_tmp              = df[(df[input1_column] == off_state) & (df[input2_column] == on_state)].reset_index(drop=True)
     values_input['I01'] = df_tmp['Current']
+    errors_input['E01'] = df_tmp['Error']
     df_tmp              = df[(df[input1_column] == on_state) & (df[input2_column] == off_state)].reset_index(drop=True)
     values_input['I10'] = df_tmp['Current']
+    errors_input['E10'] = df_tmp['Error']
     df_tmp              = df[(df[input1_column] == on_state) & (df[input2_column] == on_state)].reset_index(drop=True)
     values_input['I11'] = df_tmp['Current']
+    errors_input['E11'] = df_tmp['Error']
 
-    
-    # Remove zero values and drop missing data
-    values_input    = values_input.replace(0, np.nan).dropna().reset_index(drop=True)
+    if n_bootstrap == 0:
+        # Initialize a DataFrame for the calculated nonlinear parameters
+        df_new          = pd.DataFrame()
+        df_new['Iv']    = (values_input["I11"] + values_input["I10"] + values_input["I01"] + values_input["I00"])/4
+        df_new['Ml']    = (values_input["I11"] + values_input["I10"] - values_input["I01"] - values_input["I00"])/4
+        df_new['Mr']    = (values_input["I11"] - values_input["I10"] + values_input["I01"] - values_input["I00"])/4
+        df_new['X']     = (values_input["I11"] - values_input["I10"] - values_input["I01"] + values_input["I00"])/4
 
-    # Initialize a DataFrame for the calculated nonlinear parameters
-    df_new          = pd.DataFrame()
-    df_new['Iv']    = (values_input["I11"] + values_input["I10"] + values_input["I01"] + values_input["I00"])/4
-    df_new['Ml']    = (values_input["I11"] + values_input["I10"] - values_input["I01"] - values_input["I00"])/4
-    df_new['Mr']    = (values_input["I11"] - values_input["I10"] + values_input["I01"] - values_input["I00"])/4
-    df_new['X']     = (values_input["I11"] - values_input["I10"] - values_input["I01"] + values_input["I00"])/4
+        return df_new
 
-    return df_new
+    else:
+        bootstrap_dfs   = []
+        for _ in range(n_bootstrap):
+            # Resample data with replacement
+            resampled_indices   = np.random.choice(len(values_input), size=len(values_input), replace=True)
+            resampled_data      = values_input.values[resampled_indices]
+            resampled_errors    = errors_input.values[resampled_indices]
+
+            # Perturb data using their errors
+            perturbed_data      = resampled_data + np.random.normal(0, resampled_errors/1.96)
+
+            # Initialize a DataFrame for the calculated nonlinear parameters
+            df_new          = pd.DataFrame()
+            df_new['Iv']    = (perturbed_data[:,3] + perturbed_data[:,2] + perturbed_data[:,1] + perturbed_data[:,0])/4
+            df_new['Ml']    = (perturbed_data[:,3] + perturbed_data[:,2] - perturbed_data[:,1] - perturbed_data[:,0])/4
+            df_new['Mr']    = (perturbed_data[:,3] - perturbed_data[:,2] + perturbed_data[:,1] - perturbed_data[:,0])/4
+            df_new['X']     = (perturbed_data[:,3] - perturbed_data[:,2] - perturbed_data[:,1] + perturbed_data[:,0])/4
+
+            bootstrap_dfs.append(df_new)
+        
+        return bootstrap_dfs
 
 def stat_moment(arr: np.ndarray, order: int = 1, bins: int = 100)->float:
     """

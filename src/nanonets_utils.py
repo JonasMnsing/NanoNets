@@ -395,7 +395,8 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
 
     return data
 
-def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], input_cols: List[str], disordered: bool = False, off_state: float = 0.0, on_state: float = 0.01) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
+def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], input_cols: List[str],
+                         disordered: bool = False, off_state: float = 0.0, on_state: float = 0.01, max_error=np.inf) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
     """Load and prepare simulation results.
 
     Parameters
@@ -414,6 +415,8 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
         Value representing the off-state voltage, by default 0.0
     on_state : float, optional
         Value representing the on-state voltage, by default 0.01
+    max_error : float, optional
+        Maximum relative error to be considered, by default np.inf
 
     Returns
     -------
@@ -422,6 +425,12 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
     """
     
     data = load_simulation_results(folder, N, N_e, disordered)
+
+    if isinstance(data, dict):
+        for key, df in data.items():
+            data[key]   = df[(df['Error']/df['Current']).abs() < max_error].reset_index(drop=True)
+    else:
+        data    = data[(data['Error']/data['Current']).abs() < max_error].reset_index(drop=True)
 
     if isinstance(N, list) and isinstance(N_e, int):
         if isinstance(on_state, float):

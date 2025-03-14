@@ -17,7 +17,6 @@ if __name__ == '__main__':
     time_step   = 1e-10
     stat_size   = 200
     time_steps  = np.arange(N_voltages)*time_step
-    # folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/"
     
     # String
     N_p_vals    = [2,4,6,8,10,12,14,16,18,20]

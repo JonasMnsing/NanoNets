@@ -19,7 +19,9 @@ if __name__ == '__main__':
     time_steps  = np.arange(N_voltages)*time_step
     
     # String
-    N_p_vals    = [2,4,6,8,10,12,14,16,18,20]
+    # N_p_vals    = [2,4,6,8,10,12,14,16,18,20]
+    # N_p_vals    = [30,40,50,60,70,80,90,100]
+    N_p_vals    = [22,24,26,28,32,34,36,38,42,44,46,48]
     N_processes = len(N_p_vals)
     procs       = []
     volt        = np.zeros(shape=(N_voltages,3))
@@ -31,14 +33,14 @@ if __name__ == '__main__':
             "Ny"                : 1,
             "Nz"                : 1,
             "e_pos"             : [[0,0,0],[N_p-1,0,0]],
-            "electrode_type"    : ['constant','floating']
+            "electrode_type"    : ['constant','constant']
         }
         if topology_parameter["electrode_type"][-1] == 'floating':
-            folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/293/"
-            # folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/293/"
+            # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/293/"
+            folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/wo_magic_cable/dc_input_vs_size/293/"
         else:
-            folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/current/wo_magic_cable/dc_input_vs_size/293/"
-            # folder      = "/home/j/j_mens07/phd/data/2_funding_period/current/wo_magic_cable/dc_input_vs_size/293/"
+            # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/current/wo_magic_cable/dc_input_vs_size/293/"
+            folder      = "/home/j/j_mens07/phd/data/2_funding_period/current/wo_magic_cable/dc_input_vs_size/293/"
 
         process = multiprocessing.Process(target=run_simulation, args=(time_steps, volt, topology_parameter, folder, stat_size))
         process.start()

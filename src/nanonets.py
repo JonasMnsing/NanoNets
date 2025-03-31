@@ -287,6 +287,7 @@ class model_class():
 
         free_energy         = self.ele_charge*(self.potential_vector[self.adv_index_cols] - self.potential_vector[self.adv_index_rows]) + self.const_capacitance_values
         self.tunnel_rates   = (free_energy/self.resistances)/(np.exp(free_energy/self.temperatures) - 1.0)
+        self.tunnel_rates   = np.nan_to_num(self.tunnel_rates, nan=0.0)
 
     def calc_tunnel_rates_zero_T(self):
         """Compute tunneling rates in zero T approximation
@@ -350,7 +351,6 @@ class model_class():
         event       = random_number1 * k_tot
 
         if (k_tot == 0.0):
-            # self.time   = 1.0
             self.jump   = -1
             return
         
@@ -896,9 +896,9 @@ class model_class():
 
             # KMC Step and evolve in time
             self.select_event(random_number1, random_number2)
-
+            
             if (self.jump == -1):
-    
+                    
                 # Update Observables
                 rate_diffs                  += (rate1 - rate2)*(time_target-last_time)
                 self.charge_mean            += self.charge_vector*(time_target-last_time)
@@ -914,7 +914,7 @@ class model_class():
             if (self.time >= time_target):
 
                 self.neglect_last_event(np1,np2)
-                
+
                 # Update Observables
                 rate_diffs                  += (rate1 - rate2)*(time_target-last_time)
                 self.charge_mean            += self.charge_vector*(time_target-last_time)
@@ -923,15 +923,16 @@ class model_class():
                 break
 
             else:
-
+                
                 # Update Observables
                 rate_diffs                  += (rate1 - rate2)*(self.time-last_time)
                 self.charge_mean            += self.charge_vector*(self.time-last_time)
                 self.potential_mean         += self.potential_vector*(self.time-last_time)
                 self.I_network[self.jump]   += 1
                 self.total_jumps            += 1
-        
+
         self.target_observable_mean = rate_diffs/(time_target-inner_time)
+        
         if self.total_jumps != 0:
             self.I_network          = self.I_network/self.total_jumps
         else:
@@ -1646,6 +1647,8 @@ class simulation(tunneling.tunnel_class):
             If true, track additional simulation observables. Increases simulation duration!
         """
 
+        voltages    = np.round(voltages,5)
+        
         # Simulation Parameter
         if sim_dic is None:
             sim_dic =   {
@@ -1809,6 +1812,8 @@ class simulation(tunneling.tunnel_class):
             If true, track additional simulation observables. Increases simulation duration!, by default False
         """
 
+        voltages    = np.round(voltages,5)
+
         # Check if target electrode is a floating electrode
         if self.electrode_type[target_electrode] == 'floating':
             output_potential    = True
@@ -1929,7 +1934,7 @@ class simulation(tunneling.tunnel_class):
                 self.average_jumps[i,:] += self.model.return_network_currents()/stat_size
 
                 if verbose:
-                    self.resistance_mean += self.model.return_average_resistances()/stat_size
+                    self.resistance_mean    += self.model.return_average_resistances()/stat_size
                 
                 # Subtract past charging state voltage contribution
                 self.model.charge_vector    = self.model.charge_vector - offset

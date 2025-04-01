@@ -7,7 +7,7 @@ import multiprocessing
 def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, cap):
 
     np_info2    = {
-        'np_index'      : [10], 
+        'np_index'      : [40], 
         'mean_radius'   : cap,
         'std_radius'    : 0.0
     }
@@ -26,14 +26,17 @@ if __name__ == '__main__':
     folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/dc_input_vs_cap/"
 
     topology_parameter  = {
-        "Nx"                : 10,
+        "Nx"                : 40,
         "Ny"                : 1,
         "Nz"                : 1,
-        "e_pos"             : [[0,0,0],[9,0,0]],
+        "e_pos"             : [[0,0,0],[39,0,0]],
         "electrode_type"    : ['constant','floating']
     }
     
-    cap_vals    = [1e1,1e2,1e3,1e4,1e5,1e6]
+    # cap_vals    = [1e1,1e2,1e3,1e4,1e5,1e6]
+    # cap_vals    = [5e1,5e2,5e3,5e4,5e5]
+    # cap_vals    = [2.5e1,2.5e2,2.5e3,2.5e4,2.5e5]
+    cap_vals    = [7.5e1,7.5e2,7.5e3,7.5e4,7.5e5]
     N_processes = len(cap_vals)
     procs       = []
     volt        = np.zeros(shape=(N_voltages,3))

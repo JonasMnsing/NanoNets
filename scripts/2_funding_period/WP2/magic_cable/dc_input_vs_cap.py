@@ -23,7 +23,8 @@ if __name__ == '__main__':
     time_step   = 1e-10
     stat_size   = 50
     time_steps  = np.arange(N_voltages)*time_step
-    folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/dc_input_vs_cap/"
+    # folder      = "/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/dc_input_vs_cap/"
+    folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/magic_cable/dc_input_vs_cap/"
 
     topology_parameter  = {
         "Nx"                : 40,
@@ -33,14 +34,14 @@ if __name__ == '__main__':
         "electrode_type"    : ['constant','floating']
     }
     
-    # cap_vals    = [1e1,1e2,1e3,1e4,1e5,1e6]
+    cap_vals    = [1e1,5e1,1e2,5e2,1e3,5e3,1e4,5e4,1e5,5e5,1e6]
     # cap_vals    = [5e1,5e2,5e3,5e4,5e5]
     # cap_vals    = [2.5e1,2.5e2,2.5e3,2.5e4,2.5e5]
-    cap_vals    = [7.5e1,7.5e2,7.5e3,7.5e4,7.5e5]
+    # cap_vals    = [7.5e1,7.5e2,7.5e3,7.5e4,7.5e5]
     N_processes = len(cap_vals)
     procs       = []
     volt        = np.zeros(shape=(N_voltages,3))
-    volt[:,0]   = 0.1
+    volt[:,0]   = 0.02
     
     for i in range(N_processes):
         cap     = cap_vals[i]
@@ -48,27 +49,3 @@ if __name__ == '__main__':
         process.start()
     for p in procs:
             p.join()
-
-    # Network    
-    # N_p_vals    = [3,5,7,9,11,13]
-    # N_processes = len(N_p_vals)
-    # procs       = []
-    # volt        = np.zeros(shape=(N_voltages,9))
-    # volt[:,0]   = 0.1
-    # for i in range(N_processes):
-    #     N_p                 = N_p_vals[i]
-    #     topology_parameter  = {
-    #         "Nx"                : N_p,
-    #         "Ny"                : N_p,
-    #         "Nz"                : 1,
-    #         "e_pos"             : [[(N_p-1)//2,0,0],[0,0,0],[N_p-1,0,0],
-    #                             [0,(N_p-1)//2,0],[N_p-1,(N_p-1)//2,0],
-    #                             [0,N_p-1,0],[N_p-1,N_p-1,0],[(N_p-1)//2,N_p-1,0]],
-    #         "electrode_type"    : ['constant','constant','constant','constant',
-    #                             'constant','constant','constant','floating']
-    #     }
-    #     process = multiprocessing.Process(target=run_simulation, args=(time_steps, volt, topology_parameter, folder, stat_size))
-    #     process.start()
-    #     procs.append(process)
-    # for p in procs:
-    #         p.join()

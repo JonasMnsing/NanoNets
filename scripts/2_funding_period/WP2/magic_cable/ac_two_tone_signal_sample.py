@@ -18,16 +18,23 @@ def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, 
 
 if __name__ == '__main__':
 
-    folder              = "/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/two_tone_signal/"
+    # Global
+    stat_size           = 50
+    N_periods           = 20
+    time_step           = 1e-9
+    N_p                 = 9
     topology_parameter  = {
-        "Nx"                : 9,
-        "Ny"                : 9,
+        "Nx"                : N_p,
+        "Ny"                : N_p,
         "Nz"                : 1,
-        "e_pos"             : [[4,0,0],[0,0,0],[8,0,0],[0,4,0],
-                               [8,4,0],[0,8,0],[8,8,0],[4,8,0]],
+        "e_pos"             : [[(N_p-1)//2,0,0],[0,0,0],[N_p-1,0,0],
+                            [0,(N_p-1)//2,0],[N_p-1,(N_p-1)//2,0],
+                            [0,N_p-1,0],[N_p-1,N_p-1,0],[(N_p-1)//2,N_p-1,0]],
         "electrode_type"    : ['constant','constant','constant','constant',
-                               'constant','constant','constant','floating']
+                            'constant','constant','constant','floating']
     }
+    folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/potential/magic_cable/ac_two_tone_signal/"
+
     
     # Voltages
     N_voltages  = 1000000

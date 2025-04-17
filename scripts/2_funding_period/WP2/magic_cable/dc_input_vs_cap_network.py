@@ -7,7 +7,7 @@ import multiprocessing
 def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, cap):
 
     np_info2    = {
-        'np_index'      : [40], 
+        'np_index'      : [81], 
         'mean_radius'   : cap,
         'std_radius'    : 0.0
     }
@@ -49,4 +49,4 @@ if __name__ == '__main__':
         process = multiprocessing.Process(target=run_simulation, args=(time_steps, volt, topology_parameter, folder, stat_size, cap))
         process.start()
     for p in procs:
-            p.join()
+        p.join()

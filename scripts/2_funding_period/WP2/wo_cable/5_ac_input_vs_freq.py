@@ -16,11 +16,11 @@ def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, 
 if __name__ == '__main__':
 
     # Global
-    stat_size   = 500
-    N_periods   = 40
-    time_step   = 1e-10
+    stat_size   = 50
+    N_periods   = 20
+    time_step   = 1e-9
     N_np        = 50
-    freq_vals   = [0.5,0.6,0.7,0.8,0.9,1]
+    freq_vals   = [0.005,0.01,0.05,0.1,0.5,1.0,5.0,10.0]
     N_processes = len(freq_vals)
     folder      = "/home/j/j_mens07/phd/data/2_funding_period/"
     # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/"

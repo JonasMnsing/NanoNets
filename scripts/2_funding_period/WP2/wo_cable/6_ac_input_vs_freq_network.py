@@ -20,7 +20,8 @@ if __name__ == '__main__':
     N_periods   = 40
     time_step   = 1e-10
     N_p         = 9
-    freq_vals   = [0.5,0.6,0.7,0.8,0.9,1]
+    # freq_vals   = [3.0,6.0,12.0,24.0,48.0]
+    freq_vals   = [4.0,5.0,8.0,10.0,16.0,20.0,32.0,40.0,64.0,80.0]
     N_processes = len(freq_vals)
     folder      = "/home/j/j_mens07/phd/data/2_funding_period/"
     # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/"

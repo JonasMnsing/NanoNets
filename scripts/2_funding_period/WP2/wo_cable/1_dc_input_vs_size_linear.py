@@ -51,6 +51,7 @@ if __name__ == '__main__':
                                           args=(time_steps, volt, topology_parameter,
                                                 folder+"current/wo_magic_cable/dc_input_vs_size/293/", stat_size))
         process.start()
+        procs.append(process)
     for p in procs:
         p.join()
 
@@ -69,5 +70,6 @@ if __name__ == '__main__':
                                           args=(time_steps, volt, topology_parameter,
                                                 folder+"potential/wo_magic_cable/dc_input_vs_size/293/", stat_size))
         process.start()
+        procs.append(process)
     for p in procs:
         p.join()

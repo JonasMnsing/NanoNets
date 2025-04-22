@@ -20,11 +20,11 @@ def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, 
 if __name__ == '__main__':
 
     # Parameter
-    N_voltages  = 40000
+    N_voltages  = 50000
     time_step   = 1e-10
     stat_size   = 200
     time_steps  = np.arange(N_voltages)*time_step
-    N_p         = 50
+    N_p         = 9
     U0_vals     = [0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08,0.09,0.1]
     N_processes = len(U0_vals)
     folder      = "/home/j/j_mens07/phd/data/2_funding_period/"
@@ -49,6 +49,7 @@ if __name__ == '__main__':
                                                     folder+"current/wo_magic_cable/dc_input_vs_volt/",
                                                     stat_size, U0_vals[i]))
         process.start()
+        procs.append(process)
     for p in procs:
         p.join()
 
@@ -71,5 +72,6 @@ if __name__ == '__main__':
                                                     folder+"potential/wo_magic_cable/dc_input_vs_volt/",
                                                     stat_size, U0_vals[i]))
         process.start()
+        procs.append(process)
     for p in procs:
         p.join()

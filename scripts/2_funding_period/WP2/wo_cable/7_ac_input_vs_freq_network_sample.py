@@ -5,29 +5,32 @@ import nanonets_utils
 import numpy as np
 import multiprocessing
 
-def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, f0):
+def run_simulation(p, time_steps, voltages, volt_controls, topology_parameter, folder, stat_size):
     
     target_electrode    = len(topology_parameter["e_pos"])-1
-    sim_class           = nanonets.simulation(topology_parameter=topology_parameter, folder=folder,
-                                              high_C_output=False, add_to_path=f"_{f0}")
-    sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
-                               stat_size=stat_size, save=True, T_val=5.0)
+
+    for i, volt_c in enumerate(volt_controls):
+        volt            = voltages.deepcopy()
+        volt[:,1:-2]    = volt_c
+        sim_class       = nanonets.simulation(topology_parameter=topology_parameter, folder=folder,
+                                              high_C_output=False, add_to_path=f"{p*50+i}")
+        sim_class.run_var_voltages(voltages=volt, time_steps=time_steps, target_electrode=target_electrode,
+                                   stat_size=stat_size, save=True, T_val=5.0)
 
 if __name__ == '__main__':
 
     # Global
-    stat_size   = 500
+    stat_size   = 100
     N_periods   = 40
-    time_step   = 1e-10
     N_p         = 9
-    # freq_vals   = [3.0,6.0,12.0,24.0,48.0]
-    freq_vals   = [4.0,5.0,8.0,10.0,16.0,20.0,32.0,40.0,64.0,80.0]
-    N_processes = len(freq_vals)
     folder      = "/home/j/j_mens07/phd/data/2_funding_period/"
-    # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/"
+    f0          = 5.0*1e6
+    f1          = 8.0*1e6
+    dt          = 1/(20 * f1)
+    T_sim       = N_periods/f0
+    N_voltages  = int(T_sim/dt)
 
     # 8 Electrodes
-    procs               = []
     topology_parameter  = {
         "Nx"                : N_p,
         "Ny"                : N_p,
@@ -39,26 +42,24 @@ if __name__ == '__main__':
                             'constant','constant','constant','floating']
     }
 
-    f0          = 1
-    time_step   = 1e-10
-    U_0         = 0.1
-    U_i         = U_0*np.sin(2*np.pi*f0*time_steps) + U_0*np.sin(2*np.pi*f1*time_steps)
-    volt_C      = np.random.uniform(-U_C, U_C, (N_samples,6))
+    # Frequency Points
+    N_samples   = 500
+    N_processes = 10
+    volt_sample = np.random.uniform(-0.1,0.1,(N_samples,6))
 
+    frequencies         = [f0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+    amplitudes          = [0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+    offsets             = []
+    time_steps, volt    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter,
+                                                                amplitudes=amplitudes,
+                                                                frequencies=frequencies,
+                                                                time_step=dt)
+
+    procs   = []
     for i in range(N_processes):
-        f0                  = freq_vals[i]*1e6
-        T_sim               = N_periods/f0
-        N_voltages          = int(T_sim/time_step)
-        frequencies         = [f0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
-        amplitudes          = [0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
-        time_steps, volt    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter,
-                                                                 amplitudes=amplitudes,
-                                                                 frequencies=frequencies,
-                                                                 time_step=time_step)
-        process = multiprocessing.Process(target=run_simulation,
-                                          args=(time_steps, volt, topology_parameter,
-                                                folder+"potential/wo_magic_cable/ac_two_tone_signal/",
-                                                stat_size, f0))
+        volt_controls   = nanonets_utils.distribute_array_across_processes(i, volt_sample, N_processes)
+        process         = multiprocessing.Process(target=run_simulation, args=(i, time_steps, volt, topology_parameter,
+                                                                               folder+"potential/wo_magic_cable/ac_input_vs_freq/", stat_size, f0))
         process.start()
         procs.append(process)
     for p in procs:

@@ -10,10 +10,10 @@ def run_simulation(p, time_steps, voltages, volt_controls, topology_parameter, f
     target_electrode    = len(topology_parameter["e_pos"])-1
 
     for i, volt_c in enumerate(volt_controls):
-        volt            = voltages.deepcopy()
+        volt            = voltages.copy()
         volt[:,1:-2]    = volt_c
         sim_class       = nanonets.simulation(topology_parameter=topology_parameter, folder=folder,
-                                              high_C_output=False, add_to_path=f"{p*50+i}")
+                                              high_C_output=False, add_to_path=f"_{int(p*50+i)}")
         sim_class.run_var_voltages(voltages=volt, time_steps=time_steps, target_electrode=target_electrode,
                                    stat_size=stat_size, save=True, T_val=5.0)
 
@@ -25,9 +25,9 @@ if __name__ == '__main__':
     N_p         = 9
     folder      = "/home/j/j_mens07/phd/data/2_funding_period/"
     f0          = 5.0*1e6
-    f1          = 8.0*1e6
+    f1          = 15.0*1e6
     dt          = 1/(20 * f1)
-    T_sim       = N_periods/f0
+    T_sim       = N_periods/f1
     N_voltages  = int(T_sim/dt)
 
     # 8 Electrodes
@@ -58,8 +58,8 @@ if __name__ == '__main__':
     procs   = []
     for i in range(N_processes):
         volt_controls   = nanonets_utils.distribute_array_across_processes(i, volt_sample, N_processes)
-        process         = multiprocessing.Process(target=run_simulation, args=(i, time_steps, volt, topology_parameter,
-                                                                               folder+"potential/wo_magic_cable/ac_input_vs_freq/", stat_size, f0))
+        process         = multiprocessing.Process(target=run_simulation, args=(i, time_steps, volt, volt_controls, topology_parameter,
+                                                                               folder+"potential/wo_magic_cable/ac_two_tone_signal/", stat_size))
         process.start()
         procs.append(process)
     for p in procs:

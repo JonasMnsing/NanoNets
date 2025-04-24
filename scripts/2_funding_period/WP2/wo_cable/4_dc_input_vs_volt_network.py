@@ -31,27 +31,27 @@ if __name__ == '__main__':
     # folder      = "/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/"
 
     # 2 Electrodes
-    # procs               = []
-    # topology_parameter  = {
-    #     "Nx"                : N_p,
-    #     "Ny"                : N_p,
-    #     "Nz"                : 1,
-    #     "e_pos"             : [[(N_p-1)//2,0,0],[(N_p-1)//2,N_p-1,0]],
-    #     "electrode_type"    : ['constant','floating']
-    # }
-    # for i in range(N_processes):
+    procs               = []
+    topology_parameter  = {
+        "Nx"                : N_p,
+        "Ny"                : N_p,
+        "Nz"                : 1,
+        "e_pos"             : [[(N_p-1)//2,0,0],[(N_p-1)//2,N_p-1,0]],
+        "electrode_type"    : ['constant','floating']
+    }
+    for i in range(N_processes):
 
-    #     # Voltages
-    #     volt        = np.zeros(shape=(N_voltages,3))
-    #     volt[:,0]   = U0_vals[i]
-    #     process     = multiprocessing.Process(target=run_simulation,
-    #                                           args=(time_steps, volt, topology_parameter,
-    #                                                 folder+"potential/wo_magic_cable/dc_input_vs_volt/",
-    #                                                 stat_size, U0_vals[i]))
-    #     process.start()
-    #     procs.append(process)
-    # for p in procs:
-    #     p.join()
+        # Voltages
+        volt        = np.zeros(shape=(N_voltages,3))
+        volt[:,0]   = U0_vals[i]
+        process     = multiprocessing.Process(target=run_simulation,
+                                              args=(time_steps, volt, topology_parameter,
+                                                    folder+"potential/wo_magic_cable/dc_input_vs_volt/",
+                                                    stat_size, U0_vals[i]))
+        process.start()
+        procs.append(process)
+    for p in procs:
+        p.join()
 
     # 8 Electrodes
     procs               = []

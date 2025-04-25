@@ -11,7 +11,8 @@ def run_simulation(p, time_steps, voltages, volt_controls, topology_parameter, f
 
     for i, volt_c in enumerate(volt_controls):
         volt            = voltages.copy()
-        volt[:,1:-2]    = volt_c
+        volt[:,0]       = volt_c[0]
+        volt[:,3:-2]    = volt_c[1:]
         sim_class       = nanonets.simulation(topology_parameter=topology_parameter, folder=folder,
                                               high_C_output=False, add_to_path=f"_{int(p*50+i)}")
         sim_class.run_var_voltages(voltages=volt, time_steps=time_steps, target_electrode=target_electrode,
@@ -20,12 +21,12 @@ def run_simulation(p, time_steps, voltages, volt_controls, topology_parameter, f
 if __name__ == '__main__':
 
     # Global
-    stat_size   = 100
+    stat_size   = 50
     N_periods   = 40
     N_p         = 9
     folder      = "/home/j/j_mens07/phd/data/2_funding_period/"
-    f0          = 5.0*1e6
-    f1          = 15.0*1e6
+    f0          = 1.0*1e6
+    f1          = 3.0*1e6
     dt          = 1/(20 * f1)
     T_sim       = N_periods/f1
     N_voltages  = int(T_sim/dt)
@@ -45,10 +46,10 @@ if __name__ == '__main__':
     # Frequency Points
     N_samples   = 500
     N_processes = 10
-    volt_sample = np.random.uniform(-0.1,0.1,(N_samples,6))
+    volt_sample = np.random.uniform(-0.1,0.1,(N_samples,5))
 
-    frequencies         = [f0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
-    amplitudes          = [0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+    frequencies         = [0.0,f0,f1,0.0,0.0,0.0,0.0,0.0]
+    amplitudes          = [0.0,0.1,0.1,0.0,0.0,0.0,0.0,0.0]
     offsets             = []
     time_steps, volt    = nanonets_utils.sinusoidal_voltages(N_voltages, topology_parameter,
                                                                 amplitudes=amplitudes,

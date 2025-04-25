@@ -34,7 +34,7 @@ if __name__ == '__main__':
                             'constant','constant','constant','floating']
     }
     folder                  = "/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/dc_two_step_input/"
-    U_0                     = 0.02
+    U_0                     = 0.1
     steps_per_step          = 40000
     steps_between_storage   = [0,400,800,1600,2000,4000,5000,10000,20000,40000]
     N_processes             = len(steps_between_storage)

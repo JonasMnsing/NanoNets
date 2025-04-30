@@ -29,20 +29,23 @@ if __name__ == '__main__':
         "Nx"                : N_p,
         "Ny"                : N_p,
         "Nz"                : 1,
-        "e_pos"             : [[(N_p-1)//2,0,0],[(N_p-1)//2,N_p-1,0]],
-        "electrode_type"    : ['constant','floating']
+        "e_pos"             : [[(N_p-1)//2,0,0],[0,0,0],[N_p-1,0,0],
+                            [0,(N_p-1)//2,0],[N_p-1,(N_p-1)//2,0],
+                            [0,N_p-1,0],[N_p-1,N_p-1,0],[(N_p-1)//2,N_p-1,0]],
+        "electrode_type"    : ['constant','constant','constant','constant',
+                            'constant','constant','constant','floating']
     }
     folder                  = "/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/dc_two_step_input/"
     U_0                     = 0.1
     steps_per_step          = 15000
-    # steps_between_storage   = [0,400,800,1600,2000,4000,5000,10000,20000,40000]
-    steps_between_storage   = [100,200,600,1000,1200,1800,3000,7500,30000,50000]
+    steps_between_storage   = [0,400,800,1600,2000,4000,5000,10000,20000,40000]
+    # steps_between_storage   = [100,200,600,1000,1200,1800,3000,7500,30000,50000]
     N_processes             = len(steps_between_storage)
     procs                   = []
     
     for i in range(N_processes):
         steps_between           = steps_between_storage[i]
-        volt                    = np.zeros(shape=(N_voltages,3))
+        volt                    = np.zeros(shape=(N_voltages,9))
         volt[:steps_per_step,0] = U_0
         volt[steps_per_step+steps_between:2*steps_per_step+steps_between,0] = U_0
 

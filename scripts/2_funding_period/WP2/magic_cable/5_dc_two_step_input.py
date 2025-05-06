@@ -25,27 +25,37 @@ if __name__ == '__main__':
     stat_size           = 50
     time_steps          = np.arange(N_voltages)*time_step
     N_p                 = 9
+    # topology_parameter  = {
+    #     "Nx"                : N_p,
+    #     "Ny"                : N_p,
+    #     "Nz"                : 1,
+    #     "e_pos"             : [[(N_p-1)//2,0,0],[0,0,0],[N_p-1,0,0],
+    #                         [0,(N_p-1)//2,0],[N_p-1,(N_p-1)//2,0],
+    #                         [0,N_p-1,0],[N_p-1,N_p-1,0],[(N_p-1)//2,N_p-1,0]],
+    #     "electrode_type"    : ['constant','constant','constant','constant',
+    #                         'constant','constant','constant','floating']
+    # }
     topology_parameter  = {
         "Nx"                : N_p,
         "Ny"                : N_p,
         "Nz"                : 1,
-        "e_pos"             : [[(N_p-1)//2,0,0],[0,0,0],[N_p-1,0,0],
-                            [0,(N_p-1)//2,0],[N_p-1,(N_p-1)//2,0],
-                            [0,N_p-1,0],[N_p-1,N_p-1,0],[(N_p-1)//2,N_p-1,0]],
-        "electrode_type"    : ['constant','constant','constant','constant',
-                            'constant','constant','constant','floating']
+        "e_pos"             : [[(N_p-1)//2,0,0],[(N_p-1)//2,N_p-1,0]],
+        "electrode_type"    : ['constant','floating']
     }
     folder                  = "/home/j/j_mens07/phd/data/2_funding_period/potential/magic_cable/dc_two_step_input/"
     U_0                     = 0.1
     steps_per_step          = 15000
-    steps_between_storage   = [0,400,800,1600,2000,4000,5000,10000,20000,40000]
+    # steps_between_storage   = [0,400,800,1600,2000,4000,5000,10000,20000,40000]
     # steps_between_storage   = [100,200,600,1000,1200,1800,3000,7500,30000,50000]
+    # steps_between_storage   = [0,100,200,400,600,800,1000,1200,1600,1800,2000,3000,4000,5000,7500,10000,20000,30000,40000,50000]
+    # steps_between_storage   = [300,500,700,900,1100,1300,1400,1500,1700,1900]
+    steps_between_storage   = [120,140,160,180,220,240,260,280]
     N_processes             = len(steps_between_storage)
     procs                   = []
     
     for i in range(N_processes):
         steps_between           = steps_between_storage[i]
-        volt                    = np.zeros(shape=(N_voltages,9))
+        volt                    = np.zeros(shape=(N_voltages,3))
         volt[:steps_per_step,0] = U_0
         volt[steps_per_step+steps_between:2*steps_per_step+steps_between,0] = U_0
 

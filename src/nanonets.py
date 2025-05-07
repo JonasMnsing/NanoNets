@@ -699,194 +699,227 @@ class model_class():
             self.charge_mean    = self.charge_mean/time_total
             self.potential_mean = self.potential_mean/time_total
      
-    def kmc_time_simulation(self, target_electrode : int, time_target : float):
-        """
-        Runs KMC until KMC time exceeds a target value
+    # def kmc_time_simulation(self, target_electrode : int, time_target : float):
+    #     """Run Kinetic Monte Carlo simulation until reaching a target simulation time.
+    
+    #     This method simulates electron tunneling events until the KMC time exceeds 
+    #     the specified target time. During the simulation, it tracks various observables
+    #     including electric currents, charge distributions, and potential landscapes.
+        
+    #     Parameters
+    #     ----------
+    #     target_electrode : int
+    #         Index of the electrode for which to estimate electric current
+    #     time_target : float
+    #         Target simulation time to reach
+    #     """
+    #     # Calculate initial potential landscape
+    #     self.calc_potentials()
 
+    #     # Initialize storage arrays
+    #     self.charge_mean    = np.zeros(len(self.charge_vector))
+    #     self.potential_mean = np.zeros(len(self.potential_vector))
+    #     self.I_network      = np.zeros(len(self.adv_index_rows))
+    #     self.total_jumps    = 0
+
+    #     # Track simulation times
+    #     inner_time  = self.time
+    #     last_time   = 0.0
+
+    #     # Identify target electrode rate indices
+    #     rate_index1 = np.where(self.adv_index_cols == target_electrode)[0][0]
+    #     rate_index2 = np.where(self.adv_index_rows == target_electrode)[0][0]
+    #     rate_diffs  = 0.0
+
+    #     # Main simulation loop
+    #     while (self.time < time_target):
+    #         # Record current time before the event
+    #         last_time   = self.time
+
+    #         # Generate random numbers for KMC step
+    #         random_number1  = np.random.rand()
+    #         random_number2  = np.random.rand()
+
+    #         # Calculate tunneling rates based on temperature model
+    #         if not self.zero_T:
+    #             self.calc_tunnel_rates()
+    #         else:
+    #             self.calc_tunnel_rates_zero_T()
+
+    #         # Record rate difference for target electrode
+    #         rate1 = self.tunnel_rates[rate_index1]
+    #         rate2 = self.tunnel_rates[rate_index2]
+
+    #         # Execute KMC step
+    #         self.select_event(random_number1, random_number2)
+            
+    #         # Check if step was valid
+    #         if (self.jump == -1):
+    #             # Update observables for the remaining tim
+    #             rate_diffs          += (rate1 - rate2)*(time_target-last_time)
+    #             self.charge_mean    += self.charge_vector*(time_target-last_time)
+    #             self.potential_mean += self.potential_vector*(time_target-last_time)
+    #             break
+
+    #         # Get origin and destination indices
+    #         np1 = self.adv_index_rows[self.jump]
+    #         np2 = self.adv_index_cols[self.jump]
+
+    #         # If time exceeds target time, roll back the last event
+    #         if (self.time >= time_target):
+    #             self.neglect_last_event(np1,np2)
+    #             # Update observables for the time until target
+    #             rate_diffs                  += (rate1 - rate2)*(time_target-last_time)
+    #             self.charge_mean            += self.charge_vector*(time_target-last_time)
+    #             self.potential_mean         += self.potential_vector*(time_target-last_time)
+    #             break
+    #         else:
+    #             # Update observables for the time step
+    #             rate_diffs                  += (rate1 - rate2)*(self.time-last_time)
+    #             self.charge_mean            += self.charge_vector*(self.time-last_time)
+    #             self.potential_mean         += self.potential_vector*(self.time-last_time)
+    #             self.I_network[self.jump]   += 1
+    #             self.total_jumps            += 1
+
+    #     # Calculate final averages
+    #     total_sim_time              = time_target - inner_time
+    #     self.target_observable_mean = rate_diffs/total_sim_time
+        
+    #     if self.total_jumps != 0:
+    #         self.I_network          = self.I_network/self.total_jumps
+    #     else:
+    #         self.I_network          = np.zeros(len(self.adv_index_rows))
+
+    #     self.charge_mean            = self.charge_mean/total_sim_time
+    #     self.potential_mean         = self.potential_mean/total_sim_time
+            
+    def kmc_time_simulation(self, target_electrode : int, time_target : float, output_potential : bool = True):
+        """Run Kinetic Monte Carlo simulation until reaching a target simulation time.
+    
+        This method simulates electron tunneling events until the KMC time exceeds 
+        the specified target time. During the simulation, it tracks various observables
+        including output potential, charge distributions, and potential landscapes.
+        
         Parameters
         ----------
         target_electrode : int
-            electrode index of which electric current is estimated
+            Index of the electrode for which to estimate electric current
         time_target : float
-            time value to be reached
+            Target simulation time to reach
+        output_potential : bool, optional
+            If True, simulation tracks target electrode potential as observable. If False, simulation tracks target electrode electric current, by default True
         """
-
         # Calculate initial potential landscape
         self.calc_potentials()
-
+        
         # Initialize storage arrays
         self.charge_mean    = np.zeros(len(self.charge_vector))
         self.potential_mean = np.zeros(len(self.potential_vector))
         self.I_network      = np.zeros(len(self.adv_index_rows))
         self.total_jumps    = 0
 
-        # Batch times
+        # Adjust floating target electrode once
+        idx_np_target = self.adv_index_cols[self.floating_electrodes]
+        self.update_floating_electrode(idx_np_target)
+
+        # Track simulation times        
         inner_time  = self.time
         last_time   = 0.0
 
-        # Find target electrode rate indices
-        rate_index1 = np.where(self.adv_index_cols == target_electrode)[0][0]
-        rate_index2 = np.where(self.adv_index_rows == target_electrode)[0][0]
-        rate_diffs  = 0.0
+        if not output_potential:
+            # Identify target electrode rate indices
+            rate_index1 = np.where(self.adv_index_cols == target_electrode)[0][0]
+            rate_index2 = np.where(self.adv_index_rows == target_electrode)[0][0]
 
-        # Until we reach our time target
+        # Target observable
+        target_value    = 0.0  
+
+        # Main simulation loop
         while (self.time < time_target):
-
-            # Start time
+            # Record current time before the event
             last_time   = self.time
 
-            # Generate random numbers
-            random_number1  = np.random.rand()
-            random_number2  = np.random.rand()
+            # Generate random numbers for KMC step
+            random_number1 = np.random.rand()
+            random_number2 = np.random.rand()
 
-            # Calculate tunneling rates
+            # Calculate tunneling rates based on temperature model
             if not self.zero_T:
                 self.calc_tunnel_rates()
             else:
                 self.calc_tunnel_rates_zero_T()
 
-            # Record rate difference
-            rate1   = self.tunnel_rates[rate_index1]
-            rate2   = self.tunnel_rates[rate_index2]
+            if not output_potential:
+                # Record rate difference for target electrode
+                rate1 = self.tunnel_rates[rate_index1]
+                rate2 = self.tunnel_rates[rate_index2]
 
-            # Execute KMC step
+            # KMC Step and evolve in time
             self.select_event(random_number1, random_number2)
-            
-            # Check if step was valid
+
             if (self.jump == -1):
-                # Update Observables
-                rate_diffs          += (rate1 - rate2)*(time_target-last_time)
-                self.charge_mean    += self.charge_vector*(time_target-last_time)
-                self.potential_mean += self.potential_vector*(time_target-last_time)
+                # Update potential of floating target electrode
+                self.update_floating_electrode(idx_np_target)
+
+                # Update observables for the remaining time
+                dt = time_target - last_time
+
+                if output_potential:
+                    target_value    += self.potential_vector[target_electrode]*dt
+                else:
+                    target_value    += (rate1 - rate2) * dt
+                self.charge_mean    += self.charge_vector*dt
+                self.potential_mean += self.potential_vector*dt
                 break
 
             # Get origin and destination indices
             np1 = self.adv_index_rows[self.jump]
             np2 = self.adv_index_cols[self.jump]
 
-            # If time exceeds target time
-            if (self.time >= time_target):
-                # Neglect last tunneling event
-                self.neglect_last_event(np1,np2)
-                # Update Observables
-                rate_diffs                  += (rate1 - rate2)*(time_target-last_time)
-                self.charge_mean            += self.charge_vector*(time_target-last_time)
-                self.potential_mean         += self.potential_vector*(time_target-last_time)
-                break
-
-            else:
-                # Update Observables
-                rate_diffs                  += (rate1 - rate2)*(self.time-last_time)
-                self.charge_mean            += self.charge_vector*(self.time-last_time)
-                self.potential_mean         += self.potential_vector*(self.time-last_time)
-                self.I_network[self.jump]   += 1
-                self.total_jumps            += 1
-
-        self.target_observable_mean = rate_diffs/(time_target-inner_time)
-        
-        # Final averages
-        if self.total_jumps != 0:
-            self.I_network          = self.I_network/self.total_jumps
-        else:
-            self.I_network          = np.zeros(len(self.adv_index_rows))
-        self.charge_mean            = self.charge_mean/(time_target-inner_time)
-        self.potential_mean         = self.potential_mean/(time_target-inner_time)
-            
-    def kmc_time_simulation_potential(self, target_electrode : int, time_target : float):
-        """
-        Runs KMC until KMC time exceeds a target value
-
-        Parameters
-        ----------
-        target_electrode : int
-            electrode index of which electric current is estimated
-        time_target : float
-            time value to be reached
-        """
-
-        # Calculate potential landscape once
-        self.calc_potentials()
-        
-        self.total_jumps    = 0
-        self.charge_mean    = np.zeros(len(self.charge_vector))
-        self.potential_mean = np.zeros(len(self.potential_vector))
-        self.I_network      = np.zeros(len(self.adv_index_rows))
-        idx_np_target       = self.adv_index_cols[self.floating_electrodes]
-        
-        # Adjust floating target electrode once
-        self.update_floating_electrode(idx_np_target)
-
-        inner_time          = self.time
-        last_time           = 0.0        
-        target_potential    = 0.0
-
-        while (self.time < time_target):
-
-            # Start time
-            last_time   = self.time
-
-            # KMC Part
-            random_number1  = np.random.rand()
-            random_number2  = np.random.rand()
-
-            # T=0 Approximation of Rates
-            if not(self.zero_T):
-                self.calc_tunnel_rates()
-            else:
-                self.calc_tunnel_rates_zero_T()
-
-            # KMC Step and evolve in time
-            self.select_event(random_number1, random_number2)
-
-            if (self.jump == -1):
-
-                # Update potential of floating target electrode
-                self.update_floating_electrode(idx_np_target)
-
-                # Update Observables
-                target_potential    += self.potential_vector[target_electrode]*(time_target-last_time)
-                self.charge_mean    += self.charge_vector*(time_target-last_time)
-                self.potential_mean += self.potential_vector*(time_target-last_time)
-
-                break
-
-            # Occured jump
-            np1 = self.adv_index_rows[self.jump]
-            np2 = self.adv_index_cols[self.jump]
-
-            # If time exceeds target time
-            if (self.time >= time_target):
+            # If time exceeds target time, roll back the last event
+            if self.time >= time_target:
                 self.neglect_last_event(np1,np2)
 
                 # Update potential of floating target electrode
                 self.update_floating_electrode(idx_np_target)
 
-                # Update Observables
-                target_potential    += self.potential_vector[target_electrode]*(time_target-last_time)
-                self.charge_mean    += self.charge_vector*(time_target-last_time)
-                self.potential_mean += self.potential_vector*(time_target-last_time)
-
+                # Update observables for the time until target
+                dt = time_target - last_time
+                if output_potential:
+                    target_value    += self.potential_vector[target_electrode]*dt
+                else:
+                    target_value    += (rate1-rate2)*dt
+                self.charge_mean    += self.charge_vector*dt
+                self.potential_mean += self.potential_vector*dt
                 break
 
             else:
-
                 # Update potential of floating target electrode
                 self.update_floating_electrode(idx_np_target)
 
-                # Update Observables
-                target_potential            += self.potential_vector[target_electrode]*(self.time-last_time)
-                self.charge_mean            += self.charge_vector*(self.time-last_time)
-                self.potential_mean         += self.potential_vector*(self.time-last_time)
+                # Update observables for the time step
+                dt = self.time - last_time
+                if output_potential:
+                    target_value    += self.potential_vector[target_electrode]*dt
+                else:
+                    target_value    += (rate1-rate2)*dt
+
+                self.charge_mean            += self.charge_vector*dt
+                self.potential_mean         += self.potential_vector*dt
                 self.I_network[self.jump]   += 1            
                 self.total_jumps            += 1           
         
-        self.target_observable_mean = target_potential/(time_target-inner_time)
+        # Calculate final averages
+        total_sim_time              = time_target - inner_time
+        self.target_observable_mean = target_value/total_sim_time
+
         if self.total_jumps != 0:
-            self.I_network          = self.I_network/self.total_jumps
+            self.I_network  = self.I_network/self.total_jumps
         else:
-            self.I_network          = np.zeros(len(self.adv_index_rows))
-        self.charge_mean            = self.charge_mean/(time_target-inner_time)
-        self.potential_mean         = self.potential_mean/(time_target-inner_time)
+            self.I_network  = np.zeros(len(self.adv_index_rows))
+
+        self.charge_mean    = self.charge_mean/total_sim_time
+        self.potential_mean = self.potential_mean/total_sim_time
             
     def kmc_time_simulation_var_resistance(self, target_electrode : int, time_target : float, slope=0.8,
                             shift=7.5, tau_0=1e-8, R_max=25, R_min=10):
@@ -1680,7 +1713,7 @@ class simulation(tunneling.tunnel_class):
                         target_observable_mean, target_observable_error, total_jumps = self.model.return_target_values(output_potential)
 
                     else:
-                        self.model.kmc_time_simulation(target_electrode, time_target)
+                        self.model.kmc_time_simulation(target_electrode, time_target, output_potential)
                         target_observable_mean, target_observable_error, total_jumps = self.model.return_target_values()
                 
                 # Add observables to outputs

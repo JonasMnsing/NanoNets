@@ -580,3 +580,81 @@
 #                 if epoch % save_nth_epoch == 0:
 #                     np.savetxt(fname=f"{self.folder}ypred_{epoch}.csv", X=predictions)
 #                     # np.savetxt(fname=f"{path}charge_{epoch}.csv", X=current_charge_vector)
+
+
+# def kmc_time_simulation_potential2(self, target_electrode : int, time_target : float):
+#         """
+#         Runs KMC until KMC time exceeds a target value
+
+#         Parameters
+#         ----------
+#         target_electrode : int
+#             electrode index of which electric current is estimated
+#         time_target : float
+#             time value to be reached
+#         """
+
+#         # Calculate potential landscape once
+#         self.calc_potentials()
+        
+#         self.total_jumps    = 0
+#         self.charge_mean    = np.zeros(len(self.charge_vector))
+#         self.potential_mean = np.zeros(len(self.potential_vector))
+#         self.I_network      = np.zeros(len(self.adv_index_rows))
+#         idx_np_target       = self.adv_index_cols[self.floating_electrodes]
+
+#         inner_time          = self.time
+#         last_time           = 0.0        
+#         target_potential    = 0.0
+
+#         while (self.time < time_target):
+
+#             # KMC Part
+#             random_number1  = np.random.rand()
+#             random_number2  = np.random.rand()
+
+#             # T=0 Approximation of Rates
+#             if not(self.zero_T):
+#                 self.calc_tunnel_rates()
+#             else:
+#                 self.calc_tunnel_rates_zero_T()
+
+#             # KMC Step and evolve in time
+#             self.select_event(random_number1, random_number2)
+
+#             if (self.jump == -1):
+#                 break
+
+#             # Occured jump
+#             np1 = self.adv_index_rows[self.jump]
+#             np2 = self.adv_index_cols[self.jump]
+
+#             # If time exceeds target time
+#             if (self.time >= time_target):
+#                 self.neglect_last_event(np1,np2)
+#                 break
+
+#             # Update potential of floating target electrode
+#             self.update_floating_electrode(idx_np_target)
+#             target_potential += self.potential_vector[target_electrode]*(self.time-last_time)
+
+#             # Update Observables
+#             self.charge_mean            += self.charge_vector*(self.time-last_time)
+#             self.potential_mean         += self.potential_vector*(self.time-last_time)
+#             self.I_network[self.jump]   += 1            
+#             self.total_jumps            += 1           
+        
+#         if (self.jump == -1):
+#             self.target_observable_mean  = self.potential_vector[target_electrode]
+
+#         if (last_time-inner_time) != 0:
+#             self.target_observable_mean = target_potential/(time_target-inner_time)
+#             self.I_network              = self.I_network/self.total_jumps
+#             self.charge_mean            = self.charge_mean/(time_target-inner_time)
+#             self.potential_mean         = self.potential_mean/(time_target-inner_time)
+            
+#         else:
+#             self.target_observable_mean = self.potential_vector[target_electrode]
+#             self.I_network              = self.I_network
+#             self.charge_mean            = self.charge_vector
+#             self.potential_mean         = self.potential_vector

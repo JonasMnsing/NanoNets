@@ -1,149 +1,150 @@
-import multiprocessing
 import tunneling
 import numpy as np
 import pandas as pd
 import os.path
-import copy
-from typing import List
+from typing import Tuple, Optional, List, Union, Any
 from numba.experimental import jitclass
-# from numba.cuda.random import create_xoroshiro128p_states, xoroshiro128p_uniform_float32, xoroshiro128p_type
 from numba import int64, float64, boolean
 
+# Define type specification with helpful comments
 spec = [
-    ('charge_vector', float64[::1]),
-    ('potential_vector', float64[::1]),
-    ('tunnel_rates', float64[::1]),
-    ('inv_capacitance_matrix', float64[:,::1]),
-    ('const_capacitance_values', float64[::1]),
-    ('floating_electrodes', int64[::1]),
-    ('temperatures', float64[::1]),
-    ('resistances', float64[::1]),
-    ('adv_index_rows', int64[::1]),
-    ('adv_index_cols', int64[::1]),
-    ('N_electrodes', int64),
-    ('N_particles', int64),
-    ('ele_charge', float64),
-    ('planck_const', float64),
-    ('time', float64),
-    ('counter_output_jumps_pos', float64),
-    ('counter_output_jumps_neg', float64),
-    ('target_observable_error_rel', float64),
-    ('target_observable_mean', float64),
-    ('target_observable_mean2', float64),
-    ('target_observable_error', float64),
-    ('target_observable_values', float64[::1]),
-    ('time_values', float64[::1]),
-    ('total_jumps', int64),
-    ('jump', int64),
-    ('zero_T', boolean),
-    ('charge_mean', float64[::1]),
-    ('potential_mean', float64[::1]),
-    ('resistance_mean', float64[::1]),
-    ('I_network', float64[::1]),
-    ('I_tilde', float64[::1]),
-    ('jump_dist_per_it', float64[:,::1]),
-    ('resistances_per_it', float64[:,::1]),
-    ('landscape_per_it', float64[:,::1]),
-    ('time_vals', float64[::1]),
-    ('N_rates', int64),
+    ('charge_vector', float64[::1]),              # Charge values for each nanoparticle
+    ('potential_vector', float64[::1]),           # Potential values for electrodes and nanoparticles
+    ('tunnel_rates', float64[::1]),               # Tunnel rate values for each tunneling event
+    ('inv_capacitance_matrix', float64[:,::1]),   # Inverse of capacitance matrix
+    ('const_capacitance_values', float64[::1]),   # Sum of capacitance for free energy calculation
+    ('floating_electrodes', int64[::1]),          # Indices of floating electrodes
+    ('temperatures', float64[::1]),               # Temperature values for each tunnel event
+    ('resistances', float64[::1]),                # Resistances for each tunneling event i to j
+    ('adv_index_rows', int64[::1]),               # Nanoparticles i (origin) in tunneling event i to j
+    ('adv_index_cols', int64[::1]),               # Nanoparticles j (target) in tunneling event i to j
+    ('N_electrodes', int64),                      # Number of electrodes
+    ('N_particles', int64),                       # Number of nanoparticles
+    ('ele_charge', float64),                      # Elementary charge constant
+    ('planck_const', float64),                    # Planck's constant
+    ('time', float64),                            # KMC time scale
+    ('counter_output_jumps_pos', float64),        # Number of jumps towards target electrode
+    ('counter_output_jumps_neg', float64),        # Number of jumps from target electrode
+    ('target_observable_error_rel', float64),     # Relative error for difference in jumps
+    ('target_observable_mean', float64),          # Mean difference in jumps towards/from target electrode
+    ('target_observable_mean2', float64),         # Helper value for computing error
+    ('target_observable_error', float64),         # Standard deviation for difference in jumps
+    ('target_observable_values', float64[::1]),   # Storage for target observable values
+    ('time_values', float64[::1]),                # Storage for time values
+    ('total_jumps', int64),                       # Total number of jumps/KMC steps
+    ('jump', int64),                              # Last occurred jump/event
+    ('zero_T', boolean),                          # Flag for zero temperature approximation
+    ('charge_mean', float64[::1]),                # Storage for average network charges
+    ('potential_mean', float64[::1]),             # Storage for average potential landscape
+    ('resistance_mean', float64[::1]),            # Storage for average resistances
+    ('I_network', float64[::1]),                  # Network electric currents
+    ('I_tilde', float64[::1]),                    # Helper array for memristive behavior
+    ('jump_dist_per_it', float64[:,::1]),         # Storage for jumps per iteration
+    ('resistances_per_it', float64[:,::1]),       # Storage for resistances per iteration
+    ('landscape_per_it', float64[:,::1]),         # Storage for potential landscape per iteration
+    ('time_vals', float64[::1]),                  # Storage for time values
+    ('N_rates', int64),                           # Number of tunneling events
 ]
 
 @jitclass(spec)
 class model_class():
     """
-    Numba optimized class to run the KMC procedure
+    Numba-optimized class to run the Kinetic Monte Carlo (KMC) simulation for
+    electron transport in nanoparticle networks.
+
+    This class simulates electron tunneling events between nanoparticles and electrodes,
+    and calculates electric currents, potentials, and charge distributions.
 
     Attributes
     ----------
     N_particles : int
-        Number of nanoparticles
+        Number of nanoparticles in the system
     N_electrodes : int
-        Number of electrodes
+        Number of electrodes in the system
     N_rates : int
-        Number of tunneling events
-    inv_capacitance_matrix : array
-        Inverse of capacitance matrix
+        Number of possible tunneling events
+    inv_capacitance_matrix : ndarray
+        Inverse of capacitance matrix used for potential calculations
     zero_T : bool
-        bool if zero temerpature approximation for rates is true
-    adv_index_rows : list
-        Nanoparticles i (origin) in tunneling event i to j
-    adv_index_cols : list
-        Nanoparticles j (target) in tunneling event i to j
-    potential_vector : array
+        Whether to use zero temperature approximation for tunneling rates
+    adv_index_rows : ndarray
+        Indices of origin particles/electrodes in tunneling events
+    adv_index_cols : ndarray
+        Indices of target particles/electrodes in tunneling events
+    potential_vector : ndarray
         Potential values for electrodes and nanoparticles
-    charge_vector : array
-        Charge values for each nanoparticle 
-    tunnel_rates : array
-        Tunnel rate values
-    const_capacitance_values : array
-        Sum of capacitance for free energy calculation
-    temperatures : array
-        temperature values for each tunnel event
-    temperatures_co : array
-        temperature values for each cotunnel event
-    resistances : array
-        Resistances for each tunneling event i to j
-    counter_output_jumps_pos : int
-        Number of Jumps towards target electrode
-    counter_output_jumps_neg : int
-        Number of Jumps from target electrode
+    charge_vector : ndarray
+        Charge values for each nanoparticle
+    tunnel_rates : ndarray
+        Tunneling rate values for each possible event
+    const_capacitance_values : ndarray
+        Sum of capacitances for free energy calculation
+    temperatures : ndarray
+        Temperature values for each tunnel event
+    resistances : ndarray
+        Resistance values for each tunneling event
+    counter_output_jumps_pos : float
+        Number of jumps towards target electrode
+    counter_output_jumps_neg : float
+        Number of jumps from target electrode
     total_jumps : int
-        Total number of Jumps / KMC Steps
+        Total number of jumps/KMC steps executed
     time : float
-        KMC time scale
+        KMC simulation time
     target_observable_mean : float
-        Difference in Jumps towards/from target electrode
-    target_observable_mean2 : float
-        Difference in Jumps towards/from target electrode
+        Mean value of the target observable (typically current)
     target_observable_error : float
-        Standard Deviation for difference in jumps
-    rel_error : float
-        Relative Error for difference in jumps
+        Standard deviation of the target observable
+    target_observable_error_rel : float
+        Relative error of the target observable
     jump : int
-        Occured jump/event
-    charge_mean : array
-        Storage for average network charges
-    potential_mean : array
-        Storage for average potential landscape
-    jump_storage : array
-        Storage for executed tunneling events
-
-    Methods
-    -------
-    calc_potentials()
-        Compute potentials via matrix vector multiplication
-    update_potentials(np1, np2)
-        Update potentials after occured jump
-    calc_tunnel_rates()
-        Compute tunnel rates
-    calc_tunnel_rates_zero_T()
-        Compute tunnel rates in zero T approximation
-    calc_rel_error()
-        Calculate relative error and standard deviation by welford one pass
-    select_event(random_number1 : float, random_number2 : float)
-        Select next charge hopping event and update time by kinetic monte carlo apporach.
-        Updates given charge vector based on executed event
-    reach_equilibrium(min_jumps=1000, max_steps=10, rel_error=0.15, min_nps_eq=0.9, max_jumps=1000000)
-        Equilibrate the system
-    kmc_simulation(target_electrode : int, error_th = 0.05, max_jumps=10000000)
-        Runs KMC until current for target electrode has a relative error below error_th or max_jumps is reached
-        Tracks Mean Current, Current standard deviation, average microstate (charge vector), contribution of each junction
-    kmc_time_simulation
-        Runs KMC until KMC time exceeds a target value
-    return_target_values()
+        Index of the last occurred tunneling event
+    charge_mean : ndarray
+        Average network charges over simulation time
+    potential_mean : ndarray
+        Average potential landscape over simulation time
+    I_network : ndarray
+        Contribution of each junction to the total current
+    I_tilde : ndarray
+        Helper array for memristive behavior simulation
     """
 
-    def __init__(self, charge_vector, potential_vector, inv_capacitance_matrix,
-                const_capacitance_values, temperatures, resistances, adv_index_rows,
-                adv_index_cols, N_electrodes, N_particles, floating_electrodes):
+    def __init__(self, charge_vector: np.ndarray, potential_vector: np.ndarray, inv_capacitance_matrix: np.ndarray, const_capacitance_values: np.ndarray,
+                 temperatures: np.ndarray, resistances: np.ndarray, adv_index_rows: np.ndarray, adv_index_cols: np.ndarray, N_electrodes: int,
+                 N_particles: int, floating_electrodes: np.ndarray):
+        """
+        Initialize the KMC model with system parameters.
 
-        # np.random.seed(42)
+        Parameters
+        ----------
+        charge_vector : ndarray
+            Initial charge values for each nanoparticle
+        potential_vector : ndarray
+            Initial potential values for electrodes and nanoparticles
+        inv_capacitance_matrix : ndarray
+            Inverse of capacitance matrix for potential calculations
+        const_capacitance_values : ndarray
+            Sum of capacitances for free energy calculation
+        temperatures : ndarray
+            Temperature values for each tunneling event
+        resistances : ndarray
+            Resistance values for each tunneling event
+        adv_index_rows : ndarray
+            Origin indices for tunneling events
+        adv_index_cols : ndarray
+            Target indices for tunneling events
+        N_electrodes : int
+            Number of electrodes in the system
+        N_particles : int
+            Number of nanoparticles in the system
+        floating_electrodes : ndarray
+            Indices of floating electrodes
+        """
+        # Physical constants
+        self.ele_charge     = 0.160217662       # [aC]
+        self.planck_const   = 1.054571817e-16   # Planck
 
-        # CONST
-        self.ele_charge     = 0.160217662
-        self.planck_const   = 1.054571817*10**(-16)
-
-        # Previous class attributes
+        # System configuration
         self.charge_vector                  = charge_vector
         self.potential_vector               = potential_vector
         self.inv_capacitance_matrix         = inv_capacitance_matrix
@@ -157,7 +158,7 @@ class model_class():
         self.N_particles                    = N_particles
         self.N_rates                        = len(self.adv_index_rows)
 
-        # Simulation attributes
+        # Simulation state variables
         self.counter_output_jumps_pos       = 0      
         self.counter_output_jumps_neg       = 0      
         self.total_jumps                    = 0      
@@ -168,200 +169,257 @@ class model_class():
         self.target_observable_error_rel    = 1.0 
         self.jump                           = 0
 
-        # Storages
+        # Initialize storage arrays
         self.charge_mean        = np.zeros(len(charge_vector))
         self.potential_mean     = np.zeros(len(potential_vector))
         self.resistance_mean    = np.zeros(len(resistances))
         self.I_network          = np.zeros(len(adv_index_rows))
-        self.I_tilde            = np.zeros(len(self.adv_index_rows))
+        self.I_tilde            = np.zeros(len(adv_index_rows))
 
-        # Co-tunneling bools
-        self.zero_T             = False
-        
-        if (np.sum(self.temperatures) == 0.0):
-            self.zero_T = True        
+        # Check if we're using zero temperature approximation
+        self.zero_T = False
+        if np.sum(self.temperatures) == 0.0:
+            self.zero_T = True
 
     def calc_potentials(self):
-        """Compute potentials via matrix vector multiplication
+        """
+        Compute nanoparticle potentials using the inverse capacitance matrix.
+        
+        This method updates the potential_vector for nanoparticles (not electrodes)
+        based on the current charge distribution.
         """
 
         self.potential_vector[self.N_electrodes:] = np.dot(self.inv_capacitance_matrix, self.charge_vector)
 
-    def update_potentials(self, np1, np2):
-        """Update potentials after occured jump
+    def update_potentials(self, np1 : int, np2 : int):
+        """
+        Update potentials after a tunneling event between particles/electrodes.
 
         Parameters
         ----------
         np1 : int
-            Last jump's origin
+            Index of origin particle/electrode in the last tunneling event
         np2 : int
-            Last jump's target
+            Index of target particle/electrode in the last tunneling event
         """
+        is_np1_electrode = (np1 - self.N_electrodes) < 0
+        is_np2_electrode = (np2 - self.N_electrodes) < 0
 
-        if ((np1 - self.N_electrodes) < 0):
-            self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] + self.inv_capacitance_matrix[:,np2]*self.ele_charge
-        elif ((np2 - self.N_electrodes) < 0):
-            self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] - self.inv_capacitance_matrix[:,np1]*self.ele_charge
-        elif ((np1 - self.N_electrodes) < 0 and ((np2 - self.N_electrodes) < 0)):
+        if is_np1_electrode and not is_np2_electrode:
+            # Tunneling from electrode to nanoparticle
+            self.potential_vector[self.N_electrodes:] += self.inv_capacitance_matrix[:, np2] * self.ele_charge
+        elif is_np2_electrode and not is_np1_electrode:
+            # Tunneling from nanoparticle to electrode
+            self.potential_vector[self.N_electrodes:] -= self.inv_capacitance_matrix[:, np1] * self.ele_charge
+        elif is_np1_electrode and is_np2_electrode:
+            # Both are electrodes, recalculate all potentials
             self.potential_vector[self.N_electrodes:] = np.dot(self.inv_capacitance_matrix, self.charge_vector)
         else:
-            self.potential_vector[self.N_electrodes:] = self.potential_vector[self.N_electrodes:] + (self.inv_capacitance_matrix[:,np2]
-                                                        - self.inv_capacitance_matrix[:,np1])*self.ele_charge
+            # Tunneling between nanoparticles
+            delta_potential                             =   self.inv_capacitance_matrix[:, np2] - self.inv_capacitance_matrix[:, np1]
+            self.potential_vector[self.N_electrodes:]   +=  delta_potential * self.ele_charge
     
     def update_floating_electrode(self, idx_np_target)->None:
-        """Update potentials of floating electrodes based on capacitance. Update charge vector given new potentials.
+        """Update potentials of floating electrodes based on adjacent nanoparticle potentials.
 
         Parameters
         ----------
         idx_np_target : np.array
-            Indices of nanoparticles adjacent to electrodes  
+            Indices of nanoparticles adjacent to floating electrodes  
         """
-
         self.potential_vector[self.floating_electrodes] = self.potential_vector[idx_np_target]
         
     def calc_tunnel_rates(self):
-        """Compute tunneling rates
+        """
+        Compute tunneling rates for all possible tunneling events.
+        
+        The rates are calculated from orthodox tunneling theory using the free energy difference between origin
+        and destination, temperature, and junction resistance.
         """
 
+        # Calculate energy difference for tunneling events
         free_energy         = self.ele_charge*(self.potential_vector[self.adv_index_cols] - self.potential_vector[self.adv_index_rows]) + self.const_capacitance_values
-        self.tunnel_rates   = (free_energy/self.resistances)/(np.exp(free_energy/self.temperatures) - 1.0)
+
+        # Calculate tunneling rates using orthodox tunneling theory
+        self.tunnel_rates   = (free_energy / self.resistances) / (np.exp(free_energy / self.temperatures) - 1.0)
+        
+        # Handle potential NaN values (e.g., at zero temperature or zero energy difference)
         self.tunnel_rates   = np.nan_to_num(self.tunnel_rates, nan=0.0)
 
     def calc_tunnel_rates_zero_T(self):
-        """Compute tunneling rates in zero T approximation
         """
-                
+        Compute tunneling rates using zero temperature approximation.
+        
+        In this approximation, tunneling only occurs when it's energetically favorable
+        (free energy is negative).
+        """
+        # Calculate energy difference for tunneling events
         free_energy = self.ele_charge*(self.potential_vector[self.adv_index_cols] - self.potential_vector[self.adv_index_rows]) + self.const_capacitance_values
         
+        # Initialize rates to zero
         self.tunnel_rates                   = np.zeros(self.N_rates)
+        # Only events with negative free energy are possible
         self.tunnel_rates[free_energy<0]    = -free_energy[free_energy<0]/self.resistances[free_energy<0]
 
-    def calc_rel_error(self, N_calculations):
-        """Calculate relative error and standard deviation of target observable via welford one pass 
+    def calc_rel_error(self, N_calculations : int):
         """
+        Calculate relative error and standard deviation for the target observable.
+        
+        Uses Welford's online algorithm for calculating variance in one pass.
 
+        Parameters
+        ----------
+        N_calculations : int
+            Number of measurements/calculations performed
+        """
         if N_calculations >= 2:
-
-            self.target_observable_error     = 1.96*np.sqrt(np.abs(self.target_observable_mean2) / (N_calculations - 1))/np.sqrt(N_calculations)
+            # Calculate standard error using 95% confidence interval (1.96 factor)
+            self.target_observable_error     = 1.96*np.sqrt(
+                np.abs(self.target_observable_mean2) / (N_calculations - 1)
+                )/np.sqrt(N_calculations)
+            
+            # Calculate relative error
             self.target_observable_error_rel = self.target_observable_error/np.abs(self.target_observable_mean)
     
     def select_event(self, random_number1 : float, random_number2 : float):
-        """Select next charge hopping event and update time by kinetic monte carlo apporach.
+        """
+        Select the next tunneling event using kinetic Monte Carlo approach and update the system state.
         
         Parameters
         ----------
         random_number1 : float
-            First random number
+            Random number for selecting the event (0-1)
         random_number2 : float
-            Second random number
+            Random number for advancing time (0-1)
         """
-
-        # Get CUMSUM of Tunnel Rates
+        # Calculate cumulative sum of tunnel rates
         kmc_cum_sum = np.cumsum(self.tunnel_rates)
         k_tot       = kmc_cum_sum[-1]
-        event       = random_number1 * k_tot
 
-        if (k_tot == 0.0):
-            self.jump   = -1
+        # If no tunneling events are possible, mark as invalid jump and return
+        if k_tot == 0.0:
+            self.jump = -1
             return
         
-        # Select next Jump
+        # Select event based on random number weighted by rates
+        event   = random_number1 * k_tot
         jump    = np.searchsorted(a=kmc_cum_sum, v=event)   
-        np1     = self.adv_index_rows[jump]
-        np2     = self.adv_index_cols[jump]
 
-        # If Electrode is involved
-        if ((np1 - self.N_electrodes) < 0):
-            self.charge_vector[np2-self.N_electrodes] += self.ele_charge
-            self.potential_vector[self.N_electrodes:] += self.ele_charge*self.inv_capacitance_matrix[:,np2-self.N_electrodes]
-        elif ((np2 - self.N_electrodes) < 0):
-            self.charge_vector[np1-self.N_electrodes] -= self.ele_charge
-            self.potential_vector[self.N_electrodes:] -= self.ele_charge*self.inv_capacitance_matrix[:,np1-self.N_electrodes]
-        else:
-            self.charge_vector[np1-self.N_electrodes] -= self.ele_charge
-            self.charge_vector[np2-self.N_electrodes] += self.ele_charge
-            self.potential_vector[self.N_electrodes:] += self.ele_charge*(self.inv_capacitance_matrix[:,np2-self.N_electrodes] - self.inv_capacitance_matrix[:,np1-self.N_electrodes])
-        
-        # Update Time and last Jump
-        self.time   = self.time - np.log(random_number2)/k_tot
-        self.jump   = jump
+        # Get origin and destination indices
+        np1 = self.adv_index_rows[jump]
+        np2 = self.adv_index_cols[jump]
 
-    def neglect_last_event(self, np1, np2):
-        """Reverse last tunneling event
+        # Update charge and potential based on the type of tunneling event
+        is_np1_electrode = (np1 - self.N_electrodes) < 0
+        is_np2_electrode = (np2 - self.N_electrodes) < 0
+
+        if is_np1_electrode: # From electrode to nanoparticle
+            self.charge_vector[np2 - self.N_electrodes] += self.ele_charge
+            self.potential_vector[self.N_electrodes:]   += self.ele_charge * self.inv_capacitance_matrix[:, np2 - self.N_electrodes]
+        elif is_np2_electrode: # From nanoparticle to electrode
+            self.charge_vector[np1 - self.N_electrodes] -= self.ele_charge
+            self.potential_vector[self.N_electrodes:]   -= self.ele_charge * self.inv_capacitance_matrix[:, np1 - self.N_electrodes]
+        else: # Between nanoparticles
+            self.charge_vector[np1 - self.N_electrodes] -= self.ele_charge
+            self.charge_vector[np2 - self.N_electrodes] += self.ele_charge
+            delta_potential                             = self.inv_capacitance_matrix[:, np2 - self.N_electrodes] - self.inv_capacitance_matrix[:, np1 - self.N_electrodes]
+            self.potential_vector[self.N_electrodes:]   += self.ele_charge * delta_potential
+
+        # Update KMC time and track the last jump
+        self.time += -np.log(random_number2) / k_tot
+        self.jump = jump
+
+    def neglect_last_event(self, np1: int, np2: int):
+        """
+        Reverse the last tunneling event to restore previous system state.
 
         Parameters
         ----------
         np1 : int
-            Nanoparticle index 1
+            Origin particle/electrode index for the event to reverse
         np2 : int
-            Nanoparticle index 2
+            Target particle/electrode index for the event to reverse
         """
+        is_np1_electrode = (np1 - self.N_electrodes) < 0
+        is_np2_electrode = (np2 - self.N_electrodes) < 0
+
         # If Electrode is involved
-        if ((np1 - self.N_electrodes) < 0):
-            self.charge_vector[np2-self.N_electrodes] -= self.ele_charge
-            self.potential_vector[self.N_electrodes:] -= self.ele_charge*self.inv_capacitance_matrix[:,np2-self.N_electrodes]
-        elif ((np2 - self.N_electrodes) < 0):
-            self.charge_vector[np1-self.N_electrodes] += self.ele_charge
-            self.potential_vector[self.N_electrodes:] += self.ele_charge*self.inv_capacitance_matrix[:,np1-self.N_electrodes]
-        else:
-            self.charge_vector[np1-self.N_electrodes] += self.ele_charge
-            self.charge_vector[np2-self.N_electrodes] -= self.ele_charge
-            self.potential_vector[self.N_electrodes:] -= self.ele_charge*(self.inv_capacitance_matrix[:,np2-self.N_electrodes] - self.inv_capacitance_matrix[:,np1-self.N_electrodes])
+        if is_np1_electrode: # Reverse: electrode to nanoparticle
+            self.charge_vector[np2-self.N_electrodes]   -= self.ele_charge
+            self.potential_vector[self.N_electrodes:]   -= self.ele_charge*self.inv_capacitance_matrix[:,np2-self.N_electrodes]
+        elif is_np2_electrode: # Reverse: nanoparticle to electrode
+            self.charge_vector[np1-self.N_electrodes]   += self.ele_charge
+            self.potential_vector[self.N_electrodes:]   += self.ele_charge*self.inv_capacitance_matrix[:,np1-self.N_electrodes]
+        else: # Reverse: nanoparticle to nanoparticle
+            self.charge_vector[np1-self.N_electrodes]   += self.ele_charge
+            self.charge_vector[np2-self.N_electrodes]   -= self.ele_charge
+            delta_potential                             = self.inv_capacitance_matrix[:, np2 - self.N_electrodes] - self.inv_capacitance_matrix[:, np1 - self.N_electrodes]
+            self.potential_vector[self.N_electrodes:]   -= self.ele_charge * delta_potential
         
     def run_equilibration_steps(self, n_jumps=10000):
-        """Execute a fixed amount of KMC steps for equilibration.
+        """
+        Execute a fixed number of KMC steps to equilibrate the system.
 
         Parameters
         ----------
         n_jumps : int, optional
-            Number of executed KMC steps, by default 10000
+            Number of KMC steps to execute, by default 10000
 
         Returns
         -------
         int
             Number of executed KMC steps
         """
-        
+        # Get indices of nanoparticles adjacent to floating electrodes
         idx_np_target = self.adv_index_cols[self.floating_electrodes]
 
+        # Initialize potentials
         self.calc_potentials()
         self.update_floating_electrode(idx_np_target)
 
+        # Execute equilibration steps
         for i in range(n_jumps):
-
+            # Check if previous step was valid
             if (self.jump == -1):
                 break
             
+            # Generate random numbers for KMC step
             random_number1  = np.random.rand()
             random_number2  = np.random.rand()
 
-            if not(self.zero_T):
+            # Calculate tunneling rates based on temperature model
+            if not self.zero_T:
                 self.calc_tunnel_rates()
             else:
                 self.calc_tunnel_rates_zero_T()
-            self.select_event(random_number1, random_number2)            
-            self.update_floating_electrode(idx_np_target)
             
+            # Execute KMC step
+            self.select_event(random_number1, random_number2)
+            
+            # Update floating electrode potentials
+            self.update_floating_electrode(idx_np_target)
+                        
         return n_jumps
     
-    def run_equilibration_steps_var_resistance(self, n_jumps=10000, slope=0.8, shift=7.5,
-                                               tau_0=1e-8, R_max=25, R_min=10):
-        """Execute a fixed amount of KMC steps for equilibration considering Memristors.
+    def run_equilibration_steps_var_resistance(self, n_jumps: int = 10000, slope: float = 0.8, 
+                                              shift: float = 7.5, tau_0: float = 1e-8, R_max: float = 25, R_min: float = 10) -> int:
+        """
+        Execute a fixed number of KMC steps for equilibration with variable resistance (memristive behavior).
 
         Parameters
         ----------
         n_jumps : int, optional
-            Number of executed KMC steps, by default 10000
+            Number of KMC steps to execute, by default 10000
         slope : float, optional
-            Memristor slope, by default 0.8
+            Memristor activation slope parameter, by default 0.8
         shift : float, optional
-            Memristor shifft, by default 7.5
-        tau_0 : _type_, optional
-            Memory constant, by default 1e-8
-        R_max : int, optional
-            Maximum Resistance, by default 25
-        R_min : int, optional
-            Minimum Resistance, by default 10
+            Memristor activation shift parameter, by default 7.5
+        tau_0 : float, optional
+            Memory time constant, by default 1e-8
+        R_max : float, optional
+            Maximum resistance value, by default 25
+        R_min : float, optional
+            Minimum resistance value, by default 10
 
         Returns
         -------
@@ -369,44 +427,75 @@ class model_class():
             Number of executed KMC steps
         """
 
+        # Initialize current accumulator for memristive behavior
         self.I_tilde = np.zeros(len(self.adv_index_rows))
 
+        # Initialize potentials
         self.calc_potentials()
 
+        # Execute equilibration steps
         for i in range(n_jumps):
-
+            
+            # Update resistances based on memristive model
             self.update_bimodal_resistance(slope, shift, R_max, R_min)
             
+            # Store current time
             t1 = self.time
 
-            if (self.jump == -1):
+            # Check if previous step was valid
+            if self.jump == -1:
                 break
             
-            random_number1  = np.random.rand()
-            random_number2  = np.random.rand()
+            # Generate random numbers for KMC step
+            random_number1 = np.random.rand()
+            random_number2 = np.random.rand()
 
-            if not(self.zero_T):
+            # Calculate tunneling rates based on temperature model
+            if not self.zero_T:
                 self.calc_tunnel_rates()
             else:
                 self.calc_tunnel_rates_zero_T()
+                        
+            # Execute KMC step
             self.select_event(random_number1, random_number2)
                         
-            t2  = self.time
-            dt  = t2-t1
+            # Calculate time delta
+            t2 = self.time
+            dt = t2 - t1
 
-            self.I_tilde             = self.I_tilde*np.exp(-dt/tau_0)
-            self.I_tilde[self.jump]  += 1
-
+            # Update current accumulator with exponential decay
+            self.I_tilde            = self.I_tilde * np.exp(-dt / tau_0)
+            self.I_tilde[self.jump] += 1
 
         return n_jumps
-     
-    def return_next_means(self, new_value, mean_value, mean_value2, count):
+    
+    def return_next_means(self, new_value: float, mean_value: float, mean_value2: float, count: int) -> Tuple[float, float, int]:
+        """
+        Update running means and variance for online statistics calculation.
+        
+        Uses Welford's online algorithm for numerically stable mean/variance calculation.
 
-        count           +=  1
-        delta           =   new_value - mean_value
-        mean_value      +=  delta/count          
-        delta2          =   new_value - mean_value
-        mean_value2     +=  delta * delta2
+        Parameters
+        ----------
+        new_value : float
+            New observation value
+        mean_value : float
+            Current mean value
+        mean_value2 : float
+            Current M2 aggregate (sum of squared differences)
+        count : int
+            Current count of observations
+
+        Returns
+        -------
+        Tuple[float, float, int]
+            Updated mean, M2 aggregate, and count
+        """
+        count       +=  1
+        delta       =   new_value - mean_value
+        mean_value  +=  delta / count          
+        delta2      =   new_value - mean_value
+        mean_value2 +=  delta * delta2
 
         return mean_value, mean_value2, count
     
@@ -436,165 +525,180 @@ class model_class():
             If True, simulation tracks additional observables, by default False
         """
 
-        self.total_jumps                    = 0     # Total number of KMC Steps
-        self.target_observable_error_rel    = 1.0   # Observable's relative error
-        self.target_observable_mean         = 0.0   # Average oberservable values
-        self.target_observable_mean2        = 0.0   # Helper value
-        self.target_observable_error        = 0.0   # Observable's standard error
+        # Reset simulation statistics
+        self.total_jumps                    = 0
+        self.target_observable_error_rel    = 1.0
+        self.target_observable_mean         = 0.0
+        self.target_observable_mean2        = 0.0
+        self.target_observable_error        = 0.0
 
-        idx_np_target                       = self.adv_index_cols[self.floating_electrodes]
+        # Get indices of nanoparticles adjacent to floating electrodes
+        idx_np_target = self.adv_index_cols[self.floating_electrodes]
 
-        self.charge_mean        = np.zeros(len(self.charge_vector))     # Average charge distribution
-        self.potential_mean     = np.zeros(len(self.potential_vector))  # Average potential landscape
-        self.I_network          = np.zeros(len(self.adv_index_rows))    # Network electric currents
+        # Initialize storage arrays
+        self.charge_mean    = np.zeros(len(self.charge_vector))
+        self.potential_mean = np.zeros(len(self.potential_vector))
+        self.I_network      = np.zeros(len(self.adv_index_rows))
 
-        # If current based on tunnel rates, return target rate indices
-        if kmc_counting == False:
+        # If current based on tunnel rates, find target electrode rate indices
+        if not kmc_counting:
             rate_index1 = np.where(self.adv_index_cols == target_electrode)[0][0]
             rate_index2 = np.where(self.adv_index_rows == target_electrode)[0][0]
 
-        # For additional information, track batched values
+        # For additional information, allocate arrays to track batched values
         if verbose:
-            self.target_observable_values   = np.zeros(int(max_jumps/jumps_per_batch))                                  # Observable in each batch
-            self.landscape_per_it           = np.zeros((int(max_jumps/jumps_per_batch), len(self.potential_vector)))    # Potential landscape in each batch
-            self.time_values                = np.zeros(int(max_jumps/jumps_per_batch))                                  # Time passed during each batch
-            self.jump_dist_per_it           = np.zeros((int(max_jumps/jumps_per_batch), len(self.adv_index_rows)))      # Jumps occured during each batch for each junction
+            max_batches                     = int(max_jumps / jumps_per_batch)
+            self.target_observable_values   = np.zeros(max_batches)
+            self.landscape_per_it           = np.zeros((max_batches, len(self.potential_vector)))
+            self.time_values                = np.zeros(max_batches)
+            self.jump_dist_per_it           = np.zeros((max_batches, len(self.adv_index_rows)))
 
-        count       = 0     # Number of while loops
-        below_rel   = 0     # Number of consecutive sample below relative error
-        time_total  = 0.0   # Total time passed
+        # Initialize tracking variables
+        count       = 0     # Number of completed batches
+        below_rel   = 0     # Number of consecutive batches below error threshold
+        time_total  = 0.0   # Total simulation time
 
-        # Calculate potential landscape once
+        # Calculate initial potential landscape
         self.calc_potentials()
 
-        # Calculate floating electrode voltages once
+        # Update floating electrode potentials
         self.update_floating_electrode(idx_np_target)
 
-        # While relative error or maximum amount of KMC steps not reached
-        while((below_rel < min_batches) and (self.total_jumps < max_jumps)):
-            
-            # Counting or not
-            if kmc_counting:
-                self.counter_output_jumps_pos   = 0
-                self.counter_output_jumps_neg   = 0
-            else:
-                target_value                    = 0.0
+        # Main simulation loop
+        while (below_rel < min_batches) and (self.total_jumps < max_jumps):
 
-            # Reset Arrays for given batch
+            # Initialize batch counters
+            if kmc_counting:
+                self.counter_output_jumps_pos = 0
+                self.counter_output_jumps_neg = 0
+            else:
+                target_value = 0.0
+
+            # Initialize batch storage arrays
             jump_storage_vals   = np.zeros(len(self.adv_index_rows))
             time_values         = np.zeros(jumps_per_batch)
             charge_values       = np.zeros(self.N_particles)
-            potential_values    = np.zeros(self.N_particles+self.N_electrodes)
+            potential_values    = np.zeros(self.N_particles + self.N_electrodes)
             self.time           = 0.0
-
-            # KMC Run for a batch
+            
+            # Execute batch of KMC steps
             for i in range(jumps_per_batch):
                 
-                # Start time
+                # Record start time
                 t1 = self.time
             
-                # KMC Part
-                random_number1  = np.random.rand()
-                random_number2  = np.random.rand()
+                # Generate random numbers
+                random_number1 = np.random.rand()
+                random_number2 = np.random.rand()
 
-                # T=0 Approximation of Rates
-                if not(self.zero_T):
+                # Calculate tunneling rates
+                if not self.zero_T:
                     self.calc_tunnel_rates()
                 else:
                     self.calc_tunnel_rates_zero_T()
 
-                # Without counting, extract rate difference
-                if kmc_counting == False:
-                    # rate_diffs[i] = self.tunnel_rates[rate_index1] - self.tunnel_rates[rate_index2]
-                    rate1   = self.tunnel_rates[rate_index1]
-                    rate2   = self.tunnel_rates[rate_index2]
+                # If not counting jumps directly, record rate difference
+                if not kmc_counting:
+                    rate1 = self.tunnel_rates[rate_index1]
+                    rate2 = self.tunnel_rates[rate_index2]
                 
-                # KMC Step and evolve in time
+                # Execute KMC step
                 self.select_event(random_number1, random_number2)
 
-                # Update potentials of floating electrodes
+                # Update floating electrode potentials
                 self.update_floating_electrode(idx_np_target)
 
-                if (self.jump == -1):
+                # Check if step was valid
+                if self.jump == -1:
                     break
 
-                # Occured jump
+                # Get origin and destination indices
                 np1 = self.adv_index_rows[self.jump]
                 np2 = self.adv_index_cols[self.jump]
-                jump_storage_vals[self.jump]    += 1
+                
+                # Record jump occurrence
+                jump_storage_vals[self.jump] += 1
 
-                # End time and difference
+                # Record end time and time delta
                 t2              = self.time
-                time_values[i]  = t2-t1
+                dt              = t2 - t1
+                time_values[i]  = dt
 
-                # Add charge and potential vector
-                charge_values       += self.charge_vector*(t2-t1)
-                potential_values    += self.potential_vector*(t2-t1)
+                # Accumulate charge and potential weighted by time
+                charge_values       += self.charge_vector * dt
+                potential_values    += self.potential_vector * dt
 
+                # Update observable based on simulation type
                 if output_potential:
-                    target_value += self.potential_vector[target_electrode]*(t2-t1)
+                    target_value += self.potential_vector[target_electrode] * dt
                 else:
                     if kmc_counting:
-                        # If jump from target electrode
-                        if (np1 == target_electrode):
+                        # Count jumps to/from target electrode
+                        if np1 == target_electrode:
                             self.counter_output_jumps_neg += 1
-                            
-                        # If jump towards target electrode
-                        if (np2 == target_electrode):
+                        if np2 == target_electrode:
                             self.counter_output_jumps_pos += 1
                     else:
-                        target_value += (rate1 - rate2)*(t2-t1)
+                        # Use rate difference
+                        target_value += (rate1 - rate2) * dt
 
-            # Update total jumps, average charges, and average potentials
-            self.total_jumps    += i+1
+            # Update total jumps and time
+            self.total_jumps    += i + 1
             time_total          += self.time
 
+            # Process batch results if time has advanced
             if self.time != 0:
-
+                # Accumulate charge and potential means
                 self.charge_mean    += charge_values
                 self.potential_mean += potential_values
 
-                # Calc new average currents
-                if kmc_counting and not(output_potential):
-                    target_observable   = (self.counter_output_jumps_pos - self.counter_output_jumps_neg)/self.time
+                # Calculate observable value for this batch
+                if kmc_counting and not output_potential:
+                    target_observable = (self.counter_output_jumps_pos - self.counter_output_jumps_neg) / self.time
                 else:
-                    target_observable   = target_value/self.time
+                    target_observable = target_value / self.time
 
+                # Record verbose statistics if requested
                 if verbose:
                     self.target_observable_values[count]    = target_observable
                     self.time_values[count]                 = self.time
                     self.landscape_per_it[count,:]          = potential_values/self.time
                     self.jump_dist_per_it[count,:]          = jump_storage_vals
                 
+                # Update running means and network currents 
                 self.target_observable_mean, self.target_observable_mean2, count    = self.return_next_means(target_observable, self.target_observable_mean, self.target_observable_mean2, count)
                 self.I_network                                                      += jump_storage_vals/self.time
 
+                # Calculate the current relative error
                 if (self.target_observable_mean != 0):
                     self.calc_rel_error(count)
 
+                # Check if this batch is below relative error
                 if self.target_observable_error_rel < error_th:
                     below_rel += 1
                 else:
                     below_rel = 0
 
-            else:
+            else: # If time has not advanced
                 self.charge_mean    += self.charge_vector
                 self.potential_mean += self.potential_vector
                 self.I_network      = jump_storage_vals/self.total_jumps
 
-                if not(output_potential):
+                if not output_potential:
                     self.target_observable_mean = 0.0
                 else:
                     self.target_observable_mean = self.potential_vector[target_electrode]
             
+            # Catch invalid step
             if (self.jump == -1):
                 break
-
+        
+        # Final averages
         if ((count != 0) and (self.jump != -1)):
             self.I_network      = self.I_network/count
             self.charge_mean    = self.charge_mean/time_total
             self.potential_mean = self.potential_mean/time_total
- 
+     
     def kmc_time_simulation(self, target_electrode : int, time_target : float):
         """
         Runs KMC until KMC time exceeds a target value
@@ -607,69 +711,70 @@ class model_class():
             time value to be reached
         """
 
-        # Calculate potential landscape once
+        # Calculate initial potential landscape
         self.calc_potentials()
 
-        self.total_jumps    = 0
+        # Initialize storage arrays
         self.charge_mean    = np.zeros(len(self.charge_vector))
         self.potential_mean = np.zeros(len(self.potential_vector))
         self.I_network      = np.zeros(len(self.adv_index_rows))
+        self.total_jumps    = 0
 
+        # Batch times
         inner_time  = self.time
         last_time   = 0.0
+
+        # Find target electrode rate indices
         rate_index1 = np.where(self.adv_index_cols == target_electrode)[0][0]
         rate_index2 = np.where(self.adv_index_rows == target_electrode)[0][0]
         rate_diffs  = 0.0
 
+        # Until we reach our time target
         while (self.time < time_target):
 
             # Start time
             last_time   = self.time
 
-            # KMC Part
+            # Generate random numbers
             random_number1  = np.random.rand()
             random_number2  = np.random.rand()
 
-            # T=0 Approximation of Rates
-            if not(self.zero_T):
+            # Calculate tunneling rates
+            if not self.zero_T:
                 self.calc_tunnel_rates()
             else:
                 self.calc_tunnel_rates_zero_T()
 
-            # Extract rate difference
+            # Record rate difference
             rate1   = self.tunnel_rates[rate_index1]
             rate2   = self.tunnel_rates[rate_index2]
 
-            # KMC Step and evolve in time
+            # Execute KMC step
             self.select_event(random_number1, random_number2)
             
+            # Check if step was valid
             if (self.jump == -1):
-                    
                 # Update Observables
-                rate_diffs                  += (rate1 - rate2)*(time_target-last_time)
-                self.charge_mean            += self.charge_vector*(time_target-last_time)
-                self.potential_mean         += self.potential_vector*(time_target-last_time)
-
+                rate_diffs          += (rate1 - rate2)*(time_target-last_time)
+                self.charge_mean    += self.charge_vector*(time_target-last_time)
+                self.potential_mean += self.potential_vector*(time_target-last_time)
                 break
 
-            # Occured jump
+            # Get origin and destination indices
             np1 = self.adv_index_rows[self.jump]
             np2 = self.adv_index_cols[self.jump]
 
             # If time exceeds target time
             if (self.time >= time_target):
-
+                # Neglect last tunneling event
                 self.neglect_last_event(np1,np2)
-
                 # Update Observables
                 rate_diffs                  += (rate1 - rate2)*(time_target-last_time)
                 self.charge_mean            += self.charge_vector*(time_target-last_time)
                 self.potential_mean         += self.potential_vector*(time_target-last_time)
-
                 break
 
             else:
-                
                 # Update Observables
                 rate_diffs                  += (rate1 - rate2)*(self.time-last_time)
                 self.charge_mean            += self.charge_vector*(self.time-last_time)
@@ -679,6 +784,7 @@ class model_class():
 
         self.target_observable_mean = rate_diffs/(time_target-inner_time)
         
+        # Final averages
         if self.total_jumps != 0:
             self.I_network          = self.I_network/self.total_jumps
         else:
@@ -781,84 +887,7 @@ class model_class():
             self.I_network          = np.zeros(len(self.adv_index_rows))
         self.charge_mean            = self.charge_mean/(time_target-inner_time)
         self.potential_mean         = self.potential_mean/(time_target-inner_time)
-    
-    def kmc_time_simulation_potential2(self, target_electrode : int, time_target : float):
-        """
-        Runs KMC until KMC time exceeds a target value
-
-        Parameters
-        ----------
-        target_electrode : int
-            electrode index of which electric current is estimated
-        time_target : float
-            time value to be reached
-        """
-
-        # Calculate potential landscape once
-        self.calc_potentials()
-        
-        self.total_jumps    = 0
-        self.charge_mean    = np.zeros(len(self.charge_vector))
-        self.potential_mean = np.zeros(len(self.potential_vector))
-        self.I_network      = np.zeros(len(self.adv_index_rows))
-        idx_np_target       = self.adv_index_cols[self.floating_electrodes]
-
-        inner_time          = self.time
-        last_time           = 0.0        
-        target_potential    = 0.0
-
-        while (self.time < time_target):
-
-            # KMC Part
-            random_number1  = np.random.rand()
-            random_number2  = np.random.rand()
-
-            # T=0 Approximation of Rates
-            if not(self.zero_T):
-                self.calc_tunnel_rates()
-            else:
-                self.calc_tunnel_rates_zero_T()
-
-            # KMC Step and evolve in time
-            self.select_event(random_number1, random_number2)
-
-            if (self.jump == -1):
-                break
-
-            # Occured jump
-            np1 = self.adv_index_rows[self.jump]
-            np2 = self.adv_index_cols[self.jump]
-
-            # If time exceeds target time
-            if (self.time >= time_target):
-                self.neglect_last_event(np1,np2)
-                break
-
-            # Update potential of floating target electrode
-            self.update_floating_electrode(idx_np_target)
-            target_potential += self.potential_vector[target_electrode]*(self.time-last_time)
-
-            # Update Observables
-            self.charge_mean            += self.charge_vector*(self.time-last_time)
-            self.potential_mean         += self.potential_vector*(self.time-last_time)
-            self.I_network[self.jump]   += 1            
-            self.total_jumps            += 1           
-        
-        if (self.jump == -1):
-            self.target_observable_mean  = self.potential_vector[target_electrode]
-
-        if (last_time-inner_time) != 0:
-            self.target_observable_mean = target_potential/(time_target-inner_time)
-            self.I_network              = self.I_network/self.total_jumps
-            self.charge_mean            = self.charge_mean/(time_target-inner_time)
-            self.potential_mean         = self.potential_mean/(time_target-inner_time)
             
-        else:
-            self.target_observable_mean = self.potential_vector[target_electrode]
-            self.I_network              = self.I_network
-            self.charge_mean            = self.charge_vector
-            self.potential_mean         = self.potential_vector
-        
     def kmc_time_simulation_var_resistance(self, target_electrode : int, time_target : float, slope=0.8,
                             shift=7.5, tau_0=1e-8, R_max=25, R_min=10):
         """

@@ -16,14 +16,25 @@ class topology_class:
         Number of electrodes.
     N_junctions : int
         Number of junctions per nanoparticle.
+    N_x : int
+        Number of nanoparticles in x-direction (only set for cubic networks).
+    N_y : int
+        Number of nanoparticles in y-direction (only set for cubic networks).
+    N_z : int
+        Number of nanoparticles in z-direction (only set for cubic networks).
     rng : numpy.random.Generator
         Random number generator instance.
     G : nx.DiGraph
         NetworkX directed graph of the nanoparticle network.
     pos : dict
-        Dictionary of nanoparticle (keys) positions (values).
+        Dictionary mapping node indices to their 2D positions (x,y). For cubic networks,
+        coordinates are integer grid positions. For random networks, coordinates are
+        normalized to [-1,1] range. Electrode positions are placed relative to their
+        connected nanoparticles.
     net_topology : np.ndarray
-        Network topology matrix.
+        Network topology matrix where each row represents a nanoparticle.
+        First column indicates connected electrode (if any),
+        subsequent columns indicate connections to other nanoparticles.
     
     Methods
     -------
@@ -39,25 +50,24 @@ class topology_class:
             Attach electrode to spcific nanoparticle positions.
             Only use this method for regular grid like networks
         return_net_topology()
+        export_network(filepath : str)
+            Export the network configuration to a file.
+        import_network(filepath : str)
+            Import a network configuration from a file.
     """
 
     NO_CONNECTION = -100 # Placeholder for unconnected junctions
 
-    def __init__(self, electrode_type: List[str] = None, seed: int = None) -> None:
+    def __init__(self, seed: int = None) -> None:
         """
         Parameters
         ----------
-        electrode_type : List[str]
-            List indicating the type of electrodes.
         seed : int, optional
             Random seed for reproducibility, by default None.
         """
         self.rng            = np.random.default_rng(seed)
         self.N_particles    = 0
         self.N_electrodes   = 0
-
-        if electrode_type is not None:
-            self.electrode_type = np.array(electrode_type)
 
     def cubic_network(self, N_x: int, N_y: int, N_z: int) -> None:
         """
@@ -72,8 +82,6 @@ class topology_class:
         N_z : int
             Number of nanoparticles in z-direction (depth).
         """
-        if N_x <= 0 or N_y <= 0 or N_z <= 0:
-            raise ValueError("Dimensions N_x, N_y, N_z must be positive integers.")
         
         self.N_x    = N_x
         self.N_y    = N_y
@@ -134,7 +142,7 @@ class topology_class:
         N_particles : int
             Number of nanoparticles
         N_junctions : int
-            Number of junctions per nanoparticle in a random regular netwokr. If 0, a Delaunay triangulation is used
+            Number of junctions per nanoparticle in a random regular network. If 0, a Delaunay triangulation is used
             and the network is forced to be planar (2D), by default 0.
         """
         
@@ -150,11 +158,11 @@ class topology_class:
             angles  = self.rng.uniform(0,2*np.pi, self.N_particles)
             radii   = np.sqrt(self.rng.uniform(0, 1, self.N_particles))
             pos     = [(r * np.cos(a), r * np.sin(a)) for r, a in zip(radii, angles)]
-            self.G  = nx.Graph()
+            temp_G  = nx.Graph()
 
             # Add nodes to graph object
             for i, p in enumerate(pos):
-                self.G.add_node(i, pos=p)
+                temp_G.add_node(i, pos=p)
 
             # Delaunay Triangulation
             tri     = Delaunay(pos)
@@ -164,23 +172,23 @@ class topology_class:
                     edge = tuple(sorted([simplex[i], simplex[(i+1) % 3]]))
                     edges.add(edge)
             
-            edges = list(edges)
-
-            # Add edges and uptade pos
-            self.G.add_edges_from(edges)
+            # Add edges to temporary undirected graph
+            temp_G.add_edges_from(edges)
+            
+            # Convert to directed graph
+            self.G = nx.DiGraph(temp_G)
             self.pos = {i : p for i, p in enumerate(pos)}
-            self.N_junctions = np.max([val for (node, val) in self.G.degree()])
+            self.N_junctions = np.max([val for (node, val) in temp_G.degree()])
 
         else:
             # Random regular graph generation until connected
             while True:
-
-                self.G  = nx.random_regular_graph(N_junctions, self.N_particles)
-                if nx.is_connected(self.G):
+                temp_G = nx.random_regular_graph(N_junctions, self.N_particles)
+                if nx.is_connected(temp_G):
                     break
 
-            # Make graph directed and position nanoparticles
-            self.G   = self.G.to_directed()
+            # Convert to directed graph
+            self.G = nx.DiGraph(temp_G)
             self.pos = nx.kamada_kawai_layout(self.G)
             self.pos = nx.spring_layout(self.G, pos=self.pos)
 
@@ -261,58 +269,15 @@ class topology_class:
             # Store the electrode position
             self.pos[-node-1] = e_pos
     
-    # def add_np_to_e_pos(self):
-    #     """Attach nanoparticles to all floating electrodes and update the network topology accordingly.
-    #     """
-    #     # Find indices of floating electrodes
-    #     floating_electrodes = np.where(self.electrode_type == 'floating')[0]
-        
-    #     # Increase the number of nanoparticles based on the number of floating electrodes
-    #     prev_particle_count =   self.N_particles
-    #     self.N_particles    +=  len(floating_electrodes)
+    def add_np_to_output(self):
+        """Attach one nanoparticle to the output electrode (last electrode index).
 
-    #     # Loop through each floating electrode
-    #     for i, electrode_index in enumerate(floating_electrodes):
-    #         # Find the nanoparticle that is connected to the floating electrode
-    #         adj_np  = np.where(self.net_topology[:,0]==(electrode_index+1))[0][0]
-            
-    #         # Create a new row for the new nanoparticle and set the connections
-    #         new_nn      = np.full(self.net_topology.shape[1], self.NO_CONNECTION)   # Initialize with placeholders
-    #         new_nn[0]   = electrode_index+1                                         # First column: connect to the electrode   
-    #         new_nn[1]   = adj_np                                                    # Second column: connect to the adjacent nanoparticle
-
-    #         # Add the new nanoparticle and its connections to the network topology
-    #         self.net_topology   = np.vstack((self.net_topology,new_nn))
-
-    #         # Update the adjacent nanoparticle's connection to remove the floating electrode
-    #         first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
-    #         self.net_topology[adj_np,first_free_spot]   = self.net_topology.shape[0]-1 
-    #         self.net_topology[adj_np,0]                 = self.NO_CONNECTION
-    #         self.pos[prev_particle_count+i]             = self.pos[-electrode_index-1]
-
-    #         # Update node positions
-    #         x, y    = self.pos[-electrode_index-1]
-    #         if x == self.N_x:
-    #             self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0]+1,self.pos[-electrode_index-1][1])
-    #         elif x == -1:
-    #             self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0]-1,self.pos[-electrode_index-1][1])
-    #         elif y == self.N_y:
-    #             self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0],self.pos[-electrode_index-1][1]+1)
-    #         elif y == -1:
-    #             self.pos[-electrode_index-1]    = (self.pos[-electrode_index-1][0],self.pos[-electrode_index-1][1]-1)
-
-    #         self.G.add_node(prev_particle_count+i)
-    #         self.G.remove_edge(adj_np,-electrode_index-1)
-    #         self.G.remove_edge(-electrode_index-1,adj_np)
-    #         self.G.add_edge(prev_particle_count+i,adj_np)
-    #         self.G.add_edge(adj_np,prev_particle_count+i)
-    #         self.G.add_edge(prev_particle_count+i,-electrode_index-1)
-    #         self.G.add_edge(-electrode_index-1,prev_particle_count+i)
-
-    #TODO Update self.pos (see previous method)
-    def add_np_to_e_pos(self):
-        """Attach one nanoparticle to the output electrode.
+        This method:
+        1. Disconnects the existing nanoparticle from the output electrode
+        2. Creates a new nanoparticle
+        3. Connects the new nanoparticle between the previously connected nanoparticle and the output electrode
         """
+        
         # Index of output electrode
         output_electrode_idx    = self.N_electrodes-1
         
@@ -349,14 +314,31 @@ class topology_class:
         self.G.add_edge(adj_np,prev_particle_count)
         self.G.add_edge(prev_particle_count,-output_electrode_idx-1)
         self.G.add_edge(-output_electrode_idx-1,prev_particle_count)
-    
-    #TODO Update self.pos (see previous method)
-    def add_in_parallel_output_capacitor(self):
-        """Attach two nanoparticles to the output electrode.
+
+        # Update node positions
+        x, y    = self.pos[-output_electrode_idx-1]
+        if x == self.N_x:
+            self.pos[-output_electrode_idx-1]    = (self.pos[-output_electrode_idx-1][0]+1,self.pos[-output_electrode_idx-1][1])
+        elif x == -1:
+            self.pos[-output_electrode_idx-1]    = (self.pos[-output_electrode_idx-1][0]-1,self.pos[-output_electrode_idx-1][1])
+        elif y == self.N_y:
+            self.pos[-output_electrode_idx-1]    = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]+1)
+        elif y == -1:
+            self.pos[-output_electrode_idx-1]    = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]-1)
+
+    def add_two_in_parallel_np_to_output(self):
+        """Attach two nanoparticles in parallel to the output electrode (last electrode index).
+
+        This method:
+        1. Disconnects the existing nanoparticle from the output electrode
+        2. Creates two new nanoparticles
+        3. Connects both new nanoparticles between the previously connected nanoparticle and the output electrode,
+           forming a parallel configuration
         """
+        
         # Index of output electrode
         output_electrode_idx    = self.N_electrodes-1
-        
+            
         # Increase the number of nanoparticles by two
         prev_particle_count =   self.N_particles
         self.N_particles    +=  2
@@ -404,13 +386,19 @@ class topology_class:
         self.G.add_edge(prev_particle_count+1,-output_electrode_idx-1)
         self.G.add_edge(-output_electrode_idx-1,prev_particle_count+1)
 
-    #TODO Update self.pos (see previous method)
-    def add_in_series_output_capacitor(self):
-        """Attach two nanoparticles to the output electrode.
+    def add_two_in_series_np_to_output(self):
+        """Attach two nanoparticles in series to the output electrode.
+
+        This method:
+        1. Disconnects the existing nanoparticle from the output electrode
+        2. Creates two new nanoparticles
+        3. Connects the new nanoparticles in series between the previously connected nanoparticle 
+           and the output electrode
         """
+
         # Index of output electrode
         output_electrode_idx    = self.N_electrodes-1
-        
+            
         # Increase the number of nanoparticles by two
         prev_particle_count =   self.N_particles
         self.N_particles    +=  2
@@ -449,8 +437,6 @@ class topology_class:
         # Add new edges
         self.G.add_edge(prev_particle_count,adj_np)
         self.G.add_edge(adj_np,prev_particle_count)
-        # self.G.add_edge(prev_particle_count+1,adj_np)
-        # self.G.add_edge(adj_np,prev_particle_count+1)
         self.G.add_edge(prev_particle_count,prev_particle_count+1)
         self.G.add_edge(prev_particle_count+1,prev_particle_count)
         self.G.add_edge(prev_particle_count+1,-output_electrode_idx-1)
@@ -495,6 +481,130 @@ class topology_class:
         """
         return self.net_topology
     
+    def validate_network(self) -> bool:
+        """
+        Validate the network topology.
+        
+        Checks:
+        1. Network connectivity (weak connectivity for directed graphs)
+        2. Consistency between net_topology matrix and NetworkX graph
+        3. Electrode connections
+        
+        Returns
+        -------
+        bool
+            True if the network is valid, False otherwise.
+            
+        Raises
+        ------
+        ValueError
+            If inconsistencies are found in the network topology
+        """
+        # Check network connectivity (using weak connectivity for directed graphs)
+        if not nx.is_weakly_connected(self.G):
+            raise ValueError("Network is not fully connected")
+            
+        # Check consistency between net_topology and graph
+        for node in range(self.N_particles):
+            graph_neighbors = set(n for n in self.G.neighbors(node) if n >= 0)
+            topo_neighbors = set(n for n in self.net_topology[node, 1:] if n != self.NO_CONNECTION)
+            if graph_neighbors != topo_neighbors:
+                raise ValueError(f"Inconsistency found in connections for node {node}")
+                
+        # Check electrode connections
+        for node in range(self.N_particles):
+            electrode = self.net_topology[node, 0]
+            if electrode != self.NO_CONNECTION:
+                if not self.G.has_edge(node, -(electrode)) or not self.G.has_edge(-(electrode), node):
+                    raise ValueError(f"Missing electrode connection for node {node}")
+                    
+        return True
+    
+    def export_network(self, filepath: str) -> None:
+        """
+        Export the network configuration to a file.
+        
+        This method saves:
+        1. Network topology matrix
+        2. Node positions
+        3. Electrode configurations
+        4. Network parameters (N_particles, N_junctions, etc.)
+        
+        Parameters
+        ----------
+        filepath : str
+            Path to save the network configuration file
+        """
+        network_data = {
+            'net_topology': self.net_topology.tolist(),
+            'positions': {str(k): list(v) for k, v in self.pos.items()},
+            'N_particles': self.N_particles,
+            'N_electrodes': self.N_electrodes,
+            'N_junctions': self.N_junctions
+        }
+        
+        if hasattr(self, 'N_x'):
+            network_data['N_x'] = self.N_x
+            network_data['N_y'] = self.N_y
+            network_data['N_z'] = self.N_z
+            
+        np.save(filepath, network_data, allow_pickle=True)
+
+    def import_network(self, filepath: str) -> None:
+        """
+        Import a network configuration from a file.
+        
+        Parameters
+        ----------
+        filepath : str
+            Path to the network configuration file
+            
+        Raises
+        ------
+        ValueError
+            If the file format is invalid or missing required data
+        """
+        try:
+            network_data = np.load(filepath, allow_pickle=True).item()
+            
+            # Restore basic attributes
+            self.net_topology = np.array(network_data['net_topology'])
+            self.pos = {int(k) if k.isdigit() else int(k[1:]) if k.startswith('-') else k: 
+                       tuple(v) for k, v in network_data['positions'].items()}
+            self.N_particles = network_data['N_particles']
+            self.N_electrodes = network_data['N_electrodes']
+            self.N_junctions = network_data['N_junctions']
+            
+            if 'N_x' in network_data:
+                self.N_x = network_data['N_x']
+                self.N_y = network_data['N_y']
+                self.N_z = network_data['N_z']
+                
+            # Reconstruct the graph
+            self.G = nx.DiGraph()
+            self.G.add_nodes_from(range(self.N_particles))
+            self.G.add_nodes_from(range(-self.N_electrodes, 0))
+            
+            # Add edges from topology matrix
+            for node in range(self.N_particles):
+                # Add electrode connections
+                if self.net_topology[node, 0] != self.NO_CONNECTION:
+                    electrode = -self.net_topology[node, 0]
+                    self.G.add_edge(node, electrode)
+                    self.G.add_edge(electrode, node)
+                    
+                # Add nanoparticle connections
+                for neighbor in self.net_topology[node, 1:]:
+                    if neighbor != self.NO_CONNECTION:
+                        self.G.add_edge(node, neighbor)
+                        self.G.add_edge(neighbor, node)
+                        
+            # Validate the imported network
+            self.validate_network()
+            
+        except Exception as e:
+            raise ValueError(f"Failed to import network configuration: {str(e)}")
+    
     def __str__(self):
         return f"Topology Class with {self.N_particles} particles, {self.N_junctions} junctions.\nNetwork Topology:\n{self.net_topology}"
     
@@ -510,15 +620,15 @@ if __name__ == '__main__':
     cubic_topology.cubic_network(N_x, N_y, N_z)
     cubic_topology.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
     print(cubic_topology)
-    cubic_topology.add_high_capacitive_output()
+    cubic_topology.add_np_to_output()
     print(cubic_topology)
 
     
     # Disordered Network Topology
-    # N_particles, N_junctions    = 20,0
-    # electrode_pos               = [[-1,-1],[1,-1],[-1,1],[1,1]]
-    # random_topology             = topology_class()
-    # random_topology.random_network(N_particles, N_junctions)
-    # random_topology.add_electrodes_to_random_net(electrode_pos)
-    # random_topology.graph_to_net_topology()
-    # print(random_topology)
+    N_p, N_j        = 20,0
+    electrode_pos   = [[-1,-1],[-1,1],[1,1]]
+    random_topology = topology_class()
+    random_topology.random_network(N_p, N_j)
+    random_topology.add_electrodes_to_random_net(electrode_pos)
+    random_topology.graph_to_net_topology()
+    print(random_topology)

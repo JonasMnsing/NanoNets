@@ -46,7 +46,7 @@ if __name__ == '__main__':
     # Frequency Points
     N_samples   = 500
     N_processes = 10
-    volt_sample = np.random.uniform(-0.1,0.1,(N_samples,5))
+    volt_sample = np.random.uniform(-0.05,0.05,(N_samples,5))
 
     frequencies         = [0.0,f0,f1,0.0,0.0,0.0,0.0,0.0]
     amplitudes          = [0.0,0.1,0.1,0.0,0.0,0.0,0.0,0.0]

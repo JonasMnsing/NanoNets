@@ -807,7 +807,8 @@ class model_class():
         time_target : float
             Target simulation time to reach
         output_potential : bool, optional
-            If True, simulation tracks target electrode potential as observable. If False, simulation tracks target electrode electric current, by default True
+            If True, simulation tracks target electrode potential as observable.
+            If False, simulation tracks target electrode electric current, by default True
         """
         # Calculate initial potential landscape
         self.calc_potentials()
@@ -1516,7 +1517,7 @@ class simulation(tunneling.tunnel_class):
                 res_dynamic = False
 
             # Pass all model arguments into Numba optimized Class
-            model = model_class(charge_vector, potential_vector, inv_capacitance_matrix,const_capacitance_values,
+            model = model_class(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
                                 temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles, floating_electrodes)
 
             if self.res_info['dynamic']:
@@ -1693,7 +1694,7 @@ class simulation(tunneling.tunnel_class):
 
             # For each time step, i.e. voltage
             for i, voltage_values in enumerate(voltages[:-1]):
-                
+
                 # Add charging state electrode voltage
                 offset                      = self.get_charge_vector_offset(voltage_values=voltage_values)
                 self.model.charge_vector    = self.model.charge_vector + offset
@@ -1704,12 +1705,12 @@ class simulation(tunneling.tunnel_class):
 
                 # Update Electrode Potentials
                 self.model.potential_vector[const_electrodes]  = voltage_values[const_electrodes]
-                
+                                
                 if self.res_info['dynamic']:
                     self.model.kmc_time_simulation_var_resistance(target_electrode, time_target, slope, shift, tau_0, R_max, R_min)
                 else:
                     if output_potential:
-                        self.model.kmc_time_simulation_potential(target_electrode, time_target)
+                        self.model.kmc_time_simulation(target_electrode, time_target, output_potential)
                         target_observable_mean, target_observable_error, total_jumps = self.model.return_target_values(output_potential)
 
                     else:

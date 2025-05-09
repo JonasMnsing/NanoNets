@@ -1105,8 +1105,31 @@ def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True)
     # return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
     return freq[:len(freq)//2], magnitude_rms
 
+# def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True) -> tuple[np.ndarray, np.ndarray]:
+#     if signal.ndim != 1:
+#         raise ValueError("Input signal must be 1D.")
+
+#     if use_hann:
+#         window = hann(len(signal))
+#         signal_w = signal * window
+#         hann_correction = 1 / np.mean(window)
+#     else:
+#         signal_w = signal
+#         hann_correction = 1.0
+
+#     N = max(len(signal_w), n_padded)
+#     signal_p = np.pad(signal_w, (0, N - len(signal_w)), mode='constant')
+
+#     signal_fft = np.fft.fft(signal_p)
+#     freq = np.fft.fftfreq(N, d=dt)
+    
+#     pos_mask = freq >= 0
+#     magnitude = np.abs(signal_fft[pos_mask]) * hann_correction / N
+
+#     return freq[pos_mask], magnitude
+
 def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True,
-                      n_padded: int = 0, dB: bool = False, sigma_threshold: float = 3.0, noise_band: tuple = (0.5, 1.5))->np.ndarray:
+                      n_padded: int = 0, dB: bool = False, sigma_threshold: float = 3.0, noise_band: tuple = (0.8, 1.2))->np.ndarray:
     """Compute the harmonic strength of a signal relative to its fundamental frequency.
 
     Parameters

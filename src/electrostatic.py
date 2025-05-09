@@ -1,5 +1,6 @@
 import numpy as np
 import topology
+from typing import List
 
 class electrostatic_class(topology.topology_class):
     """
@@ -52,7 +53,7 @@ class electrostatic_class(topology.topology_class):
     PI                  = 3.14159265359
     ELECTRODE_RADIUS    = 10.0  # nm
     
-    def __init__(self, electrode_type, seed=None)->None:
+    def __init__(self, electrode_type: List[str] = None, seed: int = None)->None:
         """
         Initialize electrostatic properties.
 
@@ -71,7 +72,9 @@ class electrostatic_class(topology.topology_class):
         super().__init__(seed)
         if not all(t in ['constant', 'floating'] for t in electrode_type):
             raise ValueError("electrode_type must contain only 'constant' or 'floating'")
-        self.floating_indices = np.where(np.array(electrode_type) == 'floating')[0]
+        self.floating_indices   = np.where(np.array(electrode_type) == 'floating')[0]
+        if electrode_type is not None:
+            self.electrode_type = np.array(electrode_type)
 
     def mutal_capacitance_adjacent_spheres(self, eps_r: float, np_radius1: float, np_radius2: float, np_distance: float) -> float:
         """

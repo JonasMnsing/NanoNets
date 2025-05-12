@@ -9,7 +9,7 @@ def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, 
 
     np_info2    = {
         'np_index'      : [81], 
-        'mean_radius'   : 5e4,
+        'mean_radius'   : 5e5,
         'std_radius'    : 0.0
     }
     

@@ -9,7 +9,7 @@ def run_simulation(time_steps, voltages, topology_parameter, folder, stat_size, 
 
     np_info2    = {
         'np_index'      : [81], 
-        'mean_radius'   : 5e5,
+        'mean_radius'   : 5e4,
         'std_radius'    : 0.0
     }
     
@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     for i in range(N_processes):
         f0                  = freq_vals[i]*1e6      # Convert MHz to Hz
-        dt                  = 1/(20 * f0)           # 20 Samples per period
+        dt                  = 1/(40 * f0)           # 20 Samples per period
         T_sim               = N_periods/f0
         N_voltages          = int(T_sim/dt)
         frequencies         = [f0,0.0]
@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
     for i in range(N_processes):
         f0                  = freq_vals[i]*1e6      # Convert MHz to Hz
-        dt                  = 1/(20 * f0)           # 20 Samples per period
+        dt                  = 1/(40 * f0)           # 20 Samples per period
         T_sim               = N_periods/f0
         N_voltages          = int(T_sim/dt)
         frequencies         = [f0,0.0]
@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
     for i in range(N_processes):
         f0                  = freq_vals[i]*1e6      # Convert MHz to Hz
-        dt                  = 1/(20 * f0)           # 20 Samples per period
+        dt                  = 1/(40 * f0)           # 20 Samples per period
         T_sim               = N_periods/f0
         N_voltages          = int(T_sim/dt)
         frequencies         = [f0,0.0]

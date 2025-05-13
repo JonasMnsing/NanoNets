@@ -1053,80 +1053,91 @@ def autocorrelation(x : np.ndarray, y : np.ndarray, lags : int)->np.ndarray:
 
     return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
 
-def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True) -> tuple[np.ndarray,np.ndarray]:
-    """
-    Compute the Fast Fourier Transform (FFT) of a given signal.
+# def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True) -> tuple[np.ndarray,np.ndarray]:
+#     """
+#     Compute the Fast Fourier Transform (FFT) of a given signal.
 
-    Parameters
-    ----------
-    signal : np.ndarray
-        The input time-domain signal.
-    dt : float
-        The time step (sampling period) of the signal.
-    n_padded : int, optional
-        The number of points for zero-padding in the FFT, by default 0 (no padding).
-    use_hann : bool, optional
-        If True, applies a Hann window before computing the FFT, by default True.
+#     Parameters
+#     ----------
+#     signal : np.ndarray
+#         The input time-domain signal.
+#     dt : float
+#         The time step (sampling period) of the signal.
+#     n_padded : int, optional
+#         The number of points for zero-padding in the FFT, by default 0 (no padding).
+#     use_hann : bool, optional
+#         If True, applies a Hann window before computing the FFT, by default True.
 
-    Returns
-    -------
-    freq : np.ndarray
-        The one-sided frequency axis (positive frequencies only).
-    magnitude : np.ndarray
-        The magnitude of the FFT spectrum, corresponding to `freq`.
-    """
+#     Returns
+#     -------
+#     freq : np.ndarray
+#         The one-sided frequency axis (positive frequencies only).
+#     magnitude : np.ndarray
+#         The magnitude of the FFT spectrum, corresponding to `freq`.
+#     """
 
-    # Apply windowing if requested
-    if use_hann:
-        signal_w        = signal*hann(len(signal))
-        hann_correction = 1.63
-    else:
-        signal_w        = signal.copy()
-        hann_correction = 1.0
-
-    # Padding signal if needed
-    if n_padded > len(signal_w):
-        signal_p    = np.pad(signal_w, (0, n_padded - len(signal_w)), mode='constant')
-    else:
-        signal_p    = signal_w.copy()
-
-    # Compute FFT
-    signal_fft  = np.fft.fft(signal_p)
-    N           = len(signal_p)
-
-    # Compute frequency axis
-    if n_padded == 0:
-        freq    = np.fft.fftfreq(signal.shape[-1]) / dt
-    else:
-        freq    = np.fft.fftfreq(n_padded) / dt
-
-    magnitude_rms = (np.abs(signal_fft[:len(freq)//2]) / np.sqrt(2 * N)) * hann_correction
-
-    # return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
-    return freq[:len(freq)//2], magnitude_rms
-
-# def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True) -> tuple[np.ndarray, np.ndarray]:
-#     if signal.ndim != 1:
-#         raise ValueError("Input signal must be 1D.")
-
+#     # Apply windowing if requested
 #     if use_hann:
-#         window = hann(len(signal))
-#         signal_w = signal * window
-#         hann_correction = 1 / np.mean(window)
+#         signal_w        = signal*hann(len(signal))
+#         hann_correction = 1.63
 #     else:
-#         signal_w = signal
+#         signal_w        = signal.copy()
 #         hann_correction = 1.0
 
-#     N = max(len(signal_w), n_padded)
-#     signal_p = np.pad(signal_w, (0, N - len(signal_w)), mode='constant')
+#     # Padding signal if needed
+#     if n_padded > len(signal_w):
+#         signal_p    = np.pad(signal_w, (0, n_padded - len(signal_w)), mode='constant')
+#     else:
+#         signal_p    = signal_w.copy()
 
-#     signal_fft = np.fft.fft(signal_p)
-#     freq = np.fft.fftfreq(N, d=dt)
-    
-#     pos_mask = freq >= 0
-#     magnitude = np.abs(signal_fft[pos_mask]) * hann_correction / N
+#     # Compute FFT
+#     signal_fft  = np.fft.fft(signal_p)
+#     N           = len(signal_p)
 
-#     return freq[pos_mask], magnitude
+#     # Compute frequency axis
+#     if n_padded == 0:
+#         freq    = np.fft.fftfreq(signal.shape[-1]) / dt
+#     else:
+#         freq    = np.fft.fftfreq(n_padded) / dt
+
+#     magnitude_rms = (np.abs(signal_fft[:len(freq)//2]) / np.sqrt(2 * N)) * hann_correction
+
+#     # return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
+#     return freq[:len(freq)//2], magnitude_rms
+
+def fft(signal: np.ndarray, dt: float,
+        n_padded: int = 0,
+        use_hann: bool = False) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Compute one‐sided FFT amplitude of a real signal.
+    Returns (freq, mag) where mag[k] ≈ amplitude of the k-th bin.
+    """
+
+    N0 = len(signal)
+
+    # 1) Window
+    if use_hann:
+        w = np.hanning(N0)
+        signal_w = signal * w
+        # normalize so that a pure sine of amp A still reads A
+        norm = np.sum(w) / N0
+    else:
+        signal_w = signal
+        norm = 1.0
+
+    # 2) Zero‐pad to length N
+    N = max(N0, n_padded)
+    signal_p = np.pad(signal_w, (0, N-N0), 'constant')
+
+    # 3) FFT & freq‐axis
+    fft_vals = np.fft.rfft(signal_p)
+    freq     = np.fft.rfftfreq(N, dt)
+
+    # 4) Magnitude scaling: restore amplitude, correct for window
+    mag = np.abs(fft_vals) * 2 / N      # one‐sided amplitude
+    mag /= norm                         # undo window attenuation
+
+    return freq, mag
 
 def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True,
                       n_padded: int = 0, dB: bool = False, sigma_threshold: float = 3.0, noise_band: tuple = (0.8, 1.2))->np.ndarray:

@@ -1168,13 +1168,13 @@ def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_ha
     """
 
     # Remove DC offset
-    arr         = signal - np.mean(signal) 
+    arr = signal - np.mean(signal) 
     
     # Compute FFT and extract frequency and amplitude spectrum
-    xf, yf      = fft(signal=arr, dt=dt, n_padded=n_padded, use_hann=use_hann)
+    xf, yf = fft(signal=arr, dt=dt, n_padded=n_padded, use_hann=use_hann)
     
     # Interpolation function for FFT spectrum
-    func        = interp1d(xf, yf)
+    func = interp1d(xf, yf)
 
     # Define noise band (exclude f0 and harmonics)
     noise_mask          = (xf >= noise_band[0] * f0) & (xf <= noise_band[1] * f0)

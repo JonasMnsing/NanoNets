@@ -9,7 +9,7 @@ from core import run_simulation, batch_launch
 # ─── Configuration ────────────────────────────────────────────────────────────────
 T_VAL           = 5.0
 STAT_SIZE_BASE  = 10
-N_PERIODS       = 40
+N_PERIODS       = 100
 N_NP            = 9
 # FREQ_LIST_MHZ   = [0.001,0.002,0.004,0.006,0.008,0.01,0.03,0.06,0.12]
 # FREQ_LIST_MHZ   = [0.25,0.5,1.,2.,5.,6.,8.,10.,12.,15.]

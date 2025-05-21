@@ -1117,25 +1117,24 @@ def fft(signal: np.ndarray, dt: float,
 
     # 1) Window
     if use_hann:
-        w = np.hanning(N0)
-        signal_w = signal * w
-        # normalize so that a pure sine of amp A still reads A
-        norm = np.sum(w) / N0
+        w           = np.hanning(N0)
+        signal_w    = signal * w
+        norm        = np.sum(w) / N0   # normalize so that a pure sine of amp A still reads A
     else:
-        signal_w = signal
-        norm = 1.0
+        signal_w    = signal
+        norm        = 1.0
 
     # 2) Zero‐pad to length N
-    N = max(N0, n_padded)
-    signal_p = np.pad(signal_w, (0, N-N0), 'constant')
+    N           = max(N0, n_padded)
+    signal_p    = np.pad(signal_w, (0, N-N0), 'constant')
 
     # 3) FFT & freq‐axis
     fft_vals = np.fft.rfft(signal_p)
     freq     = np.fft.rfftfreq(N, dt)
 
     # 4) Magnitude scaling: restore amplitude, correct for window
-    mag = np.abs(fft_vals) * 2 / N      # one‐sided amplitude
-    mag /= norm                         # undo window attenuation
+    mag =   np.abs(fft_vals) * 2 / N    # one‐sided amplitude
+    mag /=  norm                        # undo window attenuation
 
     return freq, mag
 

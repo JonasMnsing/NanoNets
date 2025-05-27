@@ -1,9 +1,8 @@
-import logging
-import multiprocessing
 from pathlib import Path
-
-import numpy as np
-from core import run_simulation, batch_launch, build_voltage_matrix
+import logging, numpy as np
+import sys
+sys.path.append("src/")
+import nanonets_utils
 
 # ─── Configuration ────────────────────────────────────────────────────────────────
 T_VAL      = 5.0
@@ -15,51 +14,37 @@ NP         = 9
 BASE_DIR   = Path("/home/j/j_mens07/phd/data/2_funding_period/")
 # BASE_DIR   = Path("/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/")
 LOG_LEVEL  = logging.INFO
+CPU_CNT    = 10
 # ────────────────────────────────────────────────────────────────────────────────
 
 def main():
-    logging.basicConfig(
-        level=LOG_LEVEL,
-        format="%(asctime)s %(levelname)s: %(message)s"
-    )
+    logging.basicConfig(level=LOG_LEVEL,
+                        format="%(asctime)s %(levelname)s: %(message)s")
+    time_pts    = np.arange(N_VOLT) * TIME_STEP
+    tasks       = []
 
-    cpu_cnt  = multiprocessing.cpu_count()
-    time_pts = np.arange(N_VOLT) * TIME_STEP
-
-    tasks = []
     for circuit, subpath in [
         ("closed",   "current/wo_magic_cable/dc_input_vs_volt"),
         ("open",     "potential/wo_magic_cable/dc_input_vs_volt")
     ]:
         out_base = BASE_DIR / subpath
-
         for V_drive in VOLT_LIST:
-            topo = {
-                "Nx": NP,
-                "Ny": 1,
-                "Nz": 1,
-                "e_pos": [[0, 0, 0], [NP - 1, 0, 0]],
-                "electrode_type": ["constant", "constant"]
-                                 if circuit == "closed"
-                                 else ["constant", "floating"]
+            topo = {"Nx": NP,"Ny": 1,"Nz": 1,
+                    "e_pos": [[0, 0, 0], [NP - 1, 0, 0]],
+                    "electrode_type": ["constant", "constant"]
+                    if circuit == "closed"
+                    else ["constant", "floating"]}
+            volt        = np.zeros((N_VOLT, len(topo["e_pos"]+1)), float)
+            volt[:, 0]  = V_drive
+            out_base.mkdir(parents=True, exist_ok=True)
+            args    = (time_pts, volt, topo, out_base, STAT_SIZE, T_VAL)
+            kwargs  = {
+                'sim_kwargs': {'high_C_output'  :   False,
+                               'add_to_path'    :   f"_{V_drive:.3f}"}
             }
+            tasks.append((args, kwargs))
 
-            volt = build_voltage_matrix(N_VOLT, len(topo["e_pos"]), V_drive)
-            out_folder = out_base / f"V{V_drive:.3f}"
-            out_folder.mkdir(parents=True, exist_ok=True)
-
-            tasks.append((
-                time_pts,
-                volt,
-                topo,
-                out_folder,
-                STAT_SIZE,
-                T_VAL
-            ))
-
-    logging.info(f"Launching {len(tasks)} simulations on up to {cpu_cnt} cores…")
-    batch_launch(run_simulation, tasks, max_procs=cpu_cnt)
-    logging.info("Sweep complete.")
+    nanonets_utils.batch_launch(nanonets_utils.run_simulation, tasks, CPU_CNT)
 
 if __name__ == "__main__":
     main()

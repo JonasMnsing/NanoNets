@@ -33,4 +33,4 @@ $$
 a_n = -\frac{2U_0}{N+1}\sum_{i=1}^N (1 - \frac{i}{N+1})\sin(\frac{n\pi i}{N+1})
 $$
 ### High Temperature Limit
-Starting with simulation at $T=293 \text{ K}$ we should be able to compare our kinetic Monte Carlo model simulation results with the calculations from the previous chapter.
+Starting with simulation at $T=293 \text{ K}$ we should be able to compare our kinetic Monte Carlo (KMC) model simulation results with the calculations from the previous chapter. We first of all want to have a look at the relaxation behavior of the network. Time step is fixed at $\Delta t = 0.1 \text{ ns}$, output is grounded $U_1(t)=0 \text{ V}$ and we also fix the input voltage to $U_0(t)=0.1 \text{ V}$. Then averaging across mutiple KMC runs we measure the node potential relaxation time series for each NP in the network. The network is defined to be a string of length $N$.

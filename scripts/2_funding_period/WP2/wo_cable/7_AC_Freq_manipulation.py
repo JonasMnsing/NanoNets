@@ -25,10 +25,10 @@ def main():
                         format="%(asctime)s %(levelname)s: %(message)s")
     
     # Setup base directory once
-    out_base = OUTPUT_DIR / "potential" / "wo_magic_cable" / "ac_input_vs_freq"
+    out_base = OUTPUT_DIR / "potential" / "wo_magic_cable" / "ac_two_tone_signal"
     out_base.mkdir(parents=True, exist_ok=True)
 
-    topo    = {"Nx": N_NP,"Ny": 1,"Nz": 1,
+    topo    = {"Nx": N_NP,"Ny": N_NP,"Nz": 1,
                "e_pos": [[(N_NP-1)//2, 0, 0],[0, 0, 0],[N_NP-1, 0, 0],
                          [0, (N_NP-1)//2, 0],[N_NP-1, (N_NP-1)//2, 0],
                          [0, N_NP-1, 0],[N_NP-1, N_NP-1, 0],[(N_NP-1)//2, N_NP-1, 0]],

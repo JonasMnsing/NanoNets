@@ -8,7 +8,7 @@ import nanonets_utils
 U_0         = 0.1
 T_VAL       = 5.0
 STAT_SIZE   = 50
-N_VOLT      = 200_000
+N_VOLT      = 200000
 TIME_STEP   = 1e-10
 N_P         = 9
 FOLDER      = Path("/home/j/j_mens07/phd/data/2_funding_period/")

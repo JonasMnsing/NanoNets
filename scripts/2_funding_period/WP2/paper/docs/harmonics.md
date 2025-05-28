@@ -101,7 +101,17 @@ In this limit the large NP behaves like an equipotential "reservoir" which reduc
 
 ### Time dependent Input Signal:
 
-For $U_D(t)=0$ and $U_S(t) = U_{0}\cos(\omega_0t)$ we get the Kirchhoff node equations
+Assuming ohmic resistances for $U_D(t)=0$ and $U_S(t) = U_{0}\cos(\omega_0t)$ we get 
+$$
+C_{S1}\frac{d}{dt}(U_S(t)-\phi_1)+C_{12}\frac{d}{dt}(\phi_2-\phi_1)+C_{1}\frac{d}{dt}(0-\phi_1)+\frac{U_S-\phi_1}{R_{S1}}+\frac{\phi_2-\phi_1}{R_{12}} = 0
+$$
+for Kirchhoff's current law at the first node. When grouping the terms we get
+$$
+C_{11}\dot{\phi_1} - C_{S1}\dot{U_S} - C_{12}\dot{\phi_2} + \frac{2\phi_1-\phi_2-U_S}{R_{eff}} = 0
+$$
+with $C_{11}=C_{S1}+C_{12}+C_1$ and $\frac{1}{R_{eff}}=\frac{1}{R_{S1}}+\frac{1}{R_{12}}$. For the second node we obviously get a completely analogous equation but with $C_{2D},C_{12},C_2,R_{12},R_{2D}$. When we drive the system at low frequency, i.e. $\omega_0 \ll 1/(R_{ij}C_{ij})$ displacement currents are small and islands quasi-static. This allows us to drop the resistance related terms in KCL, falling back to a simple capacitive divider.
+
+Integrating KCL we get
 $$
 C_{S1}(U_S(t)-\phi_1)+C_{12}(\phi_2-\phi_1)+C_{1}(0-\phi_1)=0
 $$

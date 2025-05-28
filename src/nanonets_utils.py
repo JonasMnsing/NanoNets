@@ -6,11 +6,13 @@ import networkx as nx
 import nanonets
 import scienceplots
 import multiprocessing
+import logging
 
 from scipy.interpolate import interp1d
-from typing import Union, Tuple, List, Dict
+from typing import Any, Callable, Union, Tuple, List, Dict, Optional
 from scipy.signal.windows import hann
 from scipy.stats import entropy
+from pathlib import Path
 
 blue_color  = '#348ABD'
 red_color   = '#A60628'
@@ -1053,58 +1055,6 @@ def autocorrelation(x : np.ndarray, y : np.ndarray, lags : int)->np.ndarray:
 
     return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
 
-# def fft(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = True) -> tuple[np.ndarray,np.ndarray]:
-#     """
-#     Compute the Fast Fourier Transform (FFT) of a given signal.
-
-#     Parameters
-#     ----------
-#     signal : np.ndarray
-#         The input time-domain signal.
-#     dt : float
-#         The time step (sampling period) of the signal.
-#     n_padded : int, optional
-#         The number of points for zero-padding in the FFT, by default 0 (no padding).
-#     use_hann : bool, optional
-#         If True, applies a Hann window before computing the FFT, by default True.
-
-#     Returns
-#     -------
-#     freq : np.ndarray
-#         The one-sided frequency axis (positive frequencies only).
-#     magnitude : np.ndarray
-#         The magnitude of the FFT spectrum, corresponding to `freq`.
-#     """
-
-#     # Apply windowing if requested
-#     if use_hann:
-#         signal_w        = signal*hann(len(signal))
-#         hann_correction = 1.63
-#     else:
-#         signal_w        = signal.copy()
-#         hann_correction = 1.0
-
-#     # Padding signal if needed
-#     if n_padded > len(signal_w):
-#         signal_p    = np.pad(signal_w, (0, n_padded - len(signal_w)), mode='constant')
-#     else:
-#         signal_p    = signal_w.copy()
-
-#     # Compute FFT
-#     signal_fft  = np.fft.fft(signal_p)
-#     N           = len(signal_p)
-
-#     # Compute frequency axis
-#     if n_padded == 0:
-#         freq    = np.fft.fftfreq(signal.shape[-1]) / dt
-#     else:
-#         freq    = np.fft.fftfreq(n_padded) / dt
-
-#     magnitude_rms = (np.abs(signal_fft[:len(freq)//2]) / np.sqrt(2 * N)) * hann_correction
-
-#     # return freq[:len(freq)//2], np.abs(signal_fft[:len(freq)//2])
-#     return freq[:len(freq)//2], magnitude_rms
-
 def fft(signal: np.ndarray, dt: float,
         n_padded: int = 0,
         use_hann: bool = False) -> tuple[np.ndarray, np.ndarray]:
@@ -1310,6 +1260,82 @@ def harmonic_strength_old(signal: np.ndarray, f0: float, dt: float, N_f: int, us
         h_strength  = func(nth_h*f0)/y_f0
 
     return h_strength
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+# SIMULATION HELPER FUNCTIONS
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+def run_simulation(time_steps: np.ndarray, voltages: np.ndarray, topology: Dict[str, Any],
+                   out_folder: Union[Path, str], stat_size: int, T_val: float, sim_kwargs: Optional[Dict[str,Any]] = None)->None:
+    """Instantiate and run one nanonets simulation.
+
+    Parameters
+    ----------
+    time_steps : np.ndarray
+        1D array of time points (in seconds) for simulation steps.
+    voltages : np.ndarray
+        2D array of shape (n_steps, n_electrodes) of applied voltages.
+    topology : dict
+        Network topology with keys 'Nx', 'Ny', 'Nz', 'e_pos', and 'electrode_type'.
+    out_folder : pathlib.Path or str
+        Directory where simulation outputs are saved.
+    stat_size : int
+        Number of data points for statistical analysis.
+    T_val : float
+        Temperature in Kelvin.
+    sim_kwargs : dict, optional
+        Additional keyword arguments for nanonets.simulation(). Defaults to None.
+
+    Returns
+    -------
+    None
+    """
+    sim_kwargs = sim_kwargs or {}
+
+    try:
+        target = len(topology["e_pos"]) - 1
+        sim = nanonets.simulation(
+            topology_parameter=topology,
+            folder=str(out_folder)+"/",
+            **sim_kwargs,
+        )
+        sim.run_var_voltages(
+            voltages=voltages,
+            time_steps=time_steps,
+            target_electrode=target,
+            T_val=T_val,
+            stat_size=stat_size
+        )
+        logging.info(f"Done N={topology['Nx']} @ T={T_val}K")
+    except Exception:
+        logging.exception(f"Error for topology {topology} @ T={T_val}K")
+
+def batch_launch(func: Callable[..., Any], tasks: List[Tuple[Tuple[Any,...]]], max_procs: int)->None:
+    """
+    Launch tasks in parallel, limiting concurrency to max_procs.
+
+    Parameters
+    ----------
+    func : callable
+        Function to run in each process. Must accept args and kwargs as given.
+    tasks : list of (args, kwargs)
+        Each task is a tuple: (args, kwargs). `args` is a tuple of positional
+        arguments for func; `kwargs` is a dict of keyword arguments.
+    max_procs : int
+        Maximum number of concurrent processes.
+
+    Returns
+    -------
+    None
+    """
+    running = []
+    for args, kwargs in tasks:
+        while len(running) >= max_procs:
+            running.pop(0).join()
+        p = multiprocessing.Process(target=func, args=args, kwargs=kwargs)
+        p.start()
+        running.append(p)
+    for p in running:
+        p.join()
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # PLOTS

@@ -73,7 +73,7 @@ def main():
                                  'np_info2': {'np_index': [81],
                                               'mean_radius': cap,
                                               'std_radius': 0.0},
-                                 'add_to_path': f"_8cap{cap}"}}
+                                 'add_to_path': f"_{cap}"}}
         tasks.append((args, kwargs))
 
     # Launch all simulations in parallel

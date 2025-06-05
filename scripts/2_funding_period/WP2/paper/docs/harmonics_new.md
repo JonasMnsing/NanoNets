@@ -92,12 +92,24 @@ $$
 
 ---
 
+### 5. Charge conservation and Kirchhoff's current law
+First we approach our NP device from a continuous view where tunneling is assumed to be "smooth" or that we are working with an ensemble averages over many events. In this case we can define KCL for node $i$ to be
+$$
+\sum_j [C_{ij}\frac{d}{dt}(\phi_i - \phi_j) + I_{T,ij}] = 0
+$$
+with $j$ as the adjacent nodes. Firstly we have the displacement currents $C\frac{dV}{dt}$ for each capacitor where the capacitor accumalates or loses charges. This current does not represent a net movement of electrons across junctions but just the local changes in the electric field or induced surface charge. Hence those displacement currents does not contribute to the measurable current where only tunel events count instead it merely ensures that voltage variations still satisfy local KCL even in Coulomb blockade or high impedance regimes. A different way to put it is when thinking of our potentials in KMC to be piecewise constant. Voltages jump instantaneously when a tunneling event happens. Between events we have a fixed $\vec{Q}(t)$ and constant $\vec{\phi}(t)$ and thus $d\phi/dt=0$. Hence capacitor currents vanish between events. The only current is instantaneous and delta-function-like at the moment of tunneling. So in a single MC trajectory, there are no capacitors currents except delta-functions at tunneling events. In a macroscopic / averaged picture we can use continuous potentials and derive smooth displacement currents. Similarly we need the ensemble-averaged tunneling current across the resitor in between nodes $i$ and $j$ here, which is
+$$
+I_{T,ij}(t) = e \sum_{n_1,n_2}[\Gamma_{i \rightarrow j}(n_1,n_2;t)P_{n_1,n_2}-\Gamma_{j \rightarrow i}(n_1,n_2;t)P_{n_1,n_2}] 
+$$
+
+---
+
 ### 5. Quasi-Static AC Drive ($\omega_0\ll1/RC$)
-Assuming a pure AC drive around zero $U_S(t)=U_0\cos(\omega_0t),\;U_D=0$, the island's charge adjust faster than the drive so that no net current flows and the resistance currents vanish.  Kirchhoff’s law at NP1
+In general we get for Kirchhoff's law at NP1
 $$
-C_{S1}\frac{d}{dt}(U_S(t)-\phi_1)+C_{12}\frac{d}{dt}(\phi_2-\phi_1)+C_{1}\frac{d}{dt}(0-\phi_1)+\frac{U_S-\phi_1}{R_{S1}}+\frac{\phi_2-\phi_1}{R_{12}} = 0
+C_{S1}\frac{d}{dt}(U_S(t)-\phi_1)+C_{12}\frac{d}{dt}(\phi_2-\phi_1)+C_{1}\frac{d}{dt}(0-\phi_1)+I_{T,S1}+I_{T,12} = 0
 $$
-becomes after one integration:
+Assuming now a pure AC drive around zero $U_S(t)=U_0\cos(\omega_0t),\;U_D=0$, with $\omega_0$ very small, the tunnel currents $I_T$ are driven to zero at each instant by Coulomb blockade equilibrium. The island charges re-arrange much faster so that there is literally no net resistive current flowing once they have caught up to the instantaneous bias. This allows us to integrate the remaining displacement currents to get:
 $$
 C_{S1}(U_S-\phi_1)+C_{12}(\phi_2-\phi_1)+C_{1}(0-\phi_1)=0,
 $$
@@ -156,7 +168,11 @@ $\Delta F_{ij}(t)=A_{ij}+B_{ij}\cos(\omega_0t)$.
      (-1)^m\,I_m\!\Bigl(\tfrac{\ell\,B_{ij}}{k_BT}\Bigr)
      \,e^{\,i\,m\,\omega_0t},
    $$
-   where $I_m$ is the modified Bessel function and $I_m(-z)=(-1)^mI_m(z)$.
+   where $I_m$ is the modified Bessel function and $I_m(-z)=(-1)^mI_m(z)$. The Bessel function is defined as
+   $$
+   I_m(x)=\frac{1}{\pi}\int_0^\pi\cos(m\theta)e^{xcos\theta}d\theta
+   $$
+   serving as the Fourier coefficient of the exponential function.
 
 3. **Combine and reorganize**  
    $$

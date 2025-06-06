@@ -80,7 +80,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         super().__init__(electrode_type, seed)
         
         self.ele_charge = 0.160217662  # [aC]
-        self.kb = 1.38064852e-5       # [eV/K]
+        self.kb = 1.38064852e-5       # [aJ/K]
 
     def init_adv_indices(self):
         """Initialize indices for all possible tunneling events."""

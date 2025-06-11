@@ -913,14 +913,9 @@ class model_class():
         # Calculate final averages
         total_sim_time              = time_target - inner_time
         self.target_observable_mean = target_value/total_sim_time
-
-        if self.total_jumps != 0:
-            self.I_network  = self.I_network/self.total_jumps
-        else:
-            self.I_network  = np.zeros(len(self.adv_index_rows))
-
-        self.charge_mean    = self.charge_mean/total_sim_time
-        self.potential_mean = self.potential_mean/total_sim_time
+        self.I_network              = self.I_network/total_sim_time
+        self.charge_mean            = self.charge_mean/total_sim_time
+        self.potential_mean         = self.potential_mean/total_sim_time
             
     def kmc_time_simulation_var_resistance(self, target_electrode : int, time_target : float, slope=0.8,
                             shift=7.5, tau_0=1e-8, R_max=25, R_min=10):

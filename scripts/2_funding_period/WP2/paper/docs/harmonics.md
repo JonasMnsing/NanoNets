@@ -1,217 +1,226 @@
-## Time dependent Nanoparticle Networks
+## Time-Dependent Two-Nanoparticle Network
+*Orthodox Coulomb-blockade theory with an AC source drive*
 
-### Electrostatics:
+---
 
-We consider a $2$ x $1$ NP network with two electrodes (Source and Drain). The source electrode at voltage $U_S(t)$ is connected to NP1 defined by its potential $\phi_1(t)$ and number of excess charges $Q_1(t)$. NP1 is connected to NP2 defined by $(\phi_2(t),Q_2(t))$. NP2 is connected to the drain electrode at voltage $U_D(t)$. The whole network is put on an insulating enverionment above a substrate which is grounded. Accordingly a NP has a self capacitance relative to ground $C_i = K_s \cdot r_i$ with $K_s$ as a known constant and $r_i$ as the radius of NP $i$. As junctions are insulating, we also have a mutual capacitance between nodes defined as $C_{ij} \approx K_m \frac{r_i r_j}{r_i + r_j + d}$ with $d$ as the shell-to-shell spacing between two nodes and $K_m$ as a known constant. Electrostatics are defined via
+### 0 Regime of validity & road-map ★
+*Read this box first.*
+
+1. **Orthodox picture** – sequential, incoherent single-electron tunnelling; no cotunnelling.
+2. **Deep-blockade limit**  
+   $$
+   eU_0,\;k_BT\;\ll\;E_C\equiv\frac{e^{2}}{2C_\Sigma},
+   \qquad
+   \omega_0\ll\frac1{R_{ij}C_\Sigma}.
+   \tag{0.1}
+   $$  
+   Islands act as *open-circuit* capacitors during the RF cycle; Section 6 then yields the closed-form harmonic rates (eq. 6.4).
+3. **Beyond the blockade**  
+   If (0.1) is relaxed – larger bias, higher‐T or faster drive – real current flows while the voltage swings.  The same rate formula (4.1) still holds **but** with time-dependent $\phi_i(t)$ that must be solved self-consistently (§ 7, Floquet master equation).  Qualitative fingerprints (photon-assisted steps, odd/even selection rule, “sweet spot” at $E_C/k_BT\!\sim eU_0/k_BT\!\sim1$) survive, yet their weights shift.
+
+---
+
+### 1 System layout
+Two metallic nanoparticles (NP 1, NP 2) sit in series between a driven source **S** and a grounded drain **D**, above a static back-gate **G**.  Direct tunnelling to the gate is forbidden.
+
+| node | potential | excess charge |
+|------|-----------|---------------|
+| Source | $U_S(t)=U_0\cos\omega_0t$ |
+| NP 1 | $\phi_1(t)$ | $Q_1(t)$ |
+| NP 2 | $\phi_2(t)$ | $Q_2(t)$ |
+| Drain | $U_D=0$ |
+| Gate | $U_G$ (constant) |
+
+Each neighbouring pair carries a tunnel resistance $R_{ij}$ **and** a geometric capacitance $C_{ij}$.
+
+---
+
+### 2 Electrostatics
+Approximate self- and mutual capacitances (metal spheres, centre spacing $d$):
 $$
+C_i\simeq K_s r_i,\qquad
+C_{ij}\simeq K_m\frac{r_i r_j}{r_i+r_j+d},
+$$
+with geometry factors $K_s,K_m$.
+
+Charge–potential relation for the two floating islands:
+$$
+\mathbf Q=
+\mathbf C\,\boldsymbol{\phi},\quad
+\mathbf C=
 \begin{pmatrix}
-  Q_1 \\
-  Q_2
-\end{pmatrix} = 
-\bf{C}
-\begin{pmatrix}
-  \phi_1 \\
-  \phi_2
-\end{pmatrix} =
-\begin{pmatrix}
-  C_{11} & -C_{12} \\
-  -C_{21} & C_{22}
-\end{pmatrix}
-\begin{pmatrix}
-  \phi_1 \\
-  \phi_2
-\end{pmatrix}
+C_{11}&-C_{12}\\
+-C_{12}&C_{22}
+\end{pmatrix},\;
+\begin{aligned}
+C_{11}&=C_{S1}+C_{12}+C_1,\\
+C_{22}&=C_{2D}+C_{12}+C_2.
+\end{aligned}
+$$
+Inverse:
+$$
+\mathbf C^{-1}=\frac1\Delta
+\begin{pmatrix}C_{22}&C_{12}\\C_{12}&C_{11}\end{pmatrix},
+\qquad
+\Delta=C_{11}C_{22}-C_{12}^{2}.
 $$
 
-with **C** as the capacitance matrix and $C_{ii}$ as the sum of capacitance for NP $i$. We get 
-$$
-C_{11} = C_{S1} + C_{12} + C_{1}
-$$
-and 
-$$
-C_{22} = C_{2D} + C_{12} + C_{2}
-$$ 
-as our two sums for both NPs. Accordingly we get
-$$
-\vec{\phi}(t) = \bf{C^{-1}}\vec{q}(t) 
-$$
-for our the potential landscape given the current charge distribution. The inverse of the capacitance matrix is defined as
-$$
-\bf{C^{-1}}= \frac{1}{\Delta}
-\begin{pmatrix}
-  C_{22} & C_{12} \\
-  C_{21} & C_{11}
-\end{pmatrix}
-$$
-with $\Delta = C_{11}C_{22}-C_{12}^2$.
+---
 
-### Change in free energy
-
-When a charge is tunneling inside the system, we have a change in free energy. The change in free energy for a NP-NP junction is defined as
+### 3 Free-energy cost of a single tunnelling event
 $$
-\Delta F_{i \rightarrow j} = e(\phi_j - \phi_i) + \frac{e^2}{2}(\bf{C_{ii}^{-1}} + \bf{C_{jj}^{-1}} - 2\bf{C_{ij}^{-1}})
-$$
-and for an Elecrtrode-NP junction
-$$
-\Delta F_{i \rightarrow E} = e(U_E - \phi_i) + \frac{e^2}{2}\bf{C_{ii}^{-1}}
-$$
-Both include a work term defining the cost or gain we get of taking one electron against the difference in island potentials. The second part consists of a charging term which defines the change in $\frac{1}{2}Q^{-1}C^{-1}Q$ when an electron is shifted. As an electrode serves as a charge reservoir we lose the penalty in charging energy in the second term and only inlcude the charging energy of the contributing NP. Below all junctions are summarized:
-$$
-\Delta F_{1 \rightarrow 2} = e(\phi_2 - \phi_1) + \frac{e^2}{2}\frac{C_{11}+C_{22}-2C_{12}}{\Delta}
-$$
-$$
-\Delta F_{2 \rightarrow 1} = e(\phi_1 - \phi_2) + \frac{e^2}{2}\frac{C_{11}+C_{22}-2C_{12}}{\Delta}
-$$
-$$
-\Delta F_{1 \rightarrow S} = e(U_S - \phi_1) + \frac{e^2}{2}\frac{C_{22}}{\Delta}
-$$
-$$
-\Delta F_{S \rightarrow 1} = e(\phi_1 - U_S) + \frac{e^2}{2}\frac{C_{22}}{\Delta}
-$$
-$$
-\Delta F_{2 \rightarrow D} = e(U_D - \phi_2) + \frac{e^2}{2}\frac{C_{11}}{\Delta}
-$$
-$$
-\Delta F_{D \rightarrow 2} = e(\phi_2 - U_D) + \frac{e^2}{2}\frac{C_{11}}{\Delta}
+\boxed{\;
+\Delta F_{i\to j}
+=e(\phi_i-\phi_j)
++\frac{e^{2}}{2}\left(
+C_{ii}^{-1}+C_{jj}^{-1}-2C_{ij}^{-1}
+\right)\;}
+\tag{3.1}
 $$
 
-### Limit of $r_2 \gg r_1$
+Electrode–island case (reservoir capacitance → ∞):
+$$
+\Delta F_{i\to E}=e(\phi_i-U_E)+\frac{e^{2}}{2}C_{ii}^{-1}.
+$$
 
-Assuming the drain attached NP to be much larger than the source attached NP, i.e. $r_2 \gg r_1$ we get $C_{12}\approx K_m \cdot r_1$ and $C_{11}^{-1}\approx \frac{1}{C_{11}}$, $C_{22}^{-1}\approx 0$, $C_{12}^{-1}\approx 0$.
-For our set of free energy differences we get:
+*Example* — island–island and source–island jumps:
 $$
-\Delta F_{1 \rightarrow 2} = e(\phi_2 - \phi_1) + \frac{e^2}{2C_{11}}
+\begin{aligned}
+\Delta F_{1\to2}&=
+e(\phi_1-\phi_2)+
+\frac{e^{2}}{2}\frac{C_{11}+C_{22}-2C_{12}}{\Delta},\\
+\Delta F_{1\to S}&=
+e(\phi_1-U_S)+
+\frac{e^{2}}{2}\frac{C_{22}}{\Delta}.
+\end{aligned}
 $$
-$$
-\Delta F_{2 \rightarrow 1} = e(\phi_1 - \phi_2) + \frac{e^2}{2C_{11}}
-$$
-$$
-\Delta F_{1 \rightarrow S} = e(U_S - \phi_1) + \frac{e^2}{2C_{11}}
-$$
-$$
-\Delta F_{S \rightarrow 1} = e(\phi_1 - U_S) + \frac{e^2}{2C_{11}}
-$$
-$$
-\Delta F_{2 \rightarrow D} = e(U_D - \phi_2)
-$$
-$$
-\Delta F_{D \rightarrow 2} = e(\phi_2 - U_D)
-$$
-In this limit the large NP behaves like an equipotential "reservoir" which reduces all charging energy related costs to those of island 1 alone $\frac{e^2}{2C_{11}}$. Effectively our 2-island system reduces to a 1-island system and the large NP becomes clamped by its own self-capacitance having a hardly changing potential upon charging.
 
-### Time dependent Input Signal:
+#### 3.1 $r_2\gg r_1$ limit
+If $C_{22}\gg C_{12},C_{2D}$, then $C_{22}^{-1},C_{12}^{-1}\to0$; NP 2 becomes an equipotential reservoir:
+$$
+\Delta F_{1\to2}=e(\phi_1-\phi_2)+\frac{e^{2}}{2C_{11}},\quad
+\Delta F_{2\to D}=e\phi_2.
+$$
 
-Assuming ohmic resistances for $U_D(t)=0$ and $U_S(t) = U_{0}\cos(\omega_0t)$ we get 
-$$
-C_{S1}\frac{d}{dt}(U_S(t)-\phi_1)+C_{12}\frac{d}{dt}(\phi_2-\phi_1)+C_{1}\frac{d}{dt}(0-\phi_1)+\frac{U_S-\phi_1}{R_{S1}}+\frac{\phi_2-\phi_1}{R_{12}} = 0
-$$
-for Kirchhoff's current law at the first node. When grouping the terms we get
-$$
-C_{11}\dot{\phi_1} - C_{S1}\dot{U_S} - C_{12}\dot{\phi_2} + \frac{2\phi_1-\phi_2-U_S}{R_{eff}} = 0
-$$
-with $C_{11}=C_{S1}+C_{12}+C_1$ and $\frac{1}{R_{eff}}=\frac{1}{R_{S1}}+\frac{1}{R_{12}}$. For the second node we obviously get a completely analogous equation but with $C_{2D},C_{12},C_2,R_{12},R_{2D}$. When we drive the system at low frequency, i.e. $\omega_0 \ll 1/(R_{ij}C_{ij})$ displacement currents are small and islands quasi-static. This allows us to drop the resistance related terms in KCL, falling back to a simple capacitive divider.
+---
 
-Integrating KCL we get
+### 4 Exact stochastic dynamics
+Master equation for charge configuration $\vec n=(n_1,n_2)$:
 $$
-C_{S1}(U_S(t)-\phi_1)+C_{12}(\phi_2-\phi_1)+C_{1}(0-\phi_1)=0
+\frac{dP(\vec n,t)}{dt}=
+\sum_{\vec m\neq\vec n}
+\bigl[\Gamma_{\vec m\to\vec n}P(\vec m,t)-\Gamma_{\vec n\to\vec m}P(\vec n,t)\bigr].
 $$
-and
-$$
-C_{12}(\phi_1-\phi_2)+C_{2D}(0-\phi_2)+C_{2}(0-\phi_2)=0
-$$
-In matrix form as above we define the system using the capacitance matrix:
-$$
-\begin{pmatrix}
-  C_{S1}U_{0}\cos(\omega_0t) \\
-  0
-\end{pmatrix} =
-\begin{pmatrix}
-  C_{S1} + C_{12} + C_1 & -C_{12} \\
-  -C_{12} & C_{12} + C_{2D} + C_{2}
-\end{pmatrix}
-\begin{pmatrix}
-  \phi_1 \\
-  \phi_2
-\end{pmatrix}
-$$
-For our potentials we get
-$$
-\phi_1(t) = \frac{(C_{12}+C_{2D}+C_{2})C_{S1}}{\Delta}U_0\cos(\omega_0 t)=\alpha U_0\cos(\omega_0 t)
-$$
-and
-$$
-\phi_2(t) = \frac{C_{12}C_{S1}}{\Delta}U_0\cos(\omega_0 t)=\beta U_0\cos(\omega_0 t)
-$$
-We substitute these into our six $\Delta F$ values and end up with:
-$$
-\Delta F_{1 \rightarrow 2} = \frac{e^2}{2}\frac{C_{11}+C_{22}-2C_{12}}{\Delta}+e(\alpha - \beta)U_0 \cos(\omega_0 t) = A_{12} + e(\alpha - \beta)U_0 \cos(\omega_0 t)
-$$
-$$
-\Delta F_{2 \rightarrow 1} = \frac{e^2}{2}\frac{C_{11}+C_{22}-2C_{12}}{\Delta}-e(\alpha - \beta)U_0 \cos(\omega_0 t) = A_{12} - e(\alpha - \beta)U_0 \cos(\omega_0 t)
-$$
-$$
-\Delta F_{1 \rightarrow S} = \frac{e^2}{2}\frac{C_{22}}{\Delta} + e(\alpha - 1)U_0 \cos(\omega_0 t) = A_{S1} + e(\alpha - 1)U_0 \cos(\omega_0 t)
-$$
-$$
-\Delta F_{S \rightarrow 1} = \frac{e^2}{2}\frac{C_{22}}{\Delta} - e(\alpha - 1)U_0 \cos(\omega_0 t) = A_{S1} - e(\alpha - 1)U_0 \cos(\omega_0 t)
-$$
-$$
-\Delta F_{2 \rightarrow D} = \frac{e^2}{2}\frac{C_{11}}{\Delta} + e\beta U_0 \cos(\omega_0 t) = A_{2D} + e\beta U_0 \cos(\omega_0 t)
-$$
-$$
-\Delta F_{D \rightarrow 2} = \frac{e^2}{2}\frac{C_{11}}{\Delta} - e\beta U_0 \cos(\omega_0 t) = A_{2D} - e\beta U_0 \cos(\omega_0 t)
-$$
-So at the end we get for each difference in free energy a form $\Delta F_{i \rightarrow j}(t) = A_{ij} + B_{ij}\cos(\omega_0 t)$ which depends only on constants and the applied boundary condition. This form should be independet of the actual network structure as we should be able to solve the linear system of equation for any type of topology should be achievalbe eventually achieving equations dependent on the external drive. This means that the upcoming results are general and independent of the network structure.
 
-### Expanding the tunnelling rates
+Orthodox rate (always valid for sequential tunnelling):
+$$
+\boxed{\;
+\Gamma_{ij}(\Delta F)=
+\frac{\Delta F}{e^{2}R_{ij}}
+\frac{1}{1-e^{-\Delta F/k_BT}}\;}
+\tag{4.1}
+$$
 
-Once as we have our free energy differences in the form $\Delta F_{i \rightarrow j}(t) = A_{ij} + B_{ij}\cos(\omega_0 t)$ we can expand the corresponding rate
+Between jumps $\phi=\mathbf C^{-1}Q$ is frozen; each electron transfer updates $Q_i\to Q_i\pm e$.
+
+---
+
+### 5 Circuit-averaged description (KCL)
+Ensemble-averaged currents obey
 $$
-\Gamma_{i \rightarrow j}(t)=-\frac{\Delta F_{i \rightarrow j}(t)}{e^2 R_{i \rightarrow j}} \frac{1}{1-\exp(-\Delta F_{i \rightarrow j}(t)/(k_B T))}
+\sum_j\Bigl[
+C_{ij}\dot{\!}\bigl(\phi_i-\phi_j\bigr)+I_{T,ij}\Bigr]=0,
+\quad
+I_{T,ij}=e\!\sum_{\vec n}\!
+\bigl[\Gamma_{i\to j}-\Gamma_{j\to i}\bigr]P(\vec n,t).
 $$
-in a Fourier series $\Gamma_{i \rightarrow j}(t) = \sum_m \Gamma_{i \rightarrow j}^{(m)}\exp(im\omega_0t)$.
-Use
+
+---
+
+### 6 Deep-blockade analytic solution  
+*(Assumptions 0.1 hold)*
+
+#### 6.1 Potentials locked to a cosine
+With tunnelling neglected in KCL,
 $$
-\frac{1}{1-e^{-x}}=\sum_{l=0}^{\infty}e^{-lx}
+\mathbf C
+\begin{pmatrix}\phi_1\\\phi_2\end{pmatrix}
+=
+\begin{pmatrix}C_{S1}U_0\cos\omega_0t\\0\end{pmatrix}
+\;\Longrightarrow\;
+\phi_i(t)=\alpha_iU_0\cos\omega_0t,
 $$
-to rewrite
 $$
-\Gamma_{i \rightarrow j}(t)=-\frac{A_{ij} + B_{ij}\cos(\omega_0 t)}{e^2 R_{i \rightarrow j}} \sum_{l=0}^{\infty} \exp\bigg(-l \frac{A_{ij} + B_{ij}\cos(\omega_0 t)}{k_B T}\bigg)
+\alpha_1=\frac{C_{S1}C_{22}}{\Delta},
+\quad
+\alpha_2=\frac{C_{S1}C_{12}}{\Delta}.
 $$
-Now we can expand the exponential of a cosine as
+
+#### 6.2 Harmonic content of the tunnelling rates
+Using $\Delta F_{ij}(t)=A_{ij}+B_{ij}\cos\omega_0t$ with  
+$A_{ij}\sim E_C$, $B_{ij}=e(\alpha_i-\alpha_j)U_0$,  
+expand (4.1) via the geometric series  
+$\frac1{1-e^{-x}}=\sum_{\ell=0}^\infty e^{-\ell x}$ and  
+$\exp[-z\cos]=\sum_{m=-\infty}^\infty (-1)^mI_m(z)e^{im\omega_0t}$:
 $$
-\exp\bigg(-\frac{lB_{ij}}{k_B T}\cos(\omega_0 t)\bigg) = \sum_{m=-\infty}^{\infty}(-1)^m I_m\bigg(\frac{lB_{ij}}{k_B T}\bigg)\exp(im\omega_0t)
+\boxed{
+\Gamma_{ij}^{(n)}=
+-\frac{1}{e^{2}R_{ij}}
+\sum_{\ell=0}^\infty
+e^{-\ell A_{ij}/k_BT}
+\Bigl[
+A_{ij}(-1)^n I_n(\ell\beta_{ij})
++\tfrac{B_{ij}}{2}\bigl(
+(-1)^{n-1}I_{n-1}-(-1)^{n+1}I_{n+1}
+\bigr)
+\Bigr]},
+\tag{6.4}
 $$
-with $I_m$ as the modified Bessel function. In summary we get
+with $\beta_{ij}=B_{ij}/k_BT$.
+
+#### 6.3 Physical implications (blockade regime)
+* **Photon-assisted (Tien–Gordon) steps**: $\ell$ counts the number of AC quanta absorbed/emitted; Bessel factor $I_n$ distributes them into harmonics.
+* **Odd/even selection rule**: For a purely cosine drive & zero DC offset, even $n$ cancel.
+* **Temperature & bias “sweet spot”**  
+  Two dimensionless ratios control the spectrum  
+  $$
+  \eta=\frac{E_C}{k_BT},\quad
+  \beta=\frac{eU_0}{k_BT}.
+  $$
+  – $\eta\gg1$: blockade; spectrum collapses.  
+  – $\eta\ll1$: thermal smearing; only low harmonics survive.  
+  – $\eta\sim\beta\sim1$: richest mix.
+* **Large-island limit**: If $r_2\!\gg\!r_1$ then $B_{2\to D}\!\approx\!0$; only S-1 and 1-2 junctions create harmonics ⇒ mapping onto a single-electron transistor.
+
+---
+
+### 7 Beyond the blockade: Floquet master equation
+When inequality (0.1) fails, real tunnelling currents modify $\phi_i(t)$ during the RF cycle.
+
+Expand every periodic quantity in Fourier series,
 $$
-\Gamma_{i \rightarrow j}(t)=-\frac{A_{ij} + B_{ij}\cos(\omega_0 t)}{e^2 R_{i \rightarrow j}} \sum_{l=0}^{\infty} e^{-\frac{lA_{ij}}{k_B T}}\sum_{m=-\infty}^{\infty}(-1)^m I_m\bigg(\frac{lB_{ij}}{k_B T}\bigg)e^{im\omega_0t}
+\phi_i(t)=\sum_{m}\phi_i^{(m)}e^{im\omega_0t},\quad
+P_{\vec n}(t)=\sum_{m}P_{\vec n}^{(m)}e^{im\omega_0t},\quad
+\Gamma_{ij}(t)=\sum_{k}\Gamma_{ij}^{(k)}e^{ik\omega_0t},
 $$
-Now as we can write the Fourier coefficient in general as
+and enforce KCL for each harmonic:
 $$
-\Gamma^{(n)}=\frac{\omega_0}{2 \pi}\int_0^{2\pi/\omega_0}\Gamma(t)e^{-in\omega_0t}dt
+im\omega_0
+\Bigl[C_{S1}V_{S1}^{(m)}+C_{12}V_{12}^{(m)}+C_1V_{1}^{(m)}\Bigr]
++I_{T,S1}^{(m)}+I_{T,12}^{(m)}=0,
 $$
-plugging in our previous equation and solve the constant part of the integral as
-$$
-\frac{\omega_0}{2 \pi}\int_0^{2\pi/\omega_0}Ae^{i(m-n)\omega_0t}dt = A\delta_{m,n}
-$$
-and the time dependent part of the integral with the help of $\cos(\omega_0 t) = \frac{1}{2}(e^{i\omega_0t}+e^{-i\omega_0t})$ as
-$$
-\frac{\omega_0}{2 \pi}\int_0^{2\pi/\omega_0}B\cos(\omega_0t)e^{i(m-n)\omega_0t}dt = \frac{B}{2}(\delta_{m-n,+1} + \delta_{m-n,-1})
-$$
-we eventuall end up with the Fourier coefficient at harmonic $n$ as
-$$
-\Gamma_{i \rightarrow j}^{(n)}(t)=-\frac{1}{e^2 R_{i \rightarrow j}} \sum_{l=0}^{\infty} e^{-\frac{lA_{ij}}{k_B T}}\bigg[A_{ij}(-1)^nI_n\bigg(\frac{lB_{ij}}{k_B T}\bigg) + \frac{B_{ij}}{2}(-1)^{n-1}I_{n-1}\bigg(\frac{lB_{ij}}{k_B T}\bigg) + \frac{B_{ij}}{2}(-1)^{n+1}I_{n+1}\bigg(\frac{lB_{ij}}{k_B T}\bigg)\bigg]
-$$
-or
-$$
-\Gamma_{i \rightarrow j}^{(n)}(t)=-\frac{(-1)^n}{e^2 R_{i \rightarrow j}} \sum_{l=0}^{\infty} e^{-\frac{lA_{ij}}{k_B T}}\bigg[A_{ij}I_n\bigg(\frac{lB_{ij}}{k_B T}\bigg) - \frac{B_{ij}}{2}\bigg(I_{n-1}\bigg(\frac{lB_{ij}}{k_B T}\bigg) + I_{n+1}\bigg(\frac{lB_{ij}}{k_B T}\bigg)\bigg)\bigg]
-$$
-### Some physical consequences
-- We have a "Photon-assisted" (= drive-assisted) tunneling process where higher harmonics $n\omega_0$ arise from multi-"photon" processes of order $l*n$
-  - $l$ counts how many "quanta" of $B\cos(\omega_0t)$ are effectively absorbed or emitted before tunneling occurs (weighted by $\exp(-lA/k_BT)$)
-  - $I_n(lB/k_BT)$ is the amplitude for converting $l$ quanta into an $n$-th harmonics in the rate.
-- There are two competing temperature effects in our formula $\Gamma^{(n)} \propto \sum_l e^{-lA/k_BT}I_n(\frac{lB}{k_BT})$ where $A \propto e^2/2C$ is the charging energy scale and $B \propto e U_0$ is the drive amplitude.
-  - At $k_BT \ll A$ the exp-factor strongly suppresses all $l \ge 1$ terms $\rightarrow$ virtually no tunneling at all (deep Coulomb blockade). Even tough $I_n$ higher Bessel orders are favored, there simply aren't any events to dress with harmonics. **Outcome:** Spectrum collapses.
-  - At $k_BT \gg A$ we get $e^{-lA/k_BT} \approx 1$ for many $l$ which means that lots of processes are thermally allowed. But as the argument of $I_n$ becomes small and $I_n(x) \propto x^{n}/n!$ decays rapidly for higher harmonics. **Outcome:** Thermal smearing kills nonlinearity, harmonics beyond $n=1,2$ are negligible.
-  - In the intermediate range of $k_BT \gtrsim A$ and $k_BT \lesssim B \approx eU_0$ large amount of $l$ aren't frozen and $I_n$ isn't tiny. In practice we want $\frac{A}{k_BT} \approx O(1)$ and $\frac{B}{k_BT} \approx O(1)$. **Outcome:** Rich Harmonic spectrum, enough thermal energy for tunneling, but at stron nonlinearity for higher order Bessel peaks. **The shape of our nonlinear tunneling-rate spectrum and hence the output current is fully captured by the dimensionless ratios** $$\frac{A}{k_B T} \text{ and } \frac{B}{k_B T}=\frac{eU_0}{k_B T}$$
-- Notice $AI_n + \frac{B}{2}(I_{n-1}-I_{n+1})$ and the overall $(-1)^n$. Without a DC charging offset $A$ and symmetrical drive $B\cos(\omega_0t)$ each coefficient of even $n$ vanishes, leaving only odd harmonics. **Asymmetry will contribute to odd harmonics!**
+where $V_{S1}^{(m)}=U_0\delta_{|m|,1}-\phi_1^{(m)}$, etc.  
+Self-consistency loops the master equation and KCL until convergence.  In the blockade limit the series truncates to $m=\pm1$ and reproduces (6.4) automatically.
+
+#### 7.1 Qualitative carry-overs
+* **Photon-assisted picture persists.**  Harmonics re-emerge from the same Bessel algebra, but now with *dynamical* $A_{ij}^{(m)},B_{ij}^{(m)}$.  
+* **Odd/even symmetry still governed by drive parity.**  Any DC offset or junction asymmetry unlocks even components.  
+* **Resonant impedance matching.**  Competition between capacitive reactance $\sim im\omega_0C$ and junction conductance $\sim1/R$ can enhance particular harmonics or create sub-harmonics (island “ringing” when $R C\omega_0\sim1$).  
+* **Extreme large-bias limit $eU_0\gg E_C$.**  Charging energies drop out; one recovers the non-interacting Tien–Gordon sideband spectrum.
+
+---
+
+### 8 References
+1. D. V. Averin & K. K. Likharev, *Mesoscopic Phenomena in Solids*, Ch. 6 (1991).  
+2. H. Grabert & M. Devoret (eds.), *Single Charge Tunneling* (Plenum, 1992).  
+3. J. Tien & J. Gordon, *Phys. Rev.* **129**, 647 (1963).

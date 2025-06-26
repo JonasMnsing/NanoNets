@@ -11,6 +11,7 @@ import logging
 from scipy.interpolate import interp1d
 from typing import Any, Callable, Union, Tuple, List, Dict, Optional
 from scipy.signal.windows import hann
+from scipy.signal import welch
 from scipy.stats import entropy
 from pathlib import Path
 
@@ -1055,43 +1056,128 @@ def autocorrelation(x : np.ndarray, y : np.ndarray, lags : int)->np.ndarray:
 
     return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
 
-def fft(signal: np.ndarray, dt: float,
-        n_padded: int = 0,
-        use_hann: bool = False) -> tuple[np.ndarray, np.ndarray]:
+def fft(signal: np.ndarray, dt: float,n_padded: int = 0, use_hann: bool = False) -> tuple[np.ndarray, np.ndarray]:
     """
-    Compute one‐sided FFT amplitude of a real signal.
-    Returns (freq, mag) where mag[k] ≈ amplitude of the k-th bin.
+    Compute one‐sided FFT amplitude spectrum of a real-signal.
+    
+    Parameters
+    ----------
+    signal : np.ndarray
+        Input time-domain signal.
+    dt : float
+        Sampling interval (seconds).
+    n_padded : int, optional
+        Length to zero-pad signal to before FFT. If 0 or less, no padding.
+    use_hann : bool, optional
+        If True, apply a Hann window (with coherent gain correction).
+
+    Returns
+    -------
+    freq : np.ndarray
+        Frequencies corresponding to the amplitude bins (Hz).
+    mag : np.ndarray
+        One-sided amplitude spectrum, such that a pure sine of amplitude A
+        appears with magnitude A at its frequency.
     """
+    # Ensure array
+    x   = np.asarray(signal, dtype=float)
+    N0  = signal.size
 
-    N0 = len(signal)
-
-    # 1) Window
+    # Window
     if use_hann:
-        w           = np.hanning(N0)
-        signal_w    = signal * w
-        norm        = np.sum(w) / N0   # normalize so that a pure sine of amp A still reads A
+        w       = np.hanning(N0)
+        x       = x * w
+        gain    = np.sum(w) / N0
     else:
-        signal_w    = signal
-        norm        = 1.0
+        gain    = 1.0
 
-    # 2) Zero‐pad to length N
-    N           = max(N0, n_padded)
-    signal_p    = np.pad(signal_w, (0, N-N0), 'constant')
+    # Zero-padding (only if n_padded > N0)
+    N = max(N0, n_padded)
+    if N > N0:
+        x = np.pad(x, (0, N-N0), mode='constant')
 
-    # 3) FFT & freq‐axis
-    fft_vals = np.fft.rfft(signal_p)
-    freq     = np.fft.rfftfreq(N, dt)
+    # FFT
+    fft_vals = np.fft.rfft(x)
+    freq     = np.fft.rfftfreq(len(x), dt)
 
-    # 4) Magnitude scaling: restore amplitude, correct for window
-    mag =   np.abs(fft_vals) * 2 / N    # one‐sided amplitude
-    mag /=  norm                        # undo window attenuation
+    # Scale to one-sided amplitude and correct for window gain
+    mag =   np.abs(fft_vals) * 2 / len(x)
+    mag /=  gain
 
     return freq, mag
 
 def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int,
-                      use_hann: bool = True, n_padded: int = 0) -> tuple[np.ndarray, float]:
+                      use_hann: bool = False, n_padded: int = 0, amplitude_threshold: float = 1e-3) -> np.ndarray:
     """
-    Compute the relative harmonic amplitudes and THD+N of a signal.
+    Compute the relative amplitudes of the first N_f harmonics of a signal
+    driven by a known fundamental frequency f0.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        Input time-domain signal (single period or multiple periods).
+    f0 : float
+        Fundamental frequency (Hz).
+    dt : float
+        Sampling interval (seconds).
+    N_f : int
+        Number of harmonics to include (excludes the fundamental).
+    use_hann : bool, optional
+        If True, apply a Hann window before FFT to reduce spectral leakage.
+    n_padded : int, optional
+        Length to zero-pad signal to before FFT (improves frequency resolution).
+    amplitude_threshold : float, optional
+        Minimum A1 (in volts) to compute relative amplitudes.
+
+    Returns
+    -------
+    h_strength : np.ndarray
+        Relative amplitudes of harmonics 2 through N_f+1, normalized to the
+        fundamental amplitude: A_n / A_1.
+    """
+    # Compute maximum allowable harmonics
+    fs = 1.0 / dt
+    max_harmonics = int(np.floor((fs / 2) / f0)) - 1
+    if N_f > max_harmonics:
+        raise ValueError(
+            f"N_f={N_f} exceeds maximum detectable harmonics "
+            f"({max_harmonics}) for dt={dt} and f0={f0}."
+        )
+    
+    # Remove DC
+    x = np.asarray(signal, dtype=float)
+    x = x - np.mean(x)
+
+    # Compute spectrum (windowing and padding handled internally)
+    freqs, amps = fft(x, dt, n_padded=n_padded, use_hann=use_hann)
+
+    # Fundamental amplitude
+    idx1 = np.argmin(np.abs(freqs - f0))
+    A1   = amps[idx1]
+
+    if A1 < amplitude_threshold:
+        return np.zeros(N_f)
+
+    # Higher harmonics
+    harmonics   = np.arange(2, N_f + 2)
+    h_strength  = np.empty(N_f, dtype=float)
+
+    for i, n in enumerate(harmonics):
+        idx             = np.argmin(np.abs(freqs - n * f0))
+        h_strength[i]   = amps[idx] / A1
+
+    return h_strength
+
+def total_harmonic_distortion(signal: np.ndarray, f0: float, dt: float,
+                              N_f: int, use_hann: bool = False, n_padded: int = 0, 
+                              dB: bool = False) -> float:
+    """
+    Compute the Total Harmonic Distortion (THD) of a signal, based on the
+    first N_f harmonics beyond the fundamental.
+
+    THD is given in percent:
+        THD = 100 * sqrt(sum_{n=2..N_f+1} (A_n/A1)^2)
+    where A1 is the fundamental amplitude and A_n are the harmonic amplitudes.
 
     Parameters
     ----------
@@ -1100,218 +1186,115 @@ def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int,
     f0 : float
         Fundamental frequency (Hz).
     dt : float
-        Sampling period (s).
+        Sampling interval (seconds).
     N_f : int
-        Number of harmonics to include (excluding the fundamental).
+        Number of harmonics to include (excludes the fundamental).
     use_hann : bool, optional
         If True, apply a Hann window before FFT.
     n_padded : int, optional
-        Number of zero-padding points for FFT.
+        Length to zero-pad signal to before FFT.
+    dB : bool, optional
+        If True, return THD in decibels: 20 * log10(ratio).
+        Otherwise, return THD in percent: 100 * ratio.
 
     Returns
     -------
-    h_strength : np.ndarray
-        Array of relative amplitudes for harmonics 2 through N_f+1, normalized to the fundamental.
-    thdn : float
-        Total Harmonic Distortion + Noise (THD+N), ratio of RMS distortion+noise to fundamental amplitude.
+    thd_pct : float
+        Total Harmonic Distortion in percent.
     """
-    # Remove DC offset
-    arr = signal - np.mean(signal)
+    # Get normalized harmonic strengths
+    h       = harmonic_strength(signal, f0, dt, N_f, use_hann=use_hann, n_padded=n_padded)
+    ratio   = np.sqrt(np.sum(h**2))
 
-    # Optional windowing
-    windowed = arr * np.hanning(len(arr)) if use_hann else arr
+    # Output
+    if dB:
+        return 20.0 * np.log10(ratio)
+    else:
+        return ratio * 100.0
 
-    # FFT
-    xf, yf = fft(signal=windowed, dt=dt, n_padded=n_padded, use_hann=False)
+def harmonic_richness_index(signal: np.ndarray, f0: float, dt: float, N_f: int,
+                            threshold: float = 0.01, use_hann: bool = False, n_padded: int = 0) -> float:
+    """
+    Compute the Harmonic Richness Index (HRI) of a signal driven by a known
+    fundamental frequency f0.
 
-    # Interpolate spectrum
-    func = interp1d(xf, yf, bounds_error=False, fill_value=0.0)
-
-    # Fundamental amplitude
-    A1 = func(f0)
-
-    # Harmonic amplitudes for n=2..N_f+1
-    harmonics   = np.arange(2, N_f + 2)
-    A_h         = np.array([func(n * f0) for n in harmonics])
-
-    # Compute harmonic relative strengths
-    h_strength = A_h / A1
-
-    return h_strength
-
-
-# def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True,
-#                       n_padded: int = 0, dB: bool = False, sigma_threshold: float = 3.0, noise_band: tuple = (0.8, 1.2))->np.ndarray:
-#     """Compute the harmonic strength of a signal relative to its fundamental frequency.
-
-#     Parameters
-#     ----------
-#     signal : np.array
-#         The input time-domain signal
-#     f0 : float
-#         The fundamental frequency (Hz)
-#     dt : float
-#         The time step (sampling period) of the signal
-#     N_f : int
-#         The number of harmonics to compute.
-#     use_hann : bool, optional
-#         If True, applies a Hann window before computing the FFT, by default True
-#     n_padded : int, optional
-#         The number of points used for zero-padding in the FFT, by default 0
-#     dB : bool, optional
-#         Harmonic strength in decibel, by default False
-
-#     Returns
-#     -------
-#     np.array
-#         An array containing the relative amplitude of the first `N_f` harmonics 
-#         normalized to the fundamental frequency.
-#     """
-
-#     # Remove DC offset
-#     arr = signal - np.mean(signal) 
-    
-#     # Compute FFT and extract frequency and amplitude spectrum
-#     xf, yf = fft(signal=arr, dt=dt, n_padded=n_padded, use_hann=use_hann)
-    
-#     # Interpolation function for FFT spectrum
-#     func = interp1d(xf, yf)
-
-#     # Define noise band (exclude f0 and harmonics)
-#     noise_mask          = (xf >= noise_band[0] * f0) & (xf <= noise_band[1] * f0)
-#     for n in range(1, N_f + 1):
-#         noise_mask      &= (np.abs(xf - n * f0) > 0.1 * f0)
-#     noise_mean          = np.mean(yf[noise_mask])
-#     noise_std           = np.std(yf[noise_mask])
-#     detection_threshold = noise_mean + sigma_threshold * noise_std
-
-#     # Get amplitude at the fundamental frequency
-#     y_f0    = func(f0)
-
-#     # Validate fundamental frequency peak
-#     if y_f0 < detection_threshold:
-#         # Fundamental frequency is too weak or missing
-#         if dB:
-#             return np.full(N_f, -np.inf)  # Return -Inf dB for invalid harmonics
-#         else:
-#             return np.zeros(N_f)  # Return zeros for invalid harmonics
-
-#     # Compute harmonic strength
-#     nth_h       = np.arange(2,N_f+2)
-
-#     if dB:
-#         h_strength  = 10*np.log(func(nth_h*f0)/y_f0)
-#     else:
-#         h_strength  = func(nth_h*f0)/y_f0
-
-#     return h_strength
-
-def harmonic_strength_old2(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True,
-                      n_padded: int = 0, dB: bool = False, threshold: float = 0.01)->np.ndarray:
-    """Compute the harmonic strength of a signal relative to its fundamental frequency.
+    HRI is defined as the fraction of the first N_f harmonics whose relative
+    amplitude (A_n/A1) exceeds a given threshold.
 
     Parameters
     ----------
-    signal : np.array
-        The input time-domain signal
+    signal : np.ndarray
+        Input time-domain signal.
     f0 : float
-        The fundamental frequency (Hz)
+        Fundamental frequency (Hz).
     dt : float
-        The time step (sampling period) of the signal
+        Sampling interval (seconds).
     N_f : int
-        The number of harmonics to compute.
+        Number of harmonics to test (excludes the fundamental).
+    threshold : float, optional
+        Relative amplitude threshold (e.g., 0.01 for -40 dB) above which a
+        harmonic is considered significant.
     use_hann : bool, optional
-        If True, applies a Hann window before computing the FFT, by default True
+        If True, apply a Hann window before FFT.
     n_padded : int, optional
-        The number of points used for zero-padding in the FFT, by default 0
-    dB : bool, optional
-        Harmonic strength in decibel, by default False
+        Length to zero-pad signal to before FFT.
 
     Returns
     -------
-    np.array
-        An array containing the relative amplitude of the first `N_f` harmonics 
-        normalized to the fundamental frequency.
+    hri : float
+        Harmonic Richness Index: number_of_significant_harmonics.
     """
+    # Get relative strengths
+    h = harmonic_strength(signal, f0, dt, N_f,
+                          use_hann=use_hann,
+                          n_padded=n_padded)
+    # Count above threshold
+    count = np.sum(h > threshold)
+    return float(count)
 
-    # Remove DC offset
-    arr         = signal - np.mean(signal) 
-    
-    # Compute FFT and extract frequency and amplitude spectrum
-    xf, yf      = fft(signal=arr, dt=dt, n_padded=n_padded, use_hann=use_hann)
-    
-    # Interpolation function for FFT spectrum
-    func        = interp1d(xf, yf)
+def spectral_entropy(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann: bool = False) -> float:
+    """
+    Compute the spectral entropy (Shannon entropy of the normalized PSD).
 
-    # Get amplitude at the fundamental frequency
-    y_f0        = func(f0)
-
-    # Validate fundamental frequency peak
-    if y_f0 < threshold * np.max(yf):
-        # Fundamental frequency is too weak or missing
-        if dB:
-            return np.full(N_f, -np.inf)  # Return -Inf dB for invalid harmonics
-        else:
-            return np.zeros(N_f)  # Return zeros for invalid harmonics
-
-    # Compute harmonic strength
-    nth_h       = np.arange(2,N_f+2)
-
-    if dB:
-        h_strength  = 10*np.log(func(nth_h*f0)/y_f0)
-    else:
-        h_strength  = func(nth_h*f0)/y_f0
-
-    return h_strength
-
-def harmonic_strength_old(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann:bool = True, n_padded: int = 0, dB: bool = False)->np.ndarray:
-    """Compute the harmonic strength of a signal relative to its fundamental frequency.
+    Spectral entropy = -sum(p * log2(p)), where p = P / sum(P).
 
     Parameters
     ----------
-    signal : np.array
-        The input time-domain signal
-    f0 : float
-        The fundamental frequency (Hz)
+    signal : np.ndarray
+        Input time-domain signal.
     dt : float
-        The time step (sampling period) of the signal
-    N_f : int
-        The number of harmonics to compute.
-    use_hann : bool, optional
-        If True, applies a Hann window before computing the FFT, by default True
+        Sampling interval (seconds).
     n_padded : int, optional
-        The number of points used for zero-padding in the FFT, by default 0
-    dB : bool, optional
-        Harmonic strength in decibel, by default False
+        Length to zero-pad signal to before FFT.
+    use_hann : bool, optional
+        If True, apply a Hann window before FFT.
 
     Returns
     -------
-    np.array
-        An array containing the relative amplitude of the first `N_f` harmonics 
-        normalized to the fundamental frequency.
+    se : float
+        Spectral entropy in bits.
     """
 
-    # Remove DC offset
-    arr         = signal - np.mean(signal) 
+    # Compute amplitude spectrum
+    freqs, mags = fft(signal - np.mean(signal), dt,
+                      n_padded=n_padded, use_hann=use_hann)
     
-    # Compute FFT and extract frequency and amplitude spectrum
-    xf, yf      = fft(signal=arr, dt=dt, n_padded=n_padded, use_hann=use_hann)
-    
-    # Interpolation function for FFT spectrum
-    func        = interp1d(xf, yf)
+    # Power spectrum
+    P = mags**2
 
-    # Get amplitude at the fundamental frequency
-    y_f0        = func(f0)
+    # Normalize to probability distribution
+    P_sum = np.sum(P)
+    if P_sum <= 0:
+        return 0.0
+    p = P / P_sum
 
-    # Compute harmonic strength
-    nth_h       = np.arange(2,N_f+2)
+    # Avoid log2(0)
+    p = np.where(p <= 0, 0, p)
 
-    if dB:
-        h_strength  = 10*np.log(func(nth_h*f0)/y_f0)
-    else:
-        h_strength  = func(nth_h*f0)/y_f0
+    # Compute entropy
+    se = -np.sum(p * np.log2(p))
 
-    return h_strength
+    return se / np.log2(len(freqs))
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # SIMULATION HELPER FUNCTIONS

@@ -6,7 +6,7 @@ import nanonets_utils
 
 # ─── Configuration ────────────────────────────────────────────────────────────────
 T_VAL      = 293.0
-V_DRIVE    = 0.1
+V_DRIVE    = 1.0
 N_VOLT     = 50000
 TIME_STEP  = 1e-10
 STAT_SIZE  = 200
@@ -33,7 +33,7 @@ def main():
                           "e_pos":[[0,0,0],[Np-1,0,0]],
                           "electrode_type":e_types}
             
-            volt        = np.zeros((N_VOLT, len(topo["e_pos"]+1)), float)
+            volt        = np.zeros((N_VOLT, len(topo["e_pos"])+1), float)
             volt[:, 0]  = V_DRIVE
             out_base.mkdir(parents=True, exist_ok=True)
             args    = (time_pts, volt, topo, out_base, STAT_SIZE, T_VAL)

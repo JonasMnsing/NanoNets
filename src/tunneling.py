@@ -336,6 +336,12 @@ class tunnel_class(electrostatic.electrostatic_class):
             resistance_arr[np.where(self.adv_index_rows == idx + self.N_electrodes)[0]] = R_megaO
 
         return resistance_arr
+    
+    # def return_conductance_matrix(self):
+    #     G   = np.zeros((self.N_particles,self.N_particles))
+    #     for i in range(self.N_particles):
+    #         pass
+
 
 ###########################################################################################################################
 ###########################################################################################################################

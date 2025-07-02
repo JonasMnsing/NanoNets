@@ -337,10 +337,32 @@ class tunnel_class(electrostatic.electrostatic_class):
 
         return resistance_arr
     
-    # def return_conductance_matrix(self):
-    #     G   = np.zeros((self.N_particles,self.N_particles))
-    #     for i in range(self.N_particles):
-    #         pass
+    def build_conductance_matrix(self, R: np.ndarray):
+
+        src = self.adv_index_rows.copy()
+        tgt = self.adv_index_cols.copy()
+
+        np_nodes    = sorted({idx for idx in np.concatenate([src, tgt]) if idx >= 0})
+        el_nodes    = sorted({idx for idx in np.concatenate([src, tgt]) if idx <  0})
+        N_np        = len(np_nodes)
+        N_el        = len(el_nodes)
+        total_n     = N_np + N_el
+
+        raw2dense   = {raw: i for i, raw in enumerate(np_nodes + el_nodes)}
+        cond_matrix = np.zeros((total_n, total_n))
+
+        for s_raw, t_raw, R_l in zip(src, tgt, R):
+            g = 1.0 / R_l
+            i = raw2dense[s_raw]
+            j = raw2dense[t_raw]
+
+            # symmetric update
+            cond_matrix[i, i] += g
+            cond_matrix[j, j] += g
+            cond_matrix[i, j] -= g
+            cond_matrix[j, i] -= g
+
+        return cond_matrix
 
 
 ###########################################################################################################################

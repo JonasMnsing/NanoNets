@@ -1,8 +1,3 @@
-"""
-Influence of resistance disorder on Boolean Logic Functionality. Simulation covers a 9x9 lattice network.
-Simulation uses different seeds for varialbe distributions of resistance values across the network junctions.
-"""
-
 import numpy as np
 import sys
 

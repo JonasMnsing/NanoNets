@@ -23,8 +23,9 @@ green_color = '#228833'
 # SAMPLING METHODS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def uniform_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict, U_g : Union[float, List[float]]=0.0)->np.ndarray:
-    """Returns a uniform sample of electrode voltages, with floating electrodes set Zero and Gate electrode defined individually.
+def uniform_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict,
+                   U_g : Union[float, List[float]]=0.0, target_electrode : int=-1)->np.ndarray:
+    """Returns a uniform sample of electrode voltages, with floating and target electrodes set Zero and Gate electrode defined individually.
 
     Parameters
     ----------
@@ -36,6 +37,8 @@ def uniform_sample(U_e : Union[float, List[float]], N_samples : int, topology_pa
         Network topology dictonary
     U_g : Union[float, List[float]], optional
         Gate voltage range, by default 0.0
+    target_electrode : int
+        Electrode set to be grounded at start
 
     Returns
     -------
@@ -60,13 +63,15 @@ def uniform_sample(U_e : Union[float, List[float]], N_samples : int, topology_pa
     else:
         sample[:,-1]    = np.random.uniform(low=-U_g, high=U_g, size=N_samples)
 
-    # Set floating electrodes to 0V
-    sample[:,floating_idx]  = 0.0
+    # Set target and floating electrodes to 0V
+    sample[:,floating_idx]          = 0.0
+    sample[:,target_electrode-1]    = 0.0
 
     return sample
 
-def lhs_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict, U_g : Union[float, List[float]]=0.0)->np.ndarray:
-    """Returns a Latin Hypercube sample of electrode voltages, with floating electrodes set Zero and Gate electrode defined individually.
+def lhs_sample(U_e : Union[float, List[float]], N_samples : int, topology_parameter : dict,
+               U_g : Union[float, List[float]]=0.0, target_electrode : int=-1)->np.ndarray:
+    """Returns a Latin Hypercube sample of electrode voltages, with floating and target electrodes set Zero and Gate electrode defined individually.
 
     Parameters
     ----------
@@ -78,6 +83,8 @@ def lhs_sample(U_e : Union[float, List[float]], N_samples : int, topology_parame
         Network topology dictonary
     U_g : Union[float, List[float]], optional
         Gate voltage range, by default 0.0
+    target_electrode : int
+        Electrode set to be grounded at start
 
     Returns
     -------
@@ -112,12 +119,13 @@ def lhs_sample(U_e : Union[float, List[float]], N_samples : int, topology_parame
         scaled_samples[:,-1]    = -U_g + (U_g + U_g) * lhs_samples[:,-1]
 
     # Set floating electrodes to 0V
-    scaled_samples[:,floating_idx]  = 0.0
+    scaled_samples[:,floating_idx]          = 0.0
+    scaled_samples[:,target_electrode-1]    = 0.0
 
     return scaled_samples
 
 def logic_gate_sample(U_e : Union[float, List[float]], input_pos : List[int], N_samples : int, topology_parameter : dict,
-                      U_i : Union[float, List[float]]=0.01, U_g : Union[float, List[float]]=0.0, sample_technique='lhs')->np.array:
+                      U_i : Union[float, List[float]]=0.01, U_g : Union[float, List[float]]=0.0, sample_technique='lhs', target_electrode : int=-1)->np.array:
     """Returns a sample of electrode voltages, with floating electrodes set Zero and Gate electrodes defined individually.
     At input_pos electrode values are set to Boolean logic states defined in U_i
 
@@ -137,6 +145,8 @@ def logic_gate_sample(U_e : Union[float, List[float]], input_pos : List[int], N_
         Gate voltage range, by default 0.0, by default 0.0
     sample_technique : str, optional
         Sampling technique, either lhs or uniform, by default 'lhs'
+    target_electrode : int
+        Electrode set to be grounded at start
 
     Returns
     -------
@@ -151,9 +161,9 @@ def logic_gate_sample(U_e : Union[float, List[float]], input_pos : List[int], N_
 
     # Define sampling technique
     if sample_technique == 'lhs':
-        sample = lhs_sample(U_e=U_e, N_samples=N_samples, topology_parameter=topology_parameter, U_g=U_g)
+        sample = lhs_sample(U_e=U_e, N_samples=N_samples, topology_parameter=topology_parameter, U_g=U_g, target_electrode=target_electrode)
     elif sample_technique == 'uniform':
-        sample = uniform_sample(U_e=U_e, N_samples=N_samples, topology_parameter=topology_parameter, U_g=U_g)
+        sample = uniform_sample(U_e=U_e, N_samples=N_samples, topology_parameter=topology_parameter, U_g=U_g, target_electrode=target_electrode)
     else:
         raise ValueError("Sample technique 'lhs' or 'uniform' supported")
 

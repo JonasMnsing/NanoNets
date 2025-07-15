@@ -272,9 +272,9 @@ class tunnel_class(electrostatic.electrostatic_class):
 
         return resistances
     
-    def update_junction_resistances(self, resistance_arr: np.ndarray, 
-                                  junctions: List[Tuple[int, int]], 
-                                  R: float = 25) -> np.ndarray:
+
+    
+    def update_junction_resistances(self, resistance_arr: np.ndarray, junctions: List[Tuple[int, int]], R: float = 25) -> np.ndarray:
         """Update tunnel resistances for specific junctions.
 
         Parameters
@@ -282,7 +282,7 @@ class tunnel_class(electrostatic.electrostatic_class):
         resistance_arr : np.ndarray
             Array of current tunnel resistances [MΩ]
         junctions : List[Tuple[int, int]]
-            List of (origin, target) junction pairs to update
+            List of (origin, target) NP index pairs to update
         R : float, optional
             New resistance value [MΩ], by default 25
 
@@ -295,18 +295,44 @@ class tunnel_class(electrostatic.electrostatic_class):
 
         for junc in junctions:
             # Update forward direction
-            a = np.where(self.adv_index_rows == junc[0] + self.N_electrodes)[0]
-            b = np.where(self.adv_index_cols == junc[1] + self.N_electrodes)[0]
+            a   = np.where(self.adv_index_rows == junc[0] + self.N_electrodes)[0]
+            b   = np.where(self.adv_index_cols == junc[1] + self.N_electrodes)[0]
             idx = np.intersect1d(a,b)[0]
             resistance_arr[idx] = R_megaO
 
             # Update reverse direction
-            a = np.where(self.adv_index_cols == junc[0] + self.N_electrodes)[0]
-            b = np.where(self.adv_index_rows == junc[1] + self.N_electrodes)[0]
+            a   = np.where(self.adv_index_cols == junc[0] + self.N_electrodes)[0]
+            b   = np.where(self.adv_index_rows == junc[1] + self.N_electrodes)[0]
             idx = np.intersect1d(a,b)[0]
             resistance_arr[idx] = R_megaO
 
         return resistance_arr
+    
+    def update_junction_resistances_at_random(self, resistance_arr: np.ndarray, N: int, R: float = 25.0) -> np.ndarray:
+        """
+        Randomly select N unique junction pairs and update their tunnel resistances.
+
+        Parameters
+        ----------
+        resistance_arr : np.ndarray
+            Array of current tunnel resistances [MΩ] (1D array of directed edges).
+        N : int
+            Number of distinct (undirected) junctions to modify.
+        R : float, optional
+            New resistance value [MΩ] for each selected junction (default=25).
+        """
+
+        all_pairs = []
+        for row, col in zip(self.adv_index_rows, self.adv_index_cols):
+            i = row - self.N_electrodes
+            j = col - self.N_electrodes
+            if ((i < j) and (i >= 0) and (j >= 0)):
+                all_pairs.append((i,j))
+        
+        # Randomly choose N distinct junctions
+        chosen_pairs = self.rng.choice(a=all_pairs, size=N, replace=False)
+
+        return self.update_junction_resistances(resistance_arr, chosen_pairs, R)
 
     def update_nanoparticle_resistances(self, resistance_arr: np.ndarray, 
                                         nanoparticles: List[int], 

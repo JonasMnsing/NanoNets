@@ -1239,7 +1239,7 @@ class model_class():
     
     def return_time_vals(self):
         return self.time_values
-
+    
 ###################################################################################################
 ###################################################################################################
 
@@ -1499,11 +1499,13 @@ class simulation(tunneling.tunnel_class):
             adv_index_rows, adv_index_cols  = self.return_advanced_indices()
             temperatures                    = self.return_const_temperatures(T=T_val)
             resistances                     = self.return_random_resistances(R=self.res_info['mean_R'], Rstd=self.res_info['std_R'])
-            resistances                     = self.ensure_undirected_resistances(resistances=resistances)
 
             # If second type of resistances is provided
             if self.res_info2 != None:
-                resistances = self.update_nanoparticle_resistances(resistances, self.res_info2["np_index"], self.res_info2["R"])
+                resistances = self.update_junction_resistances_at_random(resistances, self.res_info2["N"], self.res_info2["R"])
+
+            resistances         = self.ensure_undirected_resistances(resistances=resistances)
+            self.resistances    = resistances
 
             # For memristive resistors
             if self.res_info['dynamic']:
@@ -1751,7 +1753,6 @@ class simulation(tunneling.tunnel_class):
             save_jump_storage(self.average_jumps, adv_index_rows, adv_index_cols, self.path3)
         
     def clear_outputs(self):
-
         self.output_values   = []
         self.microstates     = []
         self.landscape       = []
@@ -1763,7 +1764,6 @@ class simulation(tunneling.tunnel_class):
         self.average_cojumps = []
 
     def return_output_values(self):
-
         return_var      = np.array(self.output_values)
         return_var[:,2] = return_var[:,2]
         return_var[:,3] = return_var[:,3]
@@ -1771,31 +1771,28 @@ class simulation(tunneling.tunnel_class):
         return return_var
 
     def return_microstates(self):
-
         return np.array(self.microstates)
 
     def return_potential_landscape(self):
-
         return np.array(self.landscape)
 
     def return_network_currents(self):
-
         avg_j_cols = [(self.adv_index_rows[i],self.adv_index_cols[i]) for i in range(len(self.adv_index_rows))]
 
         return avg_j_cols, np.array(self.average_jumps)
     
     def return_jumps_per_it(self):
-
         return self.jumps_per_it
     
     def return_pot_per_it(self):
-
         return self.pot_per_it
     
     def return_time_vals(self):
-
         return self.time_values
-
+    
+    def return_resistances(self):
+        return self.resistances
+    
 ###########################################################################################################################
 ###########################################################################################################################
 

@@ -76,6 +76,47 @@ class electrostatic_class(topology.topology_class):
         if electrode_type is not None:
             self.electrode_type = np.array(electrode_type)
 
+    def mutal_capacitance_adjacent_spheres_sinh(self, eps_r: float, np_radius1: float, np_radius2: float, np_distance: float, N_sum: int = 20) -> float:
+        """
+        Calculate capacitance between spherical conductors - insulator - spherical conductors setup.
+
+        Parameters
+        ----------
+        eps_r : float
+            Permittivity of insulating material between spheres
+        np_radius1 : float
+            Radius of first sphere (nanoparticle) [nm]
+        np_radius2 : float
+            Radius of second sphere (nanoparticle) [nm]
+        np_distance : float
+            Edge-to-edge spacing between spheres [nm]
+            
+        Returns
+        -------
+        cap : float
+            Capacitance value [aF]
+        
+        Raises
+        ------
+        ValueError
+            If any input parameters are invalid
+        """
+
+        if eps_r <= 0:
+            raise ValueError(f"eps_r must be positive, got {eps_r}")
+        if np_radius1 <= 0 or np_radius2 <= 0:
+            raise ValueError(f"Radii must be positive, got {np_radius1} and {np_radius2}")
+        if np_distance <= 0:
+            raise ValueError(f"Distance must be positive, got {np_distance}")
+        
+        # Base factor
+        d       = np_radius1 + np_radius2 + np_distance
+        factor  = 4 * self.PI * self.EPSILON_0 * eps_r * (np_radius1 * np_radius2) / d
+        U_val   = np.arccosh((d**2 - np_radius1**2 - np_radius2**2) / (2*np_radius1*np_radius2))
+        cap     = factor * np.sinh(U_val) * np.sum([1/np.sinh(n*U_val) for n in range(1,N_sum+1)])
+
+        return cap
+
     def mutal_capacitance_adjacent_spheres(self, eps_r: float, np_radius1: float, np_radius2: float, np_distance: float) -> float:
         """
         Calculate capacitance between spherical conductors - insulator - spherical conductors setup.

@@ -1,7 +1,7 @@
 import numpy as np
 import networkx as nx
 import pandas as pd
-from typing import List
+from typing import List, Optional
 from scipy.spatial import Delaunay
 
 class topology_class:
@@ -58,7 +58,7 @@ class topology_class:
 
     NO_CONNECTION = -100 # Placeholder for unconnected junctions
 
-    def __init__(self, seed: int = None) -> None:
+    def __init__(self, seed: Optional[int] = None) -> None:
         """
         Parameters
         ----------
@@ -68,6 +68,9 @@ class topology_class:
         self.rng            = np.random.default_rng(seed)
         self.N_particles    = 0
         self.N_electrodes   = 0
+        self.G              = nx.DiGraph()
+        self.pos            = {}
+        self.net_topology   = np.array([])
 
     def cubic_network(self, N_x: int, N_y: int, N_z: int) -> None:
         """
@@ -83,6 +86,8 @@ class topology_class:
             Number of nanoparticles in z-direction (depth).
         """
         
+        self.lattice = True
+
         self.N_x    = N_x
         self.N_y    = N_y
         self.N_z    = N_z
@@ -125,12 +130,10 @@ class topology_class:
                 distance = np.sqrt((pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2 + (pos1[3] - pos2[3])**2)
 
                 if distance == 1:  # If neighbors
-
                     self.net_topology[idx, n_NN + 1] = jdx
                     self.G.add_edge(idx,jdx)
                     self.G.add_edge(jdx,idx)
                     n_NN += 1
-                    
                 if (n_NN == self.N_junctions):
                     break
          
@@ -146,6 +149,7 @@ class topology_class:
             and the network is forced to be planar (2D), by default 0.
         """
         
+        self.lattice        = False
         self.N_particles    = N_particles
         self.N_junctions    = N_junctions
 
@@ -316,15 +320,27 @@ class topology_class:
         self.G.add_edge(-output_electrode_idx-1,prev_particle_count)
 
         # Update node positions
-        x, y    = self.pos[-output_electrode_idx-1]
-        if x == self.N_x:
-            self.pos[-output_electrode_idx-1]    = (self.pos[-output_electrode_idx-1][0]+1,self.pos[-output_electrode_idx-1][1])
-        elif x == -1:
-            self.pos[-output_electrode_idx-1]    = (self.pos[-output_electrode_idx-1][0]-1,self.pos[-output_electrode_idx-1][1])
-        elif y == self.N_y:
-            self.pos[-output_electrode_idx-1]    = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]+1)
-        elif y == -1:
-            self.pos[-output_electrode_idx-1]    = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]-1)
+        x, y                            = self.pos[-output_electrode_idx-1]
+        self.pos[prev_particle_count]   = (x,y)
+        if self.lattice:
+            if x == self.N_x:
+                self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0]+1,self.pos[-output_electrode_idx-1][1])
+            elif x == -1:
+                self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0]-1,self.pos[-output_electrode_idx-1][1])
+            elif y == self.N_y:
+                self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]+1)
+            elif y == -1:
+                self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]-1)
+        else:
+            if x == 1:
+                self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0]+1,self.pos[-output_electrode_idx-1][1])
+            elif x == -1:
+                self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0]-1,self.pos[-output_electrode_idx-1][1])
+            elif y == 1:
+                self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]+1)
+            elif y == -1:
+                self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]-1)
+
 
     def add_two_in_parallel_np_to_output(self):
         """Attach two nanoparticles in parallel to the output electrode (last electrode index).
@@ -480,7 +496,13 @@ class topology_class:
             Network topology matrix.
         """
         return self.net_topology
+
+    def return_graph_object(self):
+        return self.G
     
+    def return_np_pos(self):
+        return self.pos
+
     def validate_network(self) -> bool:
         """
         Validate the network topology.

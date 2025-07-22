@@ -1,6 +1,7 @@
 import numpy as np
 import topology
 from typing import List
+from scipy.optimize import least_squares
 
 class electrostatic_class(topology.topology_class):
     """
@@ -26,8 +27,6 @@ class electrostatic_class(topology.topology_class):
         Relative permittivity of insulating material between nanoparticles (dimensionless)
     eps_s : float
         Relative permittivity of insulating environment/oxide layer (dimensionless)
-    np_distance : float
-        Edge-to-edge spacing between nanoparticles [nm]
     radius_vals : ndarray
         Array of nanoparticle radii [nm]
     capacitance_matrix : ndarray
@@ -52,6 +51,7 @@ class electrostatic_class(topology.topology_class):
     EPSILON_0           = 8.85418781762039e-3  # Vacuum permittivity in aF/nm
     PI                  = 3.14159265359
     ELECTRODE_RADIUS    = 10.0  # nm
+    MIN_NP_NP_DISTANCE  = 1.0   # nm
     
     def __init__(self, electrode_type: List[str] = None, seed: int = None)->None:
         """
@@ -76,7 +76,7 @@ class electrostatic_class(topology.topology_class):
         if electrode_type is not None:
             self.electrode_type = np.array(electrode_type)
 
-    def mutal_capacitance_adjacent_spheres_sinh(self, eps_r: float, np_radius1: float, np_radius2: float, np_distance: float, N_sum: int = 20) -> float:
+    def mutal_capacitance_adjacent_spheres_sinh(self, eps_r: float, np_radius1: float, np_radius2: float, N_sum: int = 20) -> float:
         """
         Calculate capacitance between spherical conductors - insulator - spherical conductors setup.
 
@@ -88,9 +88,7 @@ class electrostatic_class(topology.topology_class):
             Radius of first sphere (nanoparticle) [nm]
         np_radius2 : float
             Radius of second sphere (nanoparticle) [nm]
-        np_distance : float
-            Edge-to-edge spacing between spheres [nm]
-            
+                    
         Returns
         -------
         cap : float
@@ -106,18 +104,16 @@ class electrostatic_class(topology.topology_class):
             raise ValueError(f"eps_r must be positive, got {eps_r}")
         if np_radius1 <= 0 or np_radius2 <= 0:
             raise ValueError(f"Radii must be positive, got {np_radius1} and {np_radius2}")
-        if np_distance <= 0:
-            raise ValueError(f"Distance must be positive, got {np_distance}")
-        
+                
         # Base factor
-        d       = np_radius1 + np_radius2 + np_distance
+        d       = np_radius1 + np_radius2 + self.MIN_NP_NP_DISTANCE
         factor  = 4 * self.PI * self.EPSILON_0 * eps_r * (np_radius1 * np_radius2) / d
         U_val   = np.arccosh((d**2 - np_radius1**2 - np_radius2**2) / (2*np_radius1*np_radius2))
         cap     = factor * np.sinh(U_val) * np.sum([1/np.sinh(n*U_val) for n in range(1,N_sum+1)])
 
         return cap
 
-    def mutal_capacitance_adjacent_spheres(self, eps_r: float, np_radius1: float, np_radius2: float, np_distance: float) -> float:
+    def mutal_capacitance_adjacent_spheres(self, eps_r: float, np_radius1: float, np_radius2: float) -> float:
         """
         Calculate capacitance between spherical conductors - insulator - spherical conductors setup.
         Uses a third order Taylor Expansion based on the Image Charge method.
@@ -130,9 +126,7 @@ class electrostatic_class(topology.topology_class):
             Radius of first sphere (nanoparticle) [nm]
         np_radius2 : float
             Radius of second sphere (nanoparticle) [nm]
-        np_distance : float
-            Edge-to-edge spacing between spheres [nm]
-            
+                    
         Returns
         -------
         cap : float
@@ -147,11 +141,9 @@ class electrostatic_class(topology.topology_class):
             raise ValueError(f"eps_r must be positive, got {eps_r}")
         if np_radius1 <= 0 or np_radius2 <= 0:
             raise ValueError(f"Radii must be positive, got {np_radius1} and {np_radius2}")
-        if np_distance <= 0:
-            raise ValueError(f"Distance must be positive, got {np_distance}")
-        
+                
         # Base factor
-        d       = np_radius1 + np_radius2 + np_distance
+        d       = np_radius1 + np_radius2 + self.MIN_NP_NP_DISTANCE
         factor  = 4 * self.PI * self.EPSILON_0 * eps_r * (np_radius1 * np_radius2) / d
         
         # Terms of the Taylor expansion
@@ -168,8 +160,8 @@ class electrostatic_class(topology.topology_class):
         Calculate self capacitance of a sphere in an insulating environment.
 
         Uses the formula C = 4πε₀εᵣr where:
-        - ε₀ is the vacuum permittivity
-        - εᵣ is the relative permittivity of the environment
+        - eps_0 is the vacuum permittivity
+        - eps_s is the relative permittivity of the environment
         - r is the radius of the sphere
 
         Parameters
@@ -260,7 +252,253 @@ class electrostatic_class(topology.topology_class):
             self.rng.normal(loc=mean_radius, scale=std_radius, size=len(nanoparticles))
         )
         
-    def calc_capacitance_matrix(self, eps_r: float = 2.6, eps_s: float = 3.9, np_distance: float = 1.0)->None:
+    @staticmethod                    
+    def _seg_seg_dist(p1: np.ndarray, p2: np.ndarray, q1: np.ndarray, q2: np.ndarray) -> float:
+
+        u       = p2 - p1
+        v       = q2 - q1
+        w       = p1 - q1
+        a, b, c = u.dot(u), u.dot(v), v.dot(v)
+        d, e    = u.dot(w), v.dot(w)
+        D       = a*c - b*b
+
+        if D < 1e-8:
+            s = 0.0
+            t = e / c if c > 1e-8 else 0.0
+        else:
+            s = ( b*e - c*d) / D
+            t = ( a*e - b*d) / D
+
+        s   = np.clip(s, 0.0, 1.0)
+        t   = np.clip(t, 0.0, 1.0)
+        cp1 = p1 + s*u
+        cp2 = q1 + t*v
+
+        return np.linalg.norm(cp1 - cp2)
+    
+    # def position_planar(self, w_neigh: float = 1.0, w_minsep: float = 10.0,
+    #                             w_planar: float = 1e5, margin: float = 0.0) -> None:
+    #     """
+    #     Compute a planar, non-overlapping layout for the current lattice graph.
+
+    #     Parameters
+    #     ----------
+    #     w_neigh : float
+    #         Spring weight pulling neighbor pairs to minimal gap.
+    #     w_minsep : float
+    #         Barrier weight enforcing minimal gap for all pairs.
+    #     w_planar : float
+    #         Penalty weight forbidding edge crossings.
+    #     margin : float
+    #         Minimum clearance between non-adjacent edges (0 forbids crossing).
+    #     """
+
+    #     # Save existing electrode positions
+    #     electrode_positions = {n: self.pos[n] for n in self.pos if n < 0}
+        
+    #     # Build adjacency list from net_topology (neighbors only):
+    #     adj_array = self.net_topology[:, 1:]
+
+    #     # Call pack-down algorithm
+    #     coords = self._pack_down_pull_min_all(adj_array, w_neigh, w_minsep, w_planar, margin)
+        
+    #     # Update nanoparticle positions
+    #     self.pos = {i: tuple(coords[i]) for i in range(self.N_particles)}
+    #     # Restore electrode positions
+    #     for n, p in electrode_positions.items():
+    #         self.pos[n] = p
+
+    #     # Compute full distance matrix
+    #     diff                = coords[:,None,:]-coords[None,:,:]
+    #     dist_matrix         = np.linalg.norm(diff,axis=2)
+    #     self.dist_matrix    = dist_matrix
+
+    #     # Build electrode-to-particle distance matrix
+    #     electrodes      = sorted(electrode_positions.keys(), key=lambda x: -x)
+    #     electrode_dist  = np.zeros((self.N_electrodes, self.N_particles))
+    #     for idx, enode in enumerate(electrodes):
+    #         ex, ey = electrode_positions[enode]
+    #         for j in range(self.N_particles):
+    #             px, py                  = coords[j]
+    #             electrode_dist[idx, j]  = np.hypot(ex - px, ey - py)
+    #     self.electrode_dist_matrix = electrode_dist
+
+    # def _pack_down_pull_min_all(self, adj_array: np.ndarray, w_neigh: float, w_minsep: float, w_planar: float, margin: float) -> np.ndarray:
+    #     """
+    #     Internal helper: grid-init then pull-down with planar, non-overlap constraints.
+    #     """
+
+    #     # Undirected neighbor edges
+    #     neigh_lists = [np.unique(adj_array[i][adj_array[i] >= 0].astype(int)) for i in range(self.N_particles)]
+    #     edges       = [(i, j) for i in range(self.N_particles) for j in neigh_lists[i] if j > i]
+
+    #     # Grid spacing D
+    #     min_neigh   = np.array([self.radius_vals[i] + self.radius_vals[j] + self.MIN_NP_NP_DISTANCE for i, j in edges])
+    #     D           = min_neigh.max()
+
+    #     # Initial grid coords (requires N perfect square)
+    #     L       = int(np.round(np.sqrt(self.N_particles)))
+    #     grid_xy = np.column_stack((np.arange(self.N_particles) % L, np.arange(self.N_particles) // L))
+    #     x0      = (grid_xy * D).ravel()
+
+    #     # All pairs for global min separation
+    #     all_pairs = [(i, j) for i in range(self.N_particles) for j in range(i+1, self.N_particles)]
+
+    #     # Edge-pairs for planarity
+    #     edge_pairs = []
+    #     for a, b in edges:
+    #         for c, d in edges:
+    #             if {a, b}.isdisjoint({c, d}) and a < b and c < d:
+    #                 if (c, d, a, b) not in edge_pairs:
+    #                     edge_pairs.append((a, b, c, d))
+
+    #     # Precompute min distances
+    #     min_all = { (i, j): self.radius_vals[i] + self.radius_vals[j] + self.MIN_NP_NP_DISTANCE for (i, j) in all_pairs }
+
+    #     def residuals(x):
+    #         X   = x.reshape(self.N_particles, 2)
+    #         res = []
+
+    #         # spring on neighbors
+    #         for (i, j) in edges:
+    #             d = np.linalg.norm(X[i] - X[j])
+    #             res.append(w_neigh * (d - min_all[(i, j)]))
+
+    #         # global min separation
+    #         for (i, j) in all_pairs:
+    #             d   = np.linalg.norm(X[i] - X[j])
+    #             pen = max(0.0, min_all[(i, j)] - d)
+    #             res.append(w_minsep * pen)
+
+    #         # planarity hinge
+    #         for (i, j, k, l) in edge_pairs:
+    #             dseg    = self._seg_seg_dist(X[i], X[j], X[k], X[l])
+    #             pen     = max(0.0, margin - dseg)
+    #             res.append(w_planar * pen)
+
+    #         return np.array(res)
+
+    #     sol = least_squares(residuals, x0, method='trf')
+    #     return sol.x.reshape(self.N_particles, 2)
+    
+    def position_planar(self, w_neigh: float = 1.0, w_minsep: float = 10.0,
+                        w_planar: float = 1e5, margin: float = 1e-3) -> np.ndarray:
+        """
+        Optimize planar layout for nanoparticles, then reposition electrodes at fixed gap.
+
+        Returns
+        -------
+        dist_matrix : ndarray
+            N_particles x N_particles matrix of NP-NP distances
+        """
+        # 0) Backup old positions for electrode offsets
+        self.pos_old = self.pos.copy()
+        # Identify electrode nodes
+        electrode_nodes = [n for n in self.pos_old if isinstance(n, int) and n < 0]
+        # 1) Solve nanoparticles only
+        radii = self.radius_vals.copy()
+        nanop_adj = self.net_topology[:,1:]
+        Np = self.N_particles
+        # Build adjacency mask for nanoparticles
+        neighbors = []
+        for i in range(Np):
+            neigh = nanop_adj[i][nanop_adj[i]>=0].astype(int)
+            neighbors.append(np.unique(neigh))
+        max_deg = max((len(ne) for ne in neighbors), default=0)
+        adj_mask = -np.ones((Np, max_deg), dtype=int)
+        for i, ne in enumerate(neighbors): adj_mask[i,:len(ne)] = ne
+        # Initial guess from old nanoparticle positions
+        x0 = np.zeros((Np,2))
+        for i in range(Np): x0[i] = self.pos_old.get(i, (0.0,0.0))
+        # Perform spring/hinge solver
+        coords = self._pack_down_pull_all(adj_mask,
+                                          radii,
+                                          w_neigh,
+                                          w_minsep,
+                                          w_planar,
+                                          margin,
+                                          x0.ravel())
+        # Update nanoparticle positions
+        for i in range(Np): self.pos[i] = tuple(coords[i])
+        # 2) Reposition electrodes based on initial offsets
+        for e_node in electrode_nodes:
+            old_e_pos = np.array(self.pos_old[e_node])
+            # find connected nanoparticle index
+            p_indices = np.where(self.net_topology[:,0] == -e_node)[0]
+            if len(p_indices) != 1:
+                continue
+            p = p_indices[0]
+            # new particle position
+            p_pos = coords[p]
+            # old particle position
+            old_p_pos = np.array(self.pos_old[p])
+            # direction from p to electrode
+            dir_vec = old_e_pos - old_p_pos
+            if np.allclose(dir_vec, 0):
+                dir_vec = np.array([1.0, 0.0])
+            u = dir_vec / np.linalg.norm(dir_vec)
+            # compute new electrode position at exact gap
+            gap = radii[p] + self.ELECTRODE_RADIUS + 1
+            new_epos = p_pos + u * gap
+            self.pos[e_node] = tuple(new_epos)
+        # 3) Nanoparticle distance matrix
+        diff = coords[:, None, :] - coords[None, :, :]
+        dist_matrix = np.linalg.norm(diff, axis=2)
+        self.dist_matrix = dist_matrix
+        # 4) Electrode-particle distances
+        Ne = len(electrode_nodes)
+        el_dist = np.zeros((Ne, Np))
+        for idx, e_node in enumerate(electrode_nodes):
+            epos = np.array(self.pos[e_node])
+            d = coords - epos
+            el_dist[idx] = np.linalg.norm(d, axis=1)
+        self.electrode_dist_matrix = el_dist
+        return dist_matrix
+
+    def _pack_down_pull_all(self,
+                            adj_array: np.ndarray,
+                            radii: np.ndarray,
+                            w_neigh: float,
+                            w_minsep: float,
+                            w_planar: float,
+                            margin: float,
+                            x0: np.ndarray) -> np.ndarray:
+        """Pack-down solver for all nodes, using x0 initial guess."""
+        N = len(radii)
+        adj = np.asarray(adj_array)
+        neighbors = [adj[i][adj[i]>=0].astype(int) for i in range(N)]
+        edges = [(i,j) for i in range(N) for j in neighbors[i] if j>i]
+        # determine minimal spring length
+        if edges:
+            min_edge = np.array([radii[i]+radii[j]+1 for i,j in edges])
+            D = min_edge.max()
+        else:
+            D = 1.0
+        # prepare pairs
+        all_pairs = [(i,j) for i in range(N) for j in range(i+1,N)]
+        edge_pairs = [(a,b,c,d)
+                      for (a,b) in edges for (c,d) in edges
+                      if {a,b}.isdisjoint({c,d}) and a<b and c<d]
+        min_all = {(i,j): radii[i]+radii[j]+1 for (i,j) in all_pairs}
+        def residuals(x):
+            X = x.reshape(N,2)
+            res = []
+            for (i,j) in edges:
+                d = np.linalg.norm(X[i]-X[j])
+                res.append(w_neigh*(d - min_all[(i,j)]))
+            for (i,j) in all_pairs:
+                d = np.linalg.norm(X[i]-X[j]); pen = max(0.0, min_all[(i,j)]-d)
+                res.append(w_minsep*pen)
+            for (i,j,k,l) in edge_pairs:
+                dseg = self._seg_seg_dist(X[i],X[j],X[k],X[l]); pen = max(0.0, margin-dseg)
+                res.append(w_planar*pen)
+            return np.array(res)
+        sol = least_squares(residuals, x0, method='trf')
+        return sol.x.reshape(N,2)
+
+
+    
+    def calc_capacitance_matrix(self, eps_r: float = 2.6, eps_s: float = 3.9)->None:
         """
         Calculate the capacitance matrix of the nanoparticle network.
 
@@ -270,8 +508,6 @@ class electrostatic_class(topology.topology_class):
             Relative permittivity of insulating material between nanoparticles
         eps_s : float
             Relative permittivity of insulating environment (oxide layer)
-        np_distance : float
-            Edge-to-edge spacing between nanoparticles [nm]
             
         Raises
         ------
@@ -287,7 +523,6 @@ class electrostatic_class(topology.topology_class):
         self.capacitance_matrix = np.zeros((self.N_particles,self.N_particles))
         self.eps_r              = eps_r
         self.eps_s              = eps_s
-        self.np_distance        = np_distance
 
         # Loop over each particle to calculate capacitance contributions
         for i in range(self.N_particles):
@@ -304,11 +539,11 @@ class electrostatic_class(topology.topology_class):
                 if (j == 0):
                     if neighbor-1 not in self.floating_indices:
                         # Add electrode capacitance (using mutual capacitance formula)
-                        C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS, np_distance)
+                        C_sum += self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS)
 
                 else:
                     # Calc mutual capacitance
-                    val = self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[int(neighbor)], np_distance)
+                    val = self.mutal_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[int(neighbor)])
                     self.capacitance_matrix[i,int(neighbor)] = -val
                     C_sum += val
 
@@ -362,7 +597,7 @@ class electrostatic_class(topology.topology_class):
             if self.net_topology[i,0] != self.NO_CONNECTION:
                 # If connected to an electrode, calculate charge from electrode voltage
                 if electrode_index not in self.floating_indices:
-                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS, self.np_distance)
+                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS)
                 else:
                     C_lead  = 0.0
                 
@@ -403,7 +638,7 @@ class electrostatic_class(topology.topology_class):
             if self.net_topology[i,0] != self.NO_CONNECTION:
                 # If connected to an electrode, calculate charge from electrode voltage
                 if electrode_index not in self.floating_indices:
-                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS, self.np_distance)
+                    C_lead  = self.mutal_capacitance_adjacent_spheres(self.eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS)
                 else:
                     C_lead  = 0.0
                 
@@ -548,6 +783,12 @@ class electrostatic_class(topology.topology_class):
         """
         return super().return_net_topology()
 
+    def return_dist_matrix(self) -> np.ndarray:
+        return self.dist_matrix
+    
+    def return_electrode_dist_matrix(self) -> np.ndarray:
+        return self.electrode_dist_matrix
+            
 ###########################################################################################################################
 ###########################################################################################################################
 
@@ -558,7 +799,6 @@ if __name__ == '__main__':
     electrode_pos       = [[0,0,0],[1,2,0]]
     radius, radius_std  = 10.0, 0.0
     eps_r, eps_s        = 2.6, 3.9
-    np_distance         = 1
     voltage_values      = [0.8,0.0,0.0]
     electrode_type      = ['constant','floating']
     high_cap_nps        = [N_x*N_y]
@@ -571,7 +811,7 @@ if __name__ == '__main__':
     cubic_electrostatic.add_np_to_output()
     cubic_electrostatic.init_nanoparticle_radius(radius, radius_std)
     cubic_electrostatic.update_nanoparticle_radius(high_cap_nps, high_cap)
-    cubic_electrostatic.calc_capacitance_matrix(eps_r, eps_s, np_distance)
+    cubic_electrostatic.calc_capacitance_matrix(eps_r, eps_s)
     cubic_electrostatic.init_charge_vector(voltage_values)
 
     capacitance_matrix      = cubic_electrostatic.return_capacitance_matrix()

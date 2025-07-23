@@ -312,16 +312,17 @@ class electrostatic_class(topology.topology_class):
         # Get Unit in each direction
         x1, y1  = self.pos[0][0], self.pos[0][1]
         x2, y2  = self.pos[1][0], self.pos[1][1]
-        x3, y3  = self.pos[self.N_x][0], self.pos[self.N_x][1]
         d1      = np.array([x2-x1, y2-y1])
-        d2      = np.array([x3-x1, y3-y1])
         u1      = d1 / np.linalg.norm(d1)
-        u2      = d2 / np.linalg.norm(d2)
+        if self.N_y > 1:
+            x3, y3  = self.pos[self.N_x][0], self.pos[self.N_x][1]
+            d2      = np.array([x3-x1, y3-y1])
+            u2      = d2 / np.linalg.norm(d2)
 
         # Update electrode positions
         # Nur bei regular lattice, sonst vielleicht als initial guess
         # um dann e_pos zu verschieben bei fixem network
-        if len(np.unique(self.radius_vals)) == 1:
+        if len(np.unique(self.radius_vals)) == 0:
             for i, e_i in e_np_pairs:
                 xi  = self.pos[i][0]
                 yi  = self.pos[i][1]
@@ -343,26 +344,49 @@ class electrostatic_class(topology.topology_class):
         else:
             coords_new  = coords.copy()
             radii_new   = radii.copy()
+            centroid    = np.mean(coords_new, axis=0)
+
             for i, e_i in e_np_pairs:
-                x_j, y_j  = self.pos[i][0], self.pos[i][1]
-
+                
                 # Build the forbidden region = union of all existing circles grown by r_s
-                forbidden = unary_union([Point(x_i, y_i).buffer(r_i + self.ELECTRODE_RADIUS)
-                                         for (x_i, y_i), r_i in zip(coords_new, radii_new)])
-                feasible  = forbidden
-                p_j       = Point(x_j, y_j)
+                forbidden = unary_union([
+                    Point(x_i, y_i).buffer(
+                        r_i + self.ELECTRODE_RADIUS + self.MIN_NP_NP_DISTANCE
+                        )
+                        for (x_i, y_i), r_i in zip(coords_new, radii_new)])
 
-                # check p_j is not in forbidden
-                in_feasible = not forbidden.contains(p_j)
+                # unpack target
+                x_j, y_j    = self.pos[i][0], self.pos[i][1]
+                p_j         = Point(x_j, y_j)
 
-                if in_feasible:
-                    self.pos[e_i] = (x_j, y_j)
+                # Outward-Ray placement
+                v = np.array([x_j,y_j]) - centroid
+                if np.linalg.norm(v) > 1e-8:
+                    dir_vec = v / np.linalg.norm(v)
+                    # place it exactly at the grown‐circle distance along that ray
+                    cand = Point(
+                        x_j + dir_vec[0] * (radii_new[i] + self.ELECTRODE_RADIUS + self.MIN_NP_NP_DISTANCE),
+                        y_j + dir_vec[1] * (radii_new[i] + self.ELECTRODE_RADIUS + self.MIN_NP_NP_DISTANCE))
+                    
+                    # check it’s still in the feasible set
+                    if forbidden.contains(cand):
+                        # exteriors = [poly.exterior for poly in getattr(forbidden, "geoms", [forbidden])]
+                        # outer_rings = unary_union(exteriors)
+                        # _, cand = nearest_points(p_j, outer_rings)
+                        hull = forbidden.convex_hull
+                        _, cand = nearest_points(p_j, hull.boundary)
+                        # _, cand = nearest_points(p_j, forbidden.boundary)
                 else:
-                    # Otherwise, the closest feasible point is on the boundary of the forbidden region (or of feasible region).
-                    _, nearest = nearest_points(p_j, feasible.boundary)
-                    self.pos[e_i] = (nearest.x, nearest.y)
-                coords_new  = np.vstack((coords_new,(nearest.x, nearest.y)))
-                radii_new   = np.hstack((radii_new,self.ELECTRODE_RADIUS))
+                    # exteriors = [poly.exterior for poly in getattr(forbidden, "geoms", [forbidden])]
+                    # outer_rings = unary_union(exteriors)
+                    # _, cand = nearest_points(p_j, outer_rings)
+                    hull = forbidden.convex_hull
+                    _, cand = nearest_points(p_j, hull.boundary)
+                    # _, cand = nearest_points(p_j, forbidden.boundary)
+
+                self.pos[e_i]   = (cand.x, cand.y)
+                coords_new      = np.vstack((coords_new,(cand.x, cand.y)))
+                radii_new       = np.hstack((radii_new,self.ELECTRODE_RADIUS))
         
         # Nanoparticle distance matrix
         diff                = coords[:, None, :] - coords[None, :, :]
@@ -639,6 +663,7 @@ class electrostatic_class(topology.topology_class):
                 if j not in self.floating_indices:
                     val     =   self.mutal_capacitance_adjacent_spheres_sinh(eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS, self.electrode_dist_matrix[j,i])
                     C_sum   +=  val
+                    print(self.radius_vals[i], self.ELECTRODE_RADIUS, self.electrode_dist_matrix[j,i], val)
                     
             # Self Capacitance
             C_sum += self.self_capacitance_sphere(eps_s, self.radius_vals[i])

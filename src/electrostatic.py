@@ -358,10 +358,7 @@ class electrostatic_class(topology.topology_class):
                 if in_feasible:
                     self.pos[e_i] = (x_j, y_j)
                 else:
-                    # Otherwise, the closest feasible point is on the
-                    # boundary of the forbidden region (or of feasible region).
-                    # We use shapely.ops.nearest_points:
-                    # it returns (point_on_j, point_on_boundary).
+                    # Otherwise, the closest feasible point is on the boundary of the forbidden region (or of feasible region).
                     _, nearest = nearest_points(p_j, feasible.boundary)
                     self.pos[e_i] = (nearest.x, nearest.y)
                 coords_new  = np.vstack((coords_new,(nearest.x, nearest.y)))

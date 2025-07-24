@@ -272,8 +272,6 @@ class tunnel_class(electrostatic.electrostatic_class):
 
         return resistances
     
-
-    
     def update_junction_resistances(self, resistance_arr: np.ndarray, junctions: List[Tuple[int, int]], R: float = 25) -> np.ndarray:
         """Update tunnel resistances for specific junctions.
 

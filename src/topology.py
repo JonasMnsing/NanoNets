@@ -518,10 +518,16 @@ class NanoparticleTopology:
         """
         return self.net_topology
 
-    def return_graph_object(self):
+    def return_graph_object(self) -> nx.DiGraph:
+        """
+        Return the NetworkX DiGraph object for the current network.
+        """
         return self.G
     
-    def return_np_pos(self):
+    def return_np_pos(self) -> Dict[int, Tuple[float, float]]:
+        """
+        Return the dictionary mapping nodes to their 2D positions.
+        """
         return self.pos
 
     def validate_network(self) -> bool:

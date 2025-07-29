@@ -14,13 +14,6 @@ class NanoparticleTopology:
     electrodes. The network is internally represented both as a NetworkX directed graph
     and as a compact "net_topology" matrix for export/import.
 
-    Typical usage:
-    --------------
-    >>> net = NanoparticleTopology(seed=123)
-    >>> net.lattice_network(N_x=4, N_y=4)
-    >>> net.add_electrodes_to_lattice_net([[0, 0], [3, 3]])
-    >>> net.export_network('my_network.npy')
-
     Attributes
     ----------
     N_particles : int
@@ -197,55 +190,79 @@ class NanoparticleTopology:
             else:                       # Default case (otherwise move the electrode in the positive direction)
                 self.pos[electrode_node] = (pos[0],pos[1]+1)
 
-    # TODO N_Junctions too low?
     def random_network(self, N_particles: int) -> None:
         """
-        Set up a random 2D planar nanoparticle network using Delaunay triangulation.
+        Set up a random 2D planar nanoparticle network using Delaunay triangulation
+        and Poisson disk sampling for physical plausibility.
 
-        This method generates `N_particles` nodes, randomly positioned within a unit disk.
-        It connects them by constructing the Delaunay triangulation of these points,
-        resulting in a planar (no crossing edges) undirected graph. The graph is then stored
-        as a directed graph (DiGraph) for compatibility with other class methods.
+        The domain size is automatically chosen so that all N_particles fit with the required
+        minimum separation (based on smallest allowed radius).
 
         Parameters
         ----------
         N_particles : int
             Number of nanoparticles (nodes) in the network.
-        
+
         Raises
         ------
         ValueError
             If N_particles < 3 (Delaunay triangulation requires at least 3 points).
+        RuntimeError
+            If Poisson disk sampling cannot generate the requested points.
         """
         if N_particles < 3:
             raise ValueError("At least 3 particles are required for Delaunay triangulation.")
-        
+
         self.lattice        = False
         self.N_particles    = N_particles
 
-        # Generate random positions inside a unit disk
-        angles  = self.rng.uniform(0,2*np.pi, self.N_particles)
-        radii   = np.sqrt(self.rng.uniform(0, 1, self.N_particles))
-        pos     = [(r * np.cos(a), r * np.sin(a)) for r, a in zip(radii, angles)]
-        
-        # Build an undirected graph from Delaunay triangulation
+        # Use the minimum possible NP radius for separation BEFORE radii are initialized
+        min_dist = 2 * 10.0 + 1.0  # [nm]
+
+        # Compute required domain radius for random close packing
+        packing_density     = 0.45  # empirical value for random disk packings
+        needed_area         = N_particles * (min_dist / 2) ** 2 / packing_density
+        domain_radius       = np.sqrt(needed_area)
+        self.domain_radius  = domain_radius
+
+        def poisson_disk_sampling(n_points, min_dist, domain_radius=1.0, max_attempts=10000, rng=None):
+            rng = rng or np.random.default_rng()
+            points = []
+            attempts = 0
+            while len(points) < n_points and attempts < max_attempts:
+                r = domain_radius * np.sqrt(rng.uniform())
+                theta = rng.uniform(0, 2 * np.pi)
+                x, y = r * np.cos(theta), r * np.sin(theta)
+                if all(np.hypot(x - px, y - py) >= min_dist for px, py in points):
+                    points.append((x, y))
+                attempts += 1
+            if len(points) < n_points:
+                raise RuntimeError(
+                    f"Could not place {n_points} points with min_dist={min_dist} "
+                    f"in {max_attempts} attempts. Try reducing n_points or min_dist."
+                )
+            return points
+
+        # Generate random positions with conservative minimum separation
+        pos = poisson_disk_sampling(self.N_particles, min_dist, domain_radius=domain_radius, rng=self.rng)
+
+        # Build undirected graph via Delaunay triangulation
         temp_G = nx.Graph()
         for i, p in enumerate(pos):
             temp_G.add_node(i, pos=p)
 
-        # Delaunay Triangulation
-        tri     = Delaunay(pos)
-        edges   = set()
+        tri = Delaunay(pos)
+        edges = set()
         for simplex in tri.simplices:
             for i in range(3):
-                edge = tuple(sorted([simplex[i], simplex[(i+1) % 3]]))
+                edge = tuple(sorted([simplex[i], simplex[(i + 1) % 3]]))
                 edges.add(edge)
         temp_G.add_edges_from(edges)
-        
+
         # Store as a directed graph (all edges are bidirectional)
         self.G = nx.DiGraph(temp_G)
-        self.pos = {i : p for i, p in enumerate(pos)}
-        self.N_junctions = np.max([val for (node, val) in temp_G.degree()])
+        self.pos = {i: p for i, p in enumerate(pos)}
+        self.N_junctions = np.max([val for (node, val) in temp_G.degree()]) + 1
 
         self._graph_to_net_topology()
         
@@ -276,14 +293,19 @@ class NanoparticleTopology:
             raise RuntimeError("No nanoparticle positions found. Call random_network() first.")
         if len(electrode_positions) > self.N_particles:
             raise ValueError("Cannot attach more electrodes than there are nanoparticles.")
+        if not hasattr(self, "domain_radius"):
+            raise RuntimeError("Domain radius not found. Make sure random_network has been called.")
         
-        self.N_electrodes = len(electrode_positions)
+        # Scale electrode positions from [-1, 1] to device disk
+        scaled_electrode_positions = [[x * self.domain_radius, y * self.domain_radius] for x, y in electrode_positions]
+        
+        self.N_electrodes = len(scaled_electrode_positions)
         used_nodes = set()  # Track which nanoparticles are already connected to an electrode
 
         # Convert positions to DataFrame for easy computation
         node_positions = pd.DataFrame(self.pos).T.sort_index()
 
-        for n, e_pos in enumerate(electrode_positions):
+        for n, e_pos in enumerate(scaled_electrode_positions):
             if not (isinstance(e_pos, (list, tuple)) and len(e_pos) == 2):
                 raise ValueError(f"Electrode position {e_pos} is invalid. Must be [x, y].")
             

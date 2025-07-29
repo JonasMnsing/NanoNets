@@ -689,7 +689,8 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
         V_g = voltage_values[-1]
 
         return self.electrode_capacitance_matrix.T.dot(V_e) + self.self_capacitance * V_g
-        
+    
+    # TODO Testing
     def delete_n_junctions(self, n: int) -> None:
         """
         Randomly delete n nanoparticle-nanoparticle junctions (edges), preserving:

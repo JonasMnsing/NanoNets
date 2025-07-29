@@ -1,10 +1,9 @@
 import numpy as np
-import pandas as pd
 import networkx as nx
 import electrostatic
-from typing import Tuple, List, Optional, Union
+from typing import Tuple, List, Optional
 
-class tunnel_class(electrostatic.electrostatic_class):
+class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
     """Class for managing single electron tunneling in nanoparticle networks.
     
     This class extends the electrostatic_class to handle single electron tunneling
@@ -66,6 +65,13 @@ class tunnel_class(electrostatic.electrostatic_class):
     update_nanoparticle_resistances(resistance_arr, nanoparticles, R)
         Update all resistances connected to specific nanoparticles
     """
+    
+    # Physical constants
+    ELE_CHARGE_A_C      = 0.160217662       # [aC] (attoCoulombs, 1e-18 C)
+    ELE_CHARGE_C        = 1.60217662e-19    # [C]   (Coulombs)
+    KB_AJ_PER_K         = 1.380649e-5       # [aJ/K] (attoJoules per Kelvin, 1e-18 J/K)
+    KB_EV_PER_K         = 8.617333262e-5    # [eV/K] (electronvolts per Kelvin) 
+    MIN_RESISTANCE_MOHM = 1.0               # [MOhm]
 
     def __init__(self, electrode_type: List[str], seed: Optional[int] = None) -> None:
         """Initialize tunneling class.
@@ -79,161 +85,162 @@ class tunnel_class(electrostatic.electrostatic_class):
         """
         super().__init__(electrode_type, seed)
         
-        self.ele_charge = 0.160217662  # [aC]
-        self.kb = 1.38064852e-5       # [aJ/K]
+    def init_adv_indices(self) -> None:
+        """
+        Initialize advanced indices for all possible tunneling events (i→j).
 
-    def init_adv_indices(self):
-        """Initialize indices for all possible tunneling events."""
-        # Connection Array to show which nps and electrodes are connected 
-        connections = np.zeros((self.N_particles+self.N_electrodes, self.N_junctions+1))
-        connections.fill(-100)
-        connections[self.N_electrodes:,:] = self.net_topology
+        This sets up two arrays:
+        - self.adv_index_rows: origin indices (i) for each possible tunneling event (i→j)
+        - self.adv_index_cols: destination indices (j) for each event (i→j)
+
+        These indices can be used for vectorized updates of tunneling-related arrays (e.g., rates, resistances).
+
+        Notes
+        -----
+        - Only valid, connected pairs are included.
+        - Nanoparticle nodes are indexed from self.N_electrodes to self.N_electrodes+self.N_particles-1.
+        - Electrodes are indexed from 0 to self.N_electrodes-1 (shifted for array construction).
+        - Updates self.adv_index_rows and self.adv_index_cols as 1D arrays.
         
-        # Map electrode connections
+        Raises
+        ------
+        RuntimeError
+            If the network topology or basic attributes are not initialized.
+        """
+
+        # Ensure basic attributes
+        if not hasattr(self, "net_topology") or not hasattr(self, "N_particles") or not hasattr(self, "N_electrodes") or not hasattr(self, "N_junctions"):
+            raise RuntimeError("Network not initialized. Run network setup first.")
+        
+        # Prepare a unified connections array: [electrodes | nanoparticles], shape: (N_electrodes+N_particles, N_junctions+1)
+        connections = np.full((self.N_particles + self.N_electrodes, self.N_junctions + 1), self.NO_CONNECTION, dtype=int)
+        # Place nanoparticle connectivity (topology) in lower block
+        connections[self.N_electrodes:, :] = self.net_topology
+
+        # Map which nanoparticle is attached to each electrode (first column of net_topology)
         nth_e, nth_np = 1, 0
         while (nth_np < self.N_particles) and (nth_e <= self.N_electrodes):
-            if int(self.net_topology[nth_np,0]) == nth_e:
-                connections[nth_e-1,1] = nth_np
+            if int(self.net_topology[nth_np, 0]) == nth_e:
+                # The nth_e electrode is connected to nth_np nanoparticle
+                connections[nth_e - 1, 1] = nth_np
                 nth_e += 1
                 nth_np = 0
                 continue
             nth_np += 1
-        
-        connections[:,0] = connections[:,0] - 1
-        connections[:,1:] = connections[:,1:] + self.N_electrodes
 
-        # Generate tunneling indices
-        adv_index_cols = [list(arr[arr >= 0].astype(int)) for arr in connections]
-        adv_index_rows = [len(val)*[i] for i, val in enumerate(adv_index_cols)]
-        self.adv_index_cols = np.array([item for sublist in adv_index_cols for item in sublist])
-        self.adv_index_rows = np.array([item for sublist in adv_index_rows for item in sublist])
+        # Offset indices for compact event indexing:
+        # - Electrodes: [0 ... N_electrodes-1]
+        # - Nanoparticles: [N_electrodes ... N_electrodes+N_particles-1]
+        connections[:, 0]  -= 1  # if electrode number is 1-based, shift to 0-based
+        connections[:, 1:] += self.N_electrodes
 
+        # Build tunneling event lists: for each node, find all valid partners
+        adv_index_cols = [list(row[row >= 0].astype(int)) for row in connections]
+        adv_index_rows = [len(col_list) * [i] for i, col_list in enumerate(adv_index_cols)]
+
+        # Flatten lists for fast vectorized lookup (event i→j: self.adv_index_rows[k], self.adv_index_cols[k])
+        self.adv_index_cols = np.array([item for sublist in adv_index_cols for item in sublist], dtype=int)
+        self.adv_index_rows = np.array([item for sublist in adv_index_rows for item in sublist], dtype=int)
+                
     def init_potential_vector(self, voltage_values: np.ndarray) -> None:
-        """Initialize potential landscape using electrode voltages.
+        """
+        Initialize the full potential vector for the network, setting electrode and gate voltages.
+
+        The potential vector is organized as:
+        - First N_electrodes entries: electrode voltages (from voltage_values)
+        - Remaining N_particles entries: initialized to zero (to be filled in by electrostatic solver)
 
         Parameters
         ----------
-        voltage_values : np.ndarray
-            Electrode voltages [V] as array([V_e1, V_e2, V_e3, ..., V_G])
-            where V_G is the gate voltage
+        voltage_values : np.ndarray or list
+            Array of shape (N_electrodes + 1,) = [V_e1, V_e2, ..., V_eN, V_G]
+            where V_G is the gate voltage.
 
         Raises
         ------
         ValueError
-            If voltage_values length doesn't match number of electrodes + 1
+            If voltage_values length does not match number of electrodes + 1.
+        RuntimeError
+            If N_particles or N_electrodes are not set.
         """
-        if len(voltage_values) != self.N_electrodes + 1:
-            raise ValueError(f"Expected {self.N_electrodes + 1} voltage values")
-            
+        if not hasattr(self, "N_particles") or not hasattr(self, "N_electrodes"):
+            raise RuntimeError("Network not initialized: N_particles and N_electrodes must be set.")
+
+        voltage_values = np.asarray(voltage_values)
+        if voltage_values.shape[0] != self.N_electrodes + 1:
+            raise ValueError(f"Expected {self.N_electrodes + 1} voltage values, got {voltage_values.shape[0]}.")
+        
         self.potential_vector = np.zeros(self.N_electrodes + self.N_particles)
         self.potential_vector[0:self.N_electrodes] = voltage_values[:-1]
 
     def init_const_capacitance_values(self) -> None:
-        """Initialize capacitance terms for free energy calculation."""
-        row_i = self.adv_index_rows-self.N_electrodes
-        col_i = self.adv_index_cols-self.N_electrodes
-        row_i2 = (row_i >= 0).astype(int)
-        col_i2 = (col_i >= 0).astype(int)
+        """
+        Precompute constant capacitance terms for tunneling free energy calculations.
+
+        This computes the (C_ii + C_jj - 2*C_ij) * (e^2 / 2) for all possible tunneling
+        events, using advanced index arrays. Electrode rows/columns are masked out.
+
+        Requires:
+        ---------
+        - self.adv_index_rows, self.adv_index_cols : index arrays for all tunneling events
+        - self.inv_capacitance_matrix : inverse capacitance matrix (NxN)
+        - self.ele_charge : elementary charge [aC]
+
+        Stores:
+        -------
+        - self.const_capacitance_values : ndarray, precomputed constant terms for all tunnel events
+
+        Raises
+        ------
+        RuntimeError
+            If necessary attributes are missing.
+        """
+        if not (hasattr(self, "adv_index_rows") and hasattr(self, "adv_index_cols") and hasattr(self, "inv_capacitance_matrix")):
+            raise RuntimeError("Must call init_adv_indices and calc_capacitance_matrix first.")
         
-        cap_ii = self.inv_capacitance_matrix[row_i, row_i]*row_i2*self.ele_charge*self.ele_charge/2
-        cap_jj = self.inv_capacitance_matrix[col_i, col_i]*col_i2*self.ele_charge*self.ele_charge/2
-        cap_ij = self.inv_capacitance_matrix[row_i, col_i]*row_i2*col_i2*self.ele_charge*self.ele_charge/2
+        # Indices relative to nanoparticle-only part (exclude electrodes)
+        row_i = self.adv_index_rows - self.N_electrodes
+        col_i = self.adv_index_cols - self.N_electrodes
+        
+        # Only use valid nanoparticle indices (exclude electrodes)
+        row_mask = (row_i >= 0).astype(int)
+        col_mask = (col_i >= 0).astype(int)
 
-        self.const_capacitance_values = (cap_ii + cap_jj - 2*cap_ij)
+        # Precompute capacitance terms
+        cap_ii = self.inv_capacitance_matrix[row_i, row_i] * row_mask * self.ELE_CHARGE**2 / 2
+        cap_jj = self.inv_capacitance_matrix[col_i, col_i] * col_mask * self.ELE_CHARGE**2 / 2
+        cap_ij = self.inv_capacitance_matrix[row_i, col_i] * row_mask * col_mask * self.ELE_CHARGE**2 / 2
 
-    def return_graph_object(self) -> nx.Graph:
-        """
-        Returns
-        -------
-        G : nx.DiGraph
-            NetworkX directed graph of the nanoparticle network
-        """
+        self.const_capacitance_values = (cap_ii + cap_jj - 2 * cap_ij)
 
-        G = nx.DiGraph()
-        G.add_nodes_from([i for i in range(self.N_particles+self.N_electrodes)])
-        G.add_edges_from([(self.adv_index_rows[i], self.adv_index_cols[i]) for i in range(len(self.adv_index_rows))])
-
-        return G
-
-    def return_potential_vector(self) -> np.ndarray:
+    def init_junction_resistances(self, R: float = 25, Rstd: float = 0) -> None:
         """
-        Returns
-        -------
-        potential_vector : ndarray
-            Potential values for electrodes and nanoparticles
-        """
-
-        return self.potential_vector
-
-    def return_const_capacitance_values(self) -> np.ndarray:
-        """
-        Returns
-        -------
-        const_capacitance_values : ndarray
-            Capacitance terms for tunneling free energy calculation
-        """
-        return self.const_capacitance_values
-
-    def return_particle_electrode_count(self) -> Tuple[int, int]:
-        """
-        Returns
-        -------
-        N_particles : int
-            Number of nanoparticles
-        N_electrodes : int
-            Number of electrodes
-        """
-
-        return self.N_electrodes, self.N_particles
-    
-    def return_advanced_indices(self) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Returns
-        -------
-        adv_index_rows : ndarray
-            Origin nanoparticles (i) in tunneling events i→j
-        adv_index_cols : ndarray
-            Target nanoparticles (j) in tunneling events i→j
-        """
-        return self.adv_index_rows, self.adv_index_cols
-    
-    def return_const_temperatures(self, T: float = 0.28) -> np.ndarray:
-        """
-        Parameters
-        ----------
-        T : float
-            Network temperature [K]
-
-        Returns
-        -------
-        T_arr : ndarray
-            Array of temperatures for each tunneling event [eV]
-        """
-        return np.repeat(T*self.kb, len(self.adv_index_rows))
-
-    def return_random_resistances(self, R: float = 25, Rstd: float = 0) -> np.ndarray:
-        """        
+        Initialize a 1D array of tunnel resistances (in MΩ) for each unique NP-NP or NP-electrode junction.
+        Ensures all resistances are undirected and above a minimum value.
+        
         Parameters
         ----------
         R : float
-            Average tunnel resistance [MΩ]
+            Mean tunnel resistance [MΩ]
         Rstd : float
-            Standard deviation of tunnel resistances [MΩ]
-
-        Returns
-        -------
-        const_R : ndarray
-            Variable resistances for each tunneling event i→j sampled from Gaussian
+            Standard deviation of resistances [MΩ]
         """
+        n_junctions = len(self.adv_index_rows)
+        if R <= 0:
+            raise ValueError(f"Mean resistance must be positive, got {R}")
+        if Rstd < 0:
+            raise ValueError(f"Std deviation must be non-negative, got {Rstd}")
 
-        R_megaO     = R*self.ele_charge*self.ele_charge*1e-12
-        R_std_megaO = Rstd*self.ele_charge*self.ele_charge*1e-12
-                
-        const_R = np.abs(self.rng.normal(R_megaO, R_std_megaO, size=len(self.adv_index_rows)))
+        # Sample resistances from normal distribution, resample if below minimum
+        resistance = self.rng.normal(R, Rstd, size=n_junctions)
+        while np.any(resistance < self.MIN_RESISTANCE_MOHM):
+            bad = resistance < self.MIN_RESISTANCE_MOHM
+            resistance[bad] = self.rng.normal(R, Rstd, size=np.sum(bad))
 
-        return const_R
+        # Enforce undirected (symmetry) property
+        self.resistances = self._ensure_undirected_resistances(resistance, average=True)
 
-    def ensure_undirected_resistances(self, resistances: np.ndarray, average: bool = False) -> np.ndarray:
+    def _ensure_undirected_resistances(self, resistances: np.ndarray, average: bool = False) -> np.ndarray:
         """
         Ensures that resistances are undirected by making R(i, j) = R(j, i).
         
@@ -261,7 +268,6 @@ class tunnel_class(electrostatic.electrostatic_class):
             reverse_pair = (j, i)
             if reverse_pair in pair_to_index:
                 reverse_idx = pair_to_index[reverse_pair]
-
                 # Ensure symmetry
                 if average:
                     average_resistance          = (resistances[idx] + resistances[reverse_idx]) / 2.0
@@ -272,110 +278,136 @@ class tunnel_class(electrostatic.electrostatic_class):
 
         return resistances
     
-    def update_junction_resistances(self, resistance_arr: np.ndarray, junctions: List[Tuple[int, int]], R: float = 25) -> np.ndarray:
-        """Update tunnel resistances for specific junctions.
+    def update_junction_resistances(self, junctions: List[Tuple[int, int]], R: float = 25) -> None:
+        """
+        Update tunnel resistances for specific junctions.
 
         Parameters
         ----------
-        resistance_arr : np.ndarray
-            Array of current tunnel resistances [MΩ]
         junctions : List[Tuple[int, int]]
-            List of (origin, target) NP index pairs to update
+            List of (origin, target) NP index pairs to update (indices relative to NP array).
         R : float, optional
             New resistance value [MΩ], by default 25
 
-        Returns
-        -------
-        np.ndarray
-            Updated resistance array
+        Raises
+        ------
+        ValueError
+            If a specified junction does not exist.
         """
-        R_megaO = R * self.ele_charge * self.ele_charge * 1e-12
 
         for junc in junctions:
             # Update forward direction
             a   = np.where(self.adv_index_rows == junc[0] + self.N_electrodes)[0]
             b   = np.where(self.adv_index_cols == junc[1] + self.N_electrodes)[0]
             idx = np.intersect1d(a,b)[0]
-            resistance_arr[idx] = R_megaO
+            self.resistances[idx] = R
 
             # Update reverse direction
             a   = np.where(self.adv_index_cols == junc[0] + self.N_electrodes)[0]
             b   = np.where(self.adv_index_rows == junc[1] + self.N_electrodes)[0]
             idx = np.intersect1d(a,b)[0]
-            resistance_arr[idx] = R_megaO
+            self.resistances[idx] = R
 
-        return resistance_arr
-    
-    def update_junction_resistances_at_random(self, resistance_arr: np.ndarray, N: int, R: float = 25.0) -> np.ndarray:
+    def update_junction_resistances_at_random(self, N: int, R: float = 25.0) -> None:
         """
-        Randomly select N unique junction pairs and update their tunnel resistances.
+        Randomly select N unique undirected NP-NP junctions and update their tunnel resistances.
 
         Parameters
         ----------
-        resistance_arr : np.ndarray
-            Array of current tunnel resistances [MΩ] (1D array of directed edges).
         N : int
             Number of distinct (undirected) junctions to modify.
         R : float, optional
             New resistance value [MΩ] for each selected junction (default=25).
+
+        Raises
+        ------
+        ValueError
+            If N is greater than the total number of available undirected junctions.
         """
 
-        all_pairs = []
+        all_pairs   = []
+        seen        = set()
         for row, col in zip(self.adv_index_rows, self.adv_index_cols):
             i = row - self.N_electrodes
             j = col - self.N_electrodes
             if ((i < j) and (i >= 0) and (j >= 0)):
-                all_pairs.append((i,j))
+                pair = (i, j)
+                if pair not in seen:
+                    all_pairs.append((i,j))
+                    seen.add(pair)
+
+        if N > len(all_pairs):
+            raise ValueError(f"Requested {N} junctions, but only {len(all_pairs)} available.")
         
         # Randomly choose N distinct junctions
         chosen_pairs = self.rng.choice(a=all_pairs, size=N, replace=False)
+        # chosen_pairs is an array of shape (N, 2), convert to list of tuples if needed
+        chosen_pairs = [tuple(pair) for pair in chosen_pairs]
 
-        return self.update_junction_resistances(resistance_arr, chosen_pairs, R)
+        self.update_junction_resistances(chosen_pairs, R)
 
-    def update_nanoparticle_resistances(self, resistance_arr: np.ndarray, 
-                                        nanoparticles: List[int], 
-                                        R: float = 25) -> np.ndarray:
+    def update_nanoparticle_resistances(self, nanoparticles: List[int], R: float = 25) -> None:
         """
-        Set all resistances in array of resistances which correspond to jumps TOWARDS a particular nanoparticle 
+        Set all resistances in self.resistances corresponding to jumps
+        *to or from* the specified nanoparticles to a new value.
 
         Parameters
         ----------
-        resistance_arr : np.ndarray
-            Array of current tunnel resistances [MΩ]
         nanoparticles : List[int]
-            Indices of nanoparticles with new resistance values
+            Indices of nanoparticles for which all associated resistances should be updated.
         R : float, optional
-            New resistance value [MΩ], by default 25
+            New resistance value [MΩ] to assign, by default 25.
 
-        Returns
-        -------
-        np.ndarray
-            Updated resistance array
+        Raises
+        ------
+        RuntimeError
+            If resistances have not been initialized.
+        ValueError
+            If any nanoparticle index is out of bounds.
         """
+        if not hasattr(self, "resistances"):
+            raise RuntimeError("Resistances have not been initialized. Call init_resistances first.")
 
-        R_megaO = R*self.ele_charge*self.ele_charge*1e-12
-        
         for idx in nanoparticles:
-            resistance_arr[np.where(self.adv_index_cols == idx + self.N_electrodes)[0]] = R_megaO
-            resistance_arr[np.where(self.adv_index_rows == idx + self.N_electrodes)[0]] = R_megaO
-
-        return resistance_arr
+            adv_idx = idx + self.N_electrodes
+            # Set for all jumps to and from this NP
+            self.resistances[np.where(self.adv_index_cols == adv_idx)[0]] = R
+            self.resistances[np.where(self.adv_index_rows == adv_idx)[0]] = R
     
-    def build_conductance_matrix(self, R: np.ndarray):
+    def build_conductance_matrix(self) -> None:
+        """
+        Build and return the conductance (Laplacian) matrix for the network.
+
+        Each off-diagonal entry -g_{ij} represents a conductance between nodes i and j.
+        Diagonal entries sum all conductances connected to node i.
+        The resulting matrix can be used for network current/voltage calculations.
+
+        Raises
+        ------
+        RuntimeError
+            If resistances are not initialized.
+
+        Notes
+        -----
+        - The node ordering is: [nanoparticles..., electrodes...]
+        - Node indices correspond to their new positions in the matrix via raw2dense.
+        """
+        if not hasattr(self, "resistances"):
+            raise RuntimeError("Resistances have not been initialized.")
 
         src = self.adv_index_rows.copy()
         tgt = self.adv_index_cols.copy()
 
+        # Get sorted list of all node indices (NPs >= 0, electrodes < 0)
         np_nodes    = sorted({idx for idx in np.concatenate([src, tgt]) if idx >= 0})
         el_nodes    = sorted({idx for idx in np.concatenate([src, tgt]) if idx <  0})
-        N_np        = len(np_nodes)
-        N_el        = len(el_nodes)
-        total_n     = N_np + N_el
+        total_n     = len(np_nodes) + len(el_nodes)
 
+        # Map raw node indices to their position in the matrix
         raw2dense   = {raw: i for i, raw in enumerate(np_nodes + el_nodes)}
         cond_matrix = np.zeros((total_n, total_n))
 
-        for s_raw, t_raw, R_l in zip(src, tgt, R):
+        for s_raw, t_raw, R_l in zip(src, tgt, self.resistances):
             g = 1.0 / R_l
             i = raw2dense[s_raw]
             j = raw2dense[t_raw]
@@ -386,49 +418,99 @@ class tunnel_class(electrostatic.electrostatic_class):
             cond_matrix[i, j] -= g
             cond_matrix[j, i] -= g
 
-        return cond_matrix
+        self.conductance_matrix = cond_matrix
+
+    def get_potential_vector(self) -> np.ndarray:
+        """
+        Returns
+        -------
+        potential_vector : ndarray
+            Potential values for electrodes and nanoparticles [V]
+        """
+
+        return self.potential_vector
+
+    def get_const_capacitance_values(self) -> np.ndarray:
+        """
+        Returns
+        -------
+        const_capacitance_values : ndarray
+            Capacitance terms for tunneling free energy calculation [aC^2/aF]
+        """
+        return self.const_capacitance_values
+
+    def get_particle_electrode_count(self) -> Tuple[int, int]:
+        """
+        Returns
+        -------
+        N_electrodes : int
+            Number of electrodes
+        N_particles : int
+            Number of nanoparticles
+        """
+
+        return self.N_electrodes, self.N_particles
+    
+    def get_advanced_indices(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns
+        -------
+        adv_index_rows : ndarray of shape (n_tunnel_events,)
+            Origin nanoparticles (i) in tunneling events i→j
+        adv_index_cols : ndarray of shape (n_tunnel_events,)
+            Target nanoparticles (j) in tunneling events i→j
+        """
+        return self.adv_index_rows, self.adv_index_cols
+    
+    def get_const_temperatures(self, T: float = 0.28) -> np.ndarray:
+        """
+        Parameters
+        ----------
+        T : float
+            Network temperature [K]
+
+        Returns
+        -------
+        T_arr : ndarray
+            Array of thermal energies for each tunneling event [aJ]
+            (T * kB, one per tunneling event)
+        """
+        return np.repeat(T * self.KB_AJ_PER_K, len(self.adv_index_rows))
+    
+    def get_tunneling_rate_prefactor(self) -> np.ndarray:
+        """
+        Returns
+        -------
+        ndarray
+            1D array of rate prefactors (R_{ij} * e^2) [(MΩ·(aC)^2)]
+            for each tunneling event (i→j).
+        """
+        if not hasattr(self, 'resistances'):
+            raise RuntimeError("Junction resistances not initialized. Call init_junction_resistances first.")
+        return self.resistances * self.ELE_CHARGE_A_C * self.ELE_CHARGE_A_C * 1e-12  
+    
+    def get_conductance_matrix(self) -> np.ndarray:
+        """
+        Get the network conductance (Laplacian) matrix.
+
+        Returns
+        -------
+        np.ndarray
+            Symmetric conductance matrix [1/MΩ], shape: (N_total, N_total),
+            where N_total = N_particles + N_electrodes
+
+        Raises
+        ------
+        RuntimeError
+            If conductance matrix hasn't been calculated (call build_conductance_matrix first).
+        """
+        if not hasattr(self, 'conductance_matrix'):
+            raise RuntimeError("Conductance matrix not calculated. Call build_conductance_matrix first.")
+        return self.conductance_matrix
 
 
 ###########################################################################################################################
 ###########################################################################################################################
 
 if __name__ == "__main__":
-
-    # Parameter
-    N_x, N_y, N_z       = 3,3,1
-    electrode_pos       = [[0,0,0],[1,2,0]]
-    radius, radius_std  = 10.0, 0.0
-    eps_r, eps_s        = 2.6, 3.9
-    np_distance         = 1
-    voltage_values      = [0.8,0.0,0.0]
-    electrode_type      = ['constant','floating']
-    high_cap_nps        = [N_x*N_y]
-    high_cap            = 1e2
-
-    # Network Initialization
-    cubic_system  = tunnel_class(electrode_type)
-    cubic_system.cubic_network(N_x, N_y, N_z)
-    cubic_system.set_electrodes_based_on_pos(electrode_pos, N_x, N_y)
-    cubic_system.add_np_to_output()
-    cubic_system.init_nanoparticle_radius(radius, radius_std)
-    cubic_system.update_nanoparticle_radius(high_cap_nps, high_cap)
-    cubic_system.calc_capacitance_matrix(eps_r, eps_s, np_distance)
-    cubic_system.init_charge_vector(voltage_values)
-    cubic_system.init_adv_indices()
-
-    # Return Class Attributes
-    topology_arr            = cubic_system.return_net_topology()
-    capacitance_matrix      = cubic_system.return_capacitance_matrix()
-    inv_capacitance_matrix  = cubic_system.return_inv_capacitance_matrix()
-    charge_vector           = cubic_system.return_charge_vector()
-
-    # Print Attributes
-    print(cubic_system)
-    print("Capacitance Matrix:\n", np.round(capacitance_matrix,2))
-    print("Initial Charge Vector:\n", np.round(charge_vector,2))
-
-    # Advanced Indices:
-    adv_index_rows, adv_index_cols = cubic_system.return_advanced_indices()
-
-    print("Tunnel Origins:\n", adv_index_rows)
-    print("Tunnel Targets:\n", adv_index_cols)
+    pass

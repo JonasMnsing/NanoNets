@@ -1,69 +1,98 @@
 import numpy as np
-import networkx as nx
 import electrostatic
 from typing import Tuple, List, Optional
 
 class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
-    """Class for managing single electron tunneling in nanoparticle networks.
-    
-    This class extends the electrostatic_class to handle single electron tunneling
-    events between nanoparticles and electrodes. It manages tunneling junctions,
-    calculates tunneling resistances, and handles temperature effects.
+    """
+    Simulates single-electron tunneling dynamics in nanoparticle networks.
 
-    Physical Constants
-    ----------------
-    ele_charge : float
-        Elementary charge [aC]
-    kb : float
+    This class extends NanoparticleElectrostatic to add functionality for tunneling events,
+    resistive junctions, and temperature effects. It manages network connectivity,
+    computes indices for all possible tunneling transitions (NP-NP, NP-electrode),
+    and allows initialization and update of tunneling resistances for kinetic Monte Carlo
+    or rate equation modeling.
+
+    **Indexing scheme:**
+    - Nanoparticles: always indexed from `self.N_electrodes` to `self.N_electrodes+self.N_particles-1`
+    - Electrodes: always indexed from `0` to `self.N_electrodes-1` (topology matrix uses 1-based, but indices here are shifted to 0-based)
+    - Tunneling events are indexed as (i→j) via arrays `adv_index_rows`, `adv_index_cols`
+    - All network nodes (NPs, electrodes) can be mapped to a dense index for Laplacian/conductance matrices
+
+    **Physical Constants (class attributes):**
+    -----------------------------------------
+    ELE_CHARGE_A_C : float
+        Elementary charge [attoCoulombs, aC = 1e-18 C]
+    ELE_CHARGE_C : float
+        Elementary charge [C]
+    KB_AJ_PER_K : float
+        Boltzmann constant [aJ/K = 1e-18 J/K]
+    KB_EV_PER_K : float
         Boltzmann constant [eV/K]
+    MIN_RESISTANCE_MOHM : float
+        Minimum allowed tunnel resistance [MΩ]
 
-    Attributes
-    ----------
+    **Attributes:**
+    --------------
     N_particles : int
-        Number of nanoparticles
+        Number of nanoparticles in the network
     N_electrodes : int
         Number of electrodes
     N_junctions : int
-        Number of junctions per nanoparticle
-    inv_capacitance_matrix : ndarray
-        Inverse of capacitance matrix [1/aF]
-    adv_index_rows : ndarray
-        Origin nanoparticles (i) in tunneling events i→j
-    adv_index_cols : ndarray
-        Target nanoparticles (j) in tunneling events i→j
-    potential_vector : ndarray
-        Potential values for electrodes and nanoparticles [V]
-    const_capacitance_values : ndarray
-        Capacitance terms for tunneling free energy calculation [aF]
+        Number of nearest-neighbor junctions per nanoparticle (max degree)
+    net_topology : np.ndarray
+        Network topology matrix (from parent class)
+    adv_index_rows : np.ndarray
+        Origin node indices for all possible tunnel events (i→j)
+    adv_index_cols : np.ndarray
+        Target node indices for all possible tunnel events (i→j)
+    potential_vector : np.ndarray
+        Current network potential for all nodes [V]
+    const_capacitance_values : np.ndarray
+        Precomputed free energy terms for tunneling events [(aC)^2/aF]
+    resistances : np.ndarray
+        1D array of tunnel resistances [MΩ], one per tunneling event (always undirected)
+    conductance_matrix : np.ndarray
+        Network conductance (Laplacian) matrix [1/MΩ], including all NPs and electrodes
 
-    Methods
-    -------
+    **Methods:**
+    -----------
     init_adv_indices()
-        Initialize indices for all possible tunneling events
+        Build index arrays for all valid tunneling events (NP-NP, NP-electrode)
     init_potential_vector(voltage_values)
-        Set up potential landscape using electrode voltages
+        Set up network potential using external electrode/gate voltages
     init_const_capacitance_values()
-        Compute capacitance terms for free energy calculations
-    return_graph_object()
-        Get NetworkX graph representation of the network
-    return_potential_vector()
-        Get current potential vector
-    return_const_capacitance_values()
-        Get capacitance terms for free energy calculation
-    return_particle_electrode_count()
-        Get number of particles and electrodes
-    return_advanced_indices()
-        Get tunneling event indices
-    return_const_temperatures(T)
-        Get temperature array for tunneling events
-    return_random_resistances(R, Rstd)
-        Generate random tunnel resistances
-    ensure_undirected_resistances(resistances, average)
-        Enforce resistance symmetry R(i,j) = R(j,i)
-    update_junction_resistances(resistance_arr, junctions, R)
-        Update resistances for specific junctions
-    update_nanoparticle_resistances(resistance_arr, nanoparticles, R)
-        Update all resistances connected to specific nanoparticles
+        Precompute capacitance terms for all tunneling events (used in free energy rates)
+    init_junction_resistances(R, Rstd)
+        Initialize random tunnel resistances (truncated normal, undirected)
+    update_junction_resistances(junctions, R)
+        Update resistances for specific (undirected) junctions
+    update_junction_resistances_at_random(N, R)
+        Update resistances for N random (undirected) junctions
+    update_nanoparticle_resistances(nanoparticles, R)
+        Update all resistances to/from a given set of nanoparticles
+    build_conductance_matrix()
+        Construct the full network conductance (Laplacian) matrix
+    get_potential_vector()
+        Return the current potential vector [V]
+    get_const_capacitance_values()
+        Return capacitance terms for tunneling free energy [(aC)^2/aF]
+    get_particle_electrode_count()
+        Return (N_electrodes, N_particles)
+    get_advanced_indices()
+        Return tunneling event indices (origin, target)
+    get_const_temperatures(T)
+        Return temperature-dependent array [aJ] for each tunnel event
+    get_tunneling_rate_prefactor()
+        Return the rate prefactor array: resistance × e^2 [(MΩ)·(aC)^2] for each event
+    get_conductance_matrix()
+        Return the current conductance (Laplacian) matrix [1/MΩ]
+
+    **Notes:**
+    ---------
+    - All units are SI (with capacitance in aF, charge in aC, resistance in MΩ, temperature in aJ/K).
+    - All tunnel resistances are always treated as undirected (R_ij = R_ji).
+    - Index conventions are consistent for fast vectorized simulation.
+    - Intended for use in kinetic Monte Carlo, stochastic, or master equation modeling of nanoparticle networks.
     """
     
     # Physical constants

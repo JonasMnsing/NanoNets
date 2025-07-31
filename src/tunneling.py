@@ -418,7 +418,7 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
     
     def build_conductance_matrix(self) -> None:
         """
-        Build and return the conductance (Laplacian) matrix for the network.
+        Build and return the conductance (Laplacian) matrix for the network [S]
 
         Each off-diagonal entry -g_{ij} represents a conductance between nodes i and j.
         Diagonal entries sum all conductances connected to node i.
@@ -460,7 +460,137 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
             cond_matrix[i, j] -= g
             cond_matrix[j, i] -= g
 
-        self.conductance_matrix = cond_matrix
+        self.conductance_matrix = cond_matrix*1e-6
+
+    def init_transfer_coeffs(self, output_electrode: int = None) -> None:
+        """
+        Calculate and store the current transfer coefficients for the network.
+
+        This computes, for each electrode, the fraction of injected current
+        that reaches a selected output electrode, using the conductance matrix.
+
+        Parameters
+        ----------
+        output_electrode : int, optional
+            Index of the output electrode (0-based). If None, uses the last electrode.
+
+        Raises
+        ------
+        RuntimeError
+            If conductance matrix is not initialized.
+        ValueError
+            If output electrode index is invalid.
+
+        Stores
+        ------
+        self.transfer_coeffs : np.ndarray
+            1D array, shape (N_electrodes,), transfer coefficients (unitless).
+            self.transfer_coeffs[i] gives the proportion of current at the output
+            electrode when 1V is applied at electrode i.
+        """
+        if not hasattr(self, "conductance_matrix"):
+            raise RuntimeError("Conductance matrix not calculated. Call build_conductance_matrix first.")
+
+        N_e     = self.N_electrodes
+        N_p     = self.N_particles
+        n_nodes = N_e + N_p
+
+        # Output electrode: by default, the last one
+        if output_electrode is None:
+            out_idx = N_e - 1
+        else:
+            out_idx = int(output_electrode)
+            if not (0 <= out_idx < N_e):
+                raise ValueError(f"Invalid output_electrode index: {out_idx} (must be in 0..{N_e-1})")
+
+        # Indices for unknowns (NPs) and knowns (electrodes)
+        u_idx   = np.arange(self.N_electrodes, n_nodes)
+        k_idx   = np.arange(self.N_electrodes)
+
+        Y       = self.conductance_matrix
+        Y_uu    = Y[np.ix_(u_idx, u_idx)]
+        Y_uk    = Y[np.ix_(u_idx, k_idx)]
+
+        # Precompute A = -Y_uu^{-1} Y_uk
+        inv_Yuu = np.linalg.inv(Y_uu)
+        A       = -inv_Yuu @ Y_uk  # (N_p, N_e)
+
+        # Output electrode row (current into output for 1V at each electrode)
+        Y_out_k     = Y[out_idx, k_idx]
+        Y_out_u     = Y[out_idx, u_idx]
+        indirect    = Y_out_u @ A
+
+        transfer_coeffs = -Y_out_k - indirect
+        transfer_coeffs[out_idx] = 0.0  # By convention: self-coupling is zero
+
+        self.transfer_coeffs = transfer_coeffs
+
+    def calibrate_electrodes(self, ref_electrodes: List[int], ref_current: float = 1e-9,
+                             alpha: float = 0.3, use_mean: bool = False):
+        """
+        Calibrate voltage amplitudes for all electrodes to achieve specified output current scaling.
+
+        Reference electrodes are set to achieve `ref_current` at the output (summed).
+        The remaining electrodes ("controls") are set so their current at the output
+        is a fraction (`alpha`) of the reference output current.
+
+        Parameters
+        ----------
+        ref_electrodes : List[int]
+            List of indices (0-based) for reference/input electrodes.
+        ref_current : float, optional
+            Desired reference output current [A] at the output (default: 1e-9).
+        alpha : float, optional
+            Ratio of control output current to reference output current (default: 0.3).
+        use_mean : bool, optional
+            If True, each reference electrode is calibrated to drive ref_current
+            individually (voltages will be higher). If False, reference voltages
+            are set so their combined effect gives ref_current (default).
+
+        Stores
+        ------
+        self.delta_V : np.ndarray
+            1D array of length N_electrodes, voltage amplitudes [V] for each electrode.
+
+        Raises
+        ------
+        RuntimeError
+            If transfer coefficients have not been initialized.
+        ValueError
+            If no valid reference electrodes are provided.
+        """
+
+        if not hasattr(self, "transfer_coeffs"):
+            raise RuntimeError("Transfer coefficients not initialized. Call init_transfer_coeffs first.")
+        
+        delta_V = np.zeros_like(self.transfer_coeffs)
+        all_electrodes = set(range(self.N_electrodes))
+        control_electrodes = [i for i in all_electrodes if i not in ref_electrodes]
+
+        # Reference voltage calculation
+        if use_mean:
+            G_input = np.mean(self.transfer_coeffs[ref_electrodes])
+            if G_input == 0:
+                raise ValueError("Mean transfer coefficient for reference electrodes is zero.")
+            V_on = ref_current / G_input
+        else:
+            G_input = np.sum(self.transfer_coeffs[ref_electrodes])
+            if G_input == 0:
+                raise ValueError("Sum of transfer coefficients for reference electrodes is zero.")
+            V_on = ref_current / G_input
+
+        for k in ref_electrodes:
+            delta_V[k] = V_on
+
+        # Control (non-reference) electrode calibration
+        for k in control_electrodes:
+            coeff = self.transfer_coeffs[k]
+            if coeff != 0:
+                delta_V[k] = alpha * abs(ref_current) / abs(coeff)
+            else:
+                delta_V[k] = 0.0
+
+        self.delta_V = delta_V
 
     def get_potential_vector(self) -> np.ndarray:
         """
@@ -560,7 +690,36 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         if not hasattr(self, 'conductance_matrix'):
             raise RuntimeError("Conductance matrix not calculated. Call build_conductance_matrix first.")
         return self.conductance_matrix
+    
+    def get_transfer_coeffs(self) -> np.ndarray:
+        """
+        Get the vector of transfer coefficients for the current output electrode.
 
+        Returns
+        -------
+        np.ndarray
+            Transfer coefficients, shape (N_electrodes,), unitless
+        Raises
+        ------
+        RuntimeError
+            If transfer_coeffs are not initialized (call init_transfer_coeffs first).
+        """
+        if not hasattr(self, "transfer_coeffs"):
+            raise RuntimeError("Transfer coefficients not initialized. Call init_transfer_coeffs first.")
+        return self.transfer_coeffs
+
+    def get_delta_V(self) -> np.ndarray:
+        """
+        Get the calibrated electrode voltage ranges.
+
+        Returns
+        -------
+        np.ndarray
+            Calibrated voltages for each electrode (same order as self.transfer_coeffs).
+        """
+        if not hasattr(self, 'delta_V'):
+            raise RuntimeError("Electrode voltages not calibrated. Call calibrate_electrodes first.")
+        return self.delta_V
 
 ###########################################################################################################################
 ###########################################################################################################################

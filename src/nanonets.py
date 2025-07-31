@@ -1288,127 +1288,183 @@ def save_jump_storage(average_jumps : List[np.array], adv_index_rows : np.array,
 #####################################################################################################################################################################################
 #####################################################################################################################################################################################
 
-class simulation(tunneling.tunnel_class):
+class Simulation(tunneling.NanoparticleTunneling):
+    """
+    Simulation class for nanoparticle networks with single-electron effects.
 
-    def __init__(self, topology_parameter : dict, folder='', add_to_path="", res_info=None, res_info2=None,
-                 np_info=None, np_info2=None, seed=None, high_C_output=False, **kwargs):
-        """Defines network topology, electrostatic properties and tunneling junctions for a given type of topology. 
+    This class builds on NanoparticleTunneling to construct a full physical
+    nanoparticle device model, including:
+        - Topology (lattice or random graph)
+        - Electrostatics (capacitance matrix, particle radii, packing)
+        - Tunnel junction properties (resistances)
+        - Electrode placement and types (constant/floating)
+        - Support for device "heterogeneity" via two NP types or resistances
+
+    Attributes
+    ----------
+    network_topology : str
+        Type of network, either 'lattice' or 'random'.
+    res_info : dict
+        Resistance parameters for primary NP type.
+    res_info2 : dict or None
+        Resistance parameters for second NP type (if present).
+    folder : str
+        Folder where simulation outputs are stored.
+    path1, path2, path3 : str
+        Full file paths for outputting results.
+    [All attributes of NanoparticleTunneling are also present.]
+
+    Parameters
+    ----------
+    topology_parameter : dict
+        Dictionary specifying topology, number of particles, electrode positions, and electrode types.
+        Required keys depend on topology:
+            Lattice: 'Nx', 'Ny', 'e_pos', 'electrode_type'
+            Random:  'Np', 'Nj', 'e_pos', 'electrode_type'
+    folder : str, optional
+        Path to output folder for saving results.
+    add_to_path : str, optional
+        Additional string appended to all output file names.
+    res_info : dict, optional
+        Resistance parameters for primary NP type. Example:
+            {"mean_R": 25.0, "std_R": 0.0, "dynamic": False}
+    res_info2 : dict, optional
+        Resistance parameters for second NP type.
+    np_info : dict, optional
+        Physical parameters for first NP type. Example:
+            {"eps_r": 2.6, "eps_s": 3.9, "mean_radius": 10.0, "std_radius": 0.0, "np_distance": 1.0}
+    np_info2 : dict, optional
+        Physical parameters for second NP type (may include 'np_index' for affected particles).
+    seed : int, optional
+        Seed for random number generation.
+    high_C_output : bool, optional
+        If True, adds an additional high-capacitance output electrode.
+    kwargs : dict, optional
+        Extra options (such as del_n_junctions: int for sparse/disordered networks).
+
+    Raises
+    ------
+    ValueError
+        If an unsupported network topology is requested.
+
+    Notes
+    -----
+    - Lattice topologies are square 2D grids; random topologies use Delaunay triangulation.
+    - Supports two nanoparticle types for heterogeneous materials/devices.
+    - Sets up all matrices and data needed for electrostatics and dynamics.
+    - See parent class docstrings for further details on physics and data.
+    """
+
+    def __init__(self, topology_parameter : dict, folder: str = '', add_to_path: str = "", res_info: dict = None, res_info2: dict = None,
+                 np_info: dict = None, np_info2: dict = None, seed: int = None, high_C_output: bool = False, **kwargs):
+        """
+        Defines network topology, electrostatic properties, and tunneling junctions for a given topology.
 
         Parameters
         ----------
         topology_parameter : dict
-            Dictonary including information about number of nanoparticles, electrode positions and types.
+            Dictionary including number of nanoparticles, electrode positions, and electrode types.
+            For lattice: must include 'Nx', 'Ny', 'e_pos', 'electrode_type'.
+            For random: must include 'Np', 'e_pos', 'electrode_type'.
         folder : str, optional
-            Folder where simulation results are saved, by default ''
+            Directory where simulation results are saved (default: '').
         add_to_path : str, optional
-            String which is extended to the file path, by default ""
+            String appended to output file names (default: "").
         res_info : dict, optional
-            Dictonary including information about resistance values for the first type of nanoparticles, by default None
+            Resistance parameters for primary NP type. (default: mean_R=25.0, std_R=0.0, dynamic=False)
         res_info2 : dict, optional
-            Dictonary including information about resistance values for the second type of nanoparticles, by default None
+            Resistance parameters for secondary NP type (if any).
         np_info : dict, optional
-            Dictonary including information about the first type of nanoparticles, by default None
+            Parameters for first nanoparticle type (default: see code).
         np_info2 : dict, optional
-            Dictonary including information about the second type of nanoparticles, by default None
-        seed : _type_, optional
-            Seed in use, when network properties are randomly sampled, by default None
-        high_C_output: bool, optional
-            Add high capacitive output electrode, by default True
+            Parameters for second nanoparticle type (may include 'np_index' for which NPs are affected).
+        seed : int, optional
+            Random seed for reproducibility.
+        high_C_output : bool, optional
+            Whether to add a high-capacitance output electrode (default: False).
+        kwargs : dict
+            Additional keyword arguments (e.g., 'del_n_junctions').
 
         Raises
         ------
         ValueError
-            _description_
+            If required keys are missing, or unsupported topology is requested.
+
+        Notes
+        -----
+        - All attributes for electrostatics, topology, and tunneling are set up automatically.
+        - Network can have two nanoparticle types for heterogeneity.
+        - All physical quantities are initialized, and key file paths are pre-set.
         """
 
-        # Constant or floating electrodes
+        # --- Electrode type and inheritance ---
         electrode_type  = topology_parameter['electrode_type']
-
-        # Inheritance 
         super().__init__(electrode_type, seed)
 
-        # Type of Network Topology:
+        # --- Topology type ---
         if 'Nx' in topology_parameter:
-            self.network_topology = 'cubic'
+            self.network_topology = 'lattice'
         else:
             self.network_topology = 'random'
 
-        # Parameter of first nanoparticle type
+        # --- Default NP info ---
         if np_info is None:
             np_info = {
                 "eps_r"         : 2.6,  # Permittivity of molecular junction 
                 "eps_s"         : 3.9,  # Permittivity of oxide layer
                 "mean_radius"   : 10.0, # average nanoparticle radius
-                "std_radius"    : 0.0,  # standard deviation of nanoparticle radius
-                "np_distance"   : 1.0   # spacing between nanoparticle shells
+                "std_radius"    : 0.0   # standard deviation of nanoparticle radius
             }
 
-        # First type of nanoparticle resistances
+        # --- Default Resistance info ---
         if res_info is None:
             res_info = {
                 "mean_R"    : 25.0, # Average resistance
                 "std_R"     : 0.0,  # Standard deviation of resistances
                 "dynamic"   : False # Dynamic or constant resistances
             }
-        
-        # Resistance Information
-        self.res_info   = res_info
-        self.res_info2  = res_info2
+        self.dynamic_resistances = res_info['dynamic']
 
-        # For a cubic topology
-        if self.network_topology == "cubic":
-
+        # --- Lattice topology ---
+        if self.network_topology == "lattice":
             # Path variable
-            path_var = f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Nz={topology_parameter["Nz"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
+            path_var = f'Nx={topology_parameter["Nx"]}_Ny={topology_parameter["Ny"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
             
-            # Cubic Network Topology
-            self.cubic_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"], N_z=topology_parameter["Nz"])
-            self.set_electrodes_based_on_pos(topology_parameter["e_pos"], topology_parameter["Nx"], topology_parameter["Ny"])
-            if high_C_output:
-                self.add_np_to_output()
-            
-            # Delete Junctions if porvided in kwargs
+            # --- Topology ---
+            self.lattice_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"])
+            self.add_electrodes_to_lattice_net(topology_parameter["e_pos"])
             if 'del_n_junctions' in kwargs:
                 self.delete_n_junctions(kwargs['del_n_junctions'])
-                
-            # Electrostatic Properties
-            self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
-
-            # Second Type of Nanopartciles
-            if np_info2 != None:
-                self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
-
-            # Capacitance Matrix
-            self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
-
-        # For a disordered topology
+                        
+        # --- Random Topology ---
         elif self.network_topology == "random":
-            
             # Path variable
-            path_var = f'Np={topology_parameter["Np"]}_Nj={topology_parameter["Nj"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
+            path_var = f'Np={topology_parameter["Np"]}_Ne={len(topology_parameter["e_pos"])}'+add_to_path+'.csv'
             
-            # Random Network Topology
-            self.random_network(N_particles=topology_parameter["Np"], N_junctions=topology_parameter["Nj"])
+            # --- Topology ---
+            self.random_network(N_particles=topology_parameter["Np"])
             self.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
-            self.graph_to_net_topology()
-                            
-            # Electrostatic Properties
-            self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
-
-            # Second Type of Nanopartciles
-            if np_info2 != None:
-                self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
-
-            # Capacitance Matrix
-            self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'], np_info['np_distance'])
         
         else:
-            raise ValueError("Only 'cubic' and 'random' topologies are supported.")
+            raise ValueError("Only 'lattice' and 'random' topologies are supported.")
+        
+        if high_C_output:
+            self.add_np_to_output()
 
-        # Indices for Numpy broadcasting
+        # --- Electrostatics ---
+        self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
+        if np_info2 is not None:
+            self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
+        self.pack_planar_circles()
+        self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'])
+
+        # --- Tunneling ---
         self.init_adv_indices()
+        self.init_junction_resistances(res_info['mean_R'], res_info['std_R'])
+        if res_info2 is not None:
+            self.update_junction_resistances_at_random(res_info2['N'], res_info2['mean_R'], res_info2['std_R'])
 
-        # Save Paths
+        # --- Path ---
         self.folder = folder
         self.path1  = folder + path_var
         self.path2  = folder + 'mean_state_'    + path_var
@@ -1797,38 +1853,4 @@ class simulation(tunneling.tunnel_class):
 ###########################################################################################################################
 
 if __name__ == '__main__':
-
-
-    # Parameter
-    N_x, N_y, N_z   = 3,1,1
-    N_jumps         = 1000
-    topology_string = {
-        "Nx"                : N_x,
-        "Ny"                : N_y,
-        "Nz"                : N_z,
-        "e_pos"             : [[0,0,0],[N_x-1,N_y-1,0]],
-        "electrode_type"    : ['constant','floating']
-    }
-    topology        = {
-        "Nx"                : N_x,
-        "Ny"                : N_y,
-        "Nz"                : N_z,
-        "e_pos"             :  [[0,0,0],[int((N_x-1)/2),0,0],[N_x-1,0,0],[0,int((N_y-1)/2),0],[0,N_y-1,0],
-                                [int((N_x-1)/2),N_y-1,0],[N_x-1,int((N_y-1)/2),0],[N_x-1,N_y-1,0]],
-        "electrode_type"    : ['constant','floating','floating','floating','floating','floating','floating','floating']
-    }
-    sim_dic         = {
-        "error_th"        : 0.0,      
-        "max_jumps"       : N_jumps,
-        "eq_steps"        : 0,
-        "jumps_per_batch" : 1,
-        "kmc_counting"    : False,
-        "min_batches"     : 1
-    }
-    
-    voltages_string     = np.array([[0.1,0.0,0.0]])
-    voltages            = np.array([[0.1,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]])
-    target_electrode    = len(topology_string['e_pos'])-1
-
-    sim_class = simulation(network_topology='cubic', topology_parameter=topology_string)
-    sim_class.run_const_voltages(voltages=voltages_string, target_electrode=target_electrode, save_th=0.1, output_potential=True, sim_dic=sim_dic)
+    pass

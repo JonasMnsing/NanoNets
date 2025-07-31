@@ -102,12 +102,12 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
     KB_EV_PER_K         = 8.617333262e-5    # [eV/K] (electronvolts per Kelvin) 
     MIN_RESISTANCE_MOHM = 1.0               # [MOhm]
 
-    def __init__(self, electrode_type: List[str], seed: Optional[int] = None) -> None:
+    def __init__(self, electrode_type: Optional[List[str]] = None, seed: Optional[int] = None) -> None:
         """Initialize tunneling class.
 
         Parameters
         ----------
-        electrode_type : List[str]
+        electrode_type : List[str], optional
             List specifying electrode types ('constant' or 'floating')
         seed : int, optional
             Random seed for reproducibility, by default None
@@ -236,9 +236,9 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         col_mask = (col_i >= 0).astype(int)
 
         # Precompute capacitance terms
-        cap_ii = self.inv_capacitance_matrix[row_i, row_i] * row_mask * self.ELE_CHARGE**2 / 2
-        cap_jj = self.inv_capacitance_matrix[col_i, col_i] * col_mask * self.ELE_CHARGE**2 / 2
-        cap_ij = self.inv_capacitance_matrix[row_i, col_i] * row_mask * col_mask * self.ELE_CHARGE**2 / 2
+        cap_ii = self.inv_capacitance_matrix[row_i, row_i] * row_mask * self.ELE_CHARGE_A_C**2 / 2
+        cap_jj = self.inv_capacitance_matrix[col_i, col_i] * col_mask * self.ELE_CHARGE_A_C**2 / 2
+        cap_ij = self.inv_capacitance_matrix[row_i, col_i] * row_mask * col_mask * self.ELE_CHARGE_A_C**2 / 2
 
         self.const_capacitance_values = (cap_ii + cap_jj - 2 * cap_ij)
 
@@ -337,7 +337,7 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
             idx = np.intersect1d(a,b)[0]
             self.resistances[idx] = R
 
-    def update_junction_resistances_at_random(self, N: int, R: float = 25.0) -> None:
+    def update_junction_resistances_at_random(self, N: int, R: float = 25.0, Rstd: float = 0.0) -> None:
         """
         Randomly select N unique undirected NP-NP junctions and update their tunnel resistances.
 
@@ -346,7 +346,9 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         N : int
             Number of distinct (undirected) junctions to modify.
         R : float, optional
-            New resistance value [MΩ] for each selected junction (default=25).
+            Mean resistance value [MΩ] (default: 25).
+        Rstd : float, optional
+            Standard deviation for resistance values [MΩ] (default: 0).
 
         Raises
         ------
@@ -370,10 +372,21 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         
         # Randomly choose N distinct junctions
         chosen_pairs = self.rng.choice(a=all_pairs, size=N, replace=False)
-        # chosen_pairs is an array of shape (N, 2), convert to list of tuples if needed
         chosen_pairs = [tuple(pair) for pair in chosen_pairs]
 
-        self.update_junction_resistances(chosen_pairs, R)
+        # Generate resistance values
+        if Rstd > 0:
+            new_resistances = self.rng.normal(R, Rstd, size=N)
+            # Resample if any below minimum
+            while np.any(new_resistances < self.MIN_RESISTANCE_MOHM):
+                bad = new_resistances < self.MIN_RESISTANCE_MOHM
+                new_resistances[bad] = self.rng.normal(R, Rstd, size=np.sum(bad))
+        else:
+            new_resistances = np.full(N, R)
+        
+        # Set each chosen junction (and its reverse) to the sampled value
+        for (pair, new_R) in zip(chosen_pairs, new_resistances):
+            self.update_junction_resistances([pair], new_R)
 
     def update_nanoparticle_resistances(self, nanoparticles: List[int], R: float = 25) -> None:
         """
@@ -517,6 +530,17 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         if not hasattr(self, 'resistances'):
             raise RuntimeError("Junction resistances not initialized. Call init_junction_resistances first.")
         return self.resistances * self.ELE_CHARGE_A_C * self.ELE_CHARGE_A_C * 1e-12  
+    
+    def get_resistance(self) -> np.ndarray:
+        """
+        Returns
+        -------
+        np.ndarray
+            1D array of resistance values for each tunneling event (i->j)
+        """
+        if not hasattr(self, 'resistances'):
+            raise RuntimeError("Junction resistances not initialized. Call init_junction_resistances first.")
+        return self.resistances 
     
     def get_conductance_matrix(self) -> np.ndarray:
         """

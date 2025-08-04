@@ -388,6 +388,7 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         for (pair, new_R) in zip(chosen_pairs, new_resistances):
             self.update_junction_resistances([pair], new_R)
 
+    # TODO: Allow Gauss distributed
     def update_nanoparticle_resistances(self, nanoparticles: List[int], R: float = 25) -> None:
         """
         Set all resistances in self.resistances corresponding to jumps
@@ -615,13 +616,13 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         """
         Returns
         -------
-        N_electrodes : int
-            Number of electrodes
         N_particles : int
             Number of nanoparticles
+        N_electrodes : int
+            Number of electrodes
         """
 
-        return self.N_electrodes, self.N_particles
+        return self.N_particles, self.N_electrodes
     
     def get_advanced_indices(self) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -720,9 +721,3 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         if not hasattr(self, 'delta_V'):
             raise RuntimeError("Electrode voltages not calibrated. Call calibrate_electrodes first.")
         return self.delta_V
-
-###########################################################################################################################
-###########################################################################################################################
-
-if __name__ == "__main__":
-    pass

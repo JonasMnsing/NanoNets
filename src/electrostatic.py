@@ -319,7 +319,7 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
                 n_bad = np.sum(new_radii < self.MIN_NP_RADIUS)
                 new_radii[new_radii < self.MIN_NP_RADIUS] = self.rng.normal(loc=mean_radius, scale=std_radius, size=n_bad)
             self.radius_vals[nanoparticles] = new_radii
-                
+               
     def pack_planar_circles(self, max_iter: int = 50, alpha: float = 0.05, tol: float = 1e-3, shrink_tol: float = 1e-6) -> None:
         """
         Adjusts `self.pos` so that:
@@ -765,7 +765,6 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
             raise RuntimeError("Charge vector not initialized. Call init_charge_vector first.")
         return self.charge_vector
     
-    
     def get_capacitance_matrix(self) -> np.ndarray:
         """
         Get the network capacitance matrix.
@@ -1029,10 +1028,3 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
     #             offset[i]   = voltage_values[-1] * C_self
 
     #     return offset
-
-            
-###########################################################################################################################
-###########################################################################################################################
-
-if __name__ == '__main__':
-    pass

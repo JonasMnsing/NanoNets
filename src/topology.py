@@ -6,13 +6,11 @@ from scipy.spatial import Delaunay
 
 class NanoparticleTopology:
     """
-    A class to set up, modify, and analyze the topology of nanoparticle networks,
-    including the connection of external electrodes.
+    Class to set up, modify, and analyze the topology of nanoparticle networks,
+    including connections to external electrodes.
 
-    This class can generate both lattice and random topologies of nanoparticles,
-    manage connections (junctions) between them, and allow for the systematic addition of
-    electrodes. The network is internally represented both as a NetworkX directed graph
-    and as a compact "net_topology" matrix for export/import.
+    Supports both lattice (grid) and random topologies. Manages network structure via a
+    NetworkX directed graph and a compact topology matrix for export/import.
 
     Attributes
     ----------
@@ -21,7 +19,7 @@ class NanoparticleTopology:
     N_electrodes : int
         Number of electrodes attached to the network.
     N_junctions : int
-        Number of junctions (neighbors) per nanoparticle.
+        Target number of junctions (neighbors) per nanoparticle (for random networks, average).
     N_x, N_y : int
         Grid dimensions for cubic networks. Only set for cubic grids.
     rng : numpy.random.Generator
@@ -50,12 +48,12 @@ class NanoparticleTopology:
         Set up a random network, using Delaunay triangulation.
     add_electrodes_to_random_net(electrode_positions)
         Attach electrodes to closest available nanoparticles in a random network.
-    add_np_to_output(), add_two_in_parallel_np_to_output(), add_two_in_series_np_to_output()
-        Add nanoparticles to the network, attached to the output electrode (last).
+    add_np_to_output()
+        Add a nanoparticle at the output electrode.
     graph_to_net_topology()
         Synchronize net_topology from the NetworkX graph object.
     get_net_topology(), get_graph(), get_positions()
-        Get current state of the network.
+        Accessors for topology, graph, and node positions.
     validate_network()
         Run consistency and connectivity checks.
     export_network(filepath), import_network(filepath)

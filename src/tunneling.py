@@ -6,20 +6,21 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
     """
     Simulates single-electron tunneling dynamics in nanoparticle networks.
 
-    This class extends NanoparticleElectrostatic to add functionality for tunneling events,
-    resistive junctions, and temperature effects. It manages network connectivity,
-    computes indices for all possible tunneling transitions (NP-NP, NP-electrode),
-    and allows initialization and update of tunneling resistances for kinetic Monte Carlo
-    or rate equation modeling.
+    This class extends NanoparticleElectrostatic to add functionality for:
+    - Tunneling events (NP-NP, NP-electrode)
+    - Resistive junctions (static or dynamic)
+    - Temperature effects on tunneling
+    - Efficient bookkeeping of event indices for KMC and rate equation methods
 
-    **Indexing scheme:**
-    - Nanoparticles: always indexed from `self.N_electrodes` to `self.N_electrodes+self.N_particles-1`
-    - Electrodes: always indexed from `0` to `self.N_electrodes-1` (topology matrix uses 1-based, but indices here are shifted to 0-based)
-    - Tunneling events are indexed as (i→j) via arrays `adv_index_rows`, `adv_index_cols`
-    - All network nodes (NPs, electrodes) can be mapped to a dense index for Laplacian/conductance matrices
+    Indexing Scheme
+    ---------------
+    - Nanoparticles are indexed from `self.N_electrodes` to `self.N_electrodes + self.N_particles - 1`
+    - Electrodes are indexed from `0` to `self.N_electrodes - 1`
+    - Tunneling events are indexed as (i → j) using arrays `adv_index_rows`, `adv_index_cols`
+    - All nodes (NPs and electrodes) can be mapped to a dense index for Laplacian/conductance calculations
 
-    **Physical Constants (class attributes):**
-    -----------------------------------------
+    Physical Constants (class attributes)
+    -------------------------------------
     ELE_CHARGE_A_C : float
         Elementary charge [attoCoulombs, aC = 1e-18 C]
     ELE_CHARGE_C : float
@@ -31,8 +32,8 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
     MIN_RESISTANCE_MOHM : float
         Minimum allowed tunnel resistance [MΩ]
 
-    **Attributes:**
-    --------------
+    Attributes
+    ----------
     N_particles : int
         Number of nanoparticles in the network
     N_electrodes : int
@@ -54,14 +55,14 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
     conductance_matrix : np.ndarray
         Network conductance (Laplacian) matrix [1/MΩ], including all NPs and electrodes
 
-    **Methods:**
-    -----------
+    Methods
+    -------
     init_adv_indices()
         Build index arrays for all valid tunneling events (NP-NP, NP-electrode)
     init_potential_vector(voltage_values)
-        Set up network potential using external electrode/gate voltages
+        Set up network potential using electrode/gate voltages
     init_const_capacitance_values()
-        Precompute capacitance terms for all tunneling events (used in free energy rates)
+        Precompute capacitance terms for all tunneling events (for free energy)
     init_junction_resistances(R, Rstd)
         Initialize random tunnel resistances (truncated normal, undirected)
     update_junction_resistances(junctions, R)
@@ -81,17 +82,17 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
     get_advanced_indices()
         Return tunneling event indices (origin, target)
     get_const_temperatures(T)
-        Return temperature-dependent array [aJ] for each tunnel event
+        Return temperature-dependent array [aJ] for each tunneling event
     get_tunneling_rate_prefactor()
         Return the rate prefactor array: resistance × e^2 [(MΩ)·(aC)^2] for each event
     get_conductance_matrix()
         Return the current conductance (Laplacian) matrix [1/MΩ]
 
-    **Notes:**
-    ---------
-    - All units are SI (with capacitance in aF, charge in aC, resistance in MΩ, temperature in aJ/K).
+    Notes
+    -----
+    - All units are SI (capacitance in aF, charge in aC, resistance in MΩ, temperature in aJ/K).
     - All tunnel resistances are always treated as undirected (R_ij = R_ji).
-    - Index conventions are consistent for fast vectorized simulation.
+    - Index conventions are consistent for fast, vectorized simulation.
     - Intended for use in kinetic Monte Carlo, stochastic, or master equation modeling of nanoparticle networks.
     """
     

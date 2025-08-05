@@ -45,63 +45,81 @@ spec = [
 @jitclass(spec)
 class MonteCarlo():
     """
-    Numba-optimized class for Kinetic Monte Carlo simulation of electron transport
-    in nanoparticle networks. Efficiently simulates single-electron tunneling,
-    computes electric currents, charge/potential landscapes, and supports
-    network configurations with constant or floating electrodes.
+    Numba-optimized class for kinetic Monte Carlo (KMC) simulation of electron transport in nanoparticle networks.
+
+    Efficiently simulates single-electron tunneling dynamics, computes steady-state or time-dependent
+    currents, charge/potential distributions, and supports both constant and floating electrode
+    boundary conditions. Intended for large-scale or high-throughput simulation with performance
+    critical inner loops.
 
     Attributes
     ----------
     N_particles : int
-        Number of nanoparticles
+    Number of nanoparticles in the network.
     N_electrodes : int
-        Number of electrodes
+        Number of electrodes (including constant and floating).
     N_rates : int
-        Number of tunneling events
+        Number of unique tunneling events (transitions).
     inv_capacitance_matrix : ndarray
-        Inverse capacitance [1/aF]
+        Inverse network capacitance matrix [1/aF].
     zero_T : bool
-        Use zero-temperature approximation for rates.
+        If True, uses zero-temperature (step-function) tunneling rates.
     adv_index_rows : ndarray
-        Origin nodes for all events.
+        Origin node index for each tunneling event.
     adv_index_cols : ndarray
-        Target nodes for all events.
+        Target node index for each tunneling event.
     potential_vector : ndarray
-        Potentials [V] for all nodes.
+        Electrostatic potential [V] for each node (NP or electrode).
     charge_vector : ndarray
-        Charges [aC] for nanoparticles.
+        Net charge [aC] for each nanoparticle.
     tunnel_rates : ndarray
-        Tunneling rates [1/s] for all events.
+        Tunnel rate [1/s] for each event.
     const_capacitance_values : ndarray
-        Capacitance terms for ΔF calculation [aC^2/aF].
+        Capacitance/free energy factors [aC²/aF] for each transition.
     temperatures : ndarray
         Event-wise temperature [aJ].
     resistances : ndarray
-        Resistances [MΩ] for all junctions.
+        Tunnel resistance prefactor [(MΩ·(aC)^2)] for each event.
     counter_output_jumps_pos : float
-        # of jumps *to* target electrode
+        Number of jumps to the output electrode (for jump-counting current).
     counter_output_jumps_neg : float
-        # of jumps *from* target electrode
+        Number of jumps from the output electrode.
     total_jumps : int
-        Total KMC jumps
+        Cumulative KMC steps taken in the simulation.
     time : float
-        KMC time [s]
+        Simulation clock (KMC time) [s].
     target_observable_mean : float
-        Mean of target observable
+        Batched mean of main observable (current or potential).
     target_observable_error : float
-        Std of target observable
+        Batched standard error of main observable.
     target_observable_error_rel : float
-        Rel. error of target observable
+        Relative error of main observable.
     jump : int
-        Last jump event index
+        Index of last tunneling event.
     charge_mean : ndarray
-        Mean charge (per NP)
+        Time-averaged charge per nanoparticle.
     potential_mean : ndarray
-        Mean potential (per node)
+        Time-averaged potential per node (NP/electrode).
     I_network : ndarray
-        Current per junction
+        Time-averaged current per junction (event).
     I_tilde : ndarray
-        Helper for memristor model
+        Helper array (used in advanced/memristor models).
+
+    Methods
+    -------
+    run_equilibration_steps(n_jumps)
+        Equilibrate system for n_jumps KMC steps.
+    kmc_simulation(...)
+        Main simulation loop: runs until desired error or max steps.
+    kmc_time_simulation(...)
+        Run KMC for a fixed simulation time interval.
+    [plus utility and getter methods; see class for details]
+
+    Notes
+    -----
+    - Intended for internal use by high-level simulation classes.
+    - Requires all arrays to be precomputed and passed at initialization.
+    - All units follow SI/nano- conventions (aC, aF, MΩ, etc.).
     """
 
     def __init__(self, charge_vector: np.ndarray, potential_vector: np.ndarray, inv_capacitance_matrix: np.ndarray, const_capacitance_values: np.ndarray,
@@ -216,10 +234,8 @@ class MonteCarlo():
         denom   = np.expm1(exp_arg)
 
         # Avoid division by zero
-        with np.errstate(divide='ignore', invalid='ignore'):
-            rates = (free_energy / self.resistances) / denom
-            rates = np.nan_to_num(rates, nan=0.0, posinf=0.0, neginf=0.0)
-        
+        rates = (free_energy / self.resistances) / denom
+        rates = np.nan_to_num(rates, nan=0.0)
         self.tunnel_rates = rates
 
     def calc_tunnel_rates_zero_T(self):
@@ -523,7 +539,7 @@ class MonteCarlo():
         # Initialize storage arrays
         self.charge_mean        = np.zeros_like(self.charge_vector)
         self.potential_mean     = np.zeros_like(self.potential_vector)
-        self.network_currents   = np.zeros_like(self.adv_index_rows)
+        self.network_currents   = np.zeros(len(self.adv_index_rows), dtype=np.float64)
 
         # For rate-based current: find tunnel event indice
         if not kmc_counting and not output_potential:
@@ -559,7 +575,7 @@ class MonteCarlo():
             time_values         = np.zeros(jumps_per_batch)
             charge_values       = np.zeros(self.N_particles)
             potential_values    = np.zeros(self.N_particles + self.N_electrodes)
-            current_values      = np.zeros_like(self.adv_index_rows)
+            current_values      = np.zeros(len(self.adv_index_rows), dtype=np.float64)
             self.time           = 0.0
             
             # --- Main batch loop ---
@@ -700,7 +716,7 @@ class MonteCarlo():
         # Initialize storage arrays
         self.charge_mean        = np.zeros_like(self.charge_vector)
         self.potential_mean     = np.zeros_like(self.potential_vector)
-        self.network_currents   = np.zeros_like(self.adv_index_rows)
+        self.network_currents   = np.zeros(len(self.adv_index_rows), dtype=np.float64)
         self.total_jumps        = 0
 
         # Indices for floating electrode updates

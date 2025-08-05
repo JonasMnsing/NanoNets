@@ -1,96 +1,80 @@
-# NanoNets: Nanoparticle Network Simulator
+# NanoNets
 
-NanoNets is a Python-based simulator for modeling electron transport in nanoparticle networks. It combines physical modeling of electrostatic interactions with kinetic Monte Carlo methods to simulate single electron tunneling events between nanoparticles and electrodes.
+**NanoNets** is a Python package for simulating single-electron transport in complex nanoparticle networks.  
+It provides tools for generating and analyzing nanoparticle device topologies, computing network electrostatics, and running efficient kinetic Monte Carlo (KMC) simulations of single-electron tunneling.  
+Designed for both fundamental research and device engineering.
 
 ## Features
 
-- Supports both cubic lattice and random network topologies
-- Models single electron tunneling events
-- Handles constant and floating electrodes
-- Includes electrostatic interactions between nanoparticles
-- Supports memristive behavior with variable junction resistances
-- Uses Numba optimization for efficient simulation
-- Provides detailed tracking of network states and observables
+- **Flexible Topology**: Create regular lattice or random planar nanoparticle networks with customizable geometry and connectivity.
+- **Physical Electrostatics**: Automatically computes full capacitance matrices and induced charges using physical NP parameters.
+- **Kinetic Monte Carlo**: High-performance, Numba-optimized KMC engine for simulating electron tunneling, network currents, and time-resolved device response.
+- **Constant and Floating Electrodes**: Simulate both voltage-biased and floating (open circuit) contacts.
+- **Heterogeneous Devices**: Supports multiple nanoparticle types, resistive disorder, and tunable electrode configurations.
+- **Extensible & Modular**: Clear class structure enables easy modification and integration with other scientific Python tools.
+- **Batch and Time-Dependent Simulation**: Supports stationary (fixed voltage) and dynamic (time-varying voltage) simulation modes.
+- **Rich Output**: Exports observables, charge/potential landscapes, network currents, and more, directly to CSV for analysis.
 
-## Project Structure
+## Class Overview
 
-The project consists of four main Python modules:
+<details>
+<summary><strong>Click to expand full class documentation</strong></summary>
 
-- `topology.py`: Defines network topology and electrode connections
-- `electrostatic.py`: Handles electrostatic calculations and capacitance matrices
-- `tunneling.py`: Manages tunneling events and junction properties
-- `nanonets.py`: Implements the main simulation logic and KMC algorithm
+### `NanoparticleTopology`
+- Generate, modify, and analyze nanoparticle networks with electrodes.
+- Built on `networkx` for flexible topology and visualization.
 
-## Installation
+### `NanoparticleElectrostatic`
+- Adds electrostatics: computes NP radii, capacitance, and charge induction.
+- Efficiently packs nanoparticles and enforces physical constraints.
 
-Clone this repository:
-```bash
-git clone https://github.com/yourusername/NanoNets.git
-cd NanoNets
-```
+### `NanoparticleTunneling`
+- Adds single-electron tunneling and resistance network.
+- Precomputes tunneling events and manages tunnel junction resistances.
 
-### Dependencies
+### `Simulation`
+- High-level device simulation class: sets up topology, electrostatics, electrodes, and resistances.
+- Runs KMC for stationary (DC) or dynamic (pulsed/AC) driving.
 
-- NumPy
-- SciPy
-- NetworkX
-- Pandas
-- Numba
+### `MonteCarlo` (jitclass)
+- Fast KMC simulation core. Computes currents, potentials, and observables using Numba for speed.
+- Supports both steady-state and time-resolved simulation.
 
-Install dependencies using:
-```bash
-pip install numpy scipy networkx pandas numba
-```
+</details>
 
-## Usage
+## Quickstart Example
 
-### Basic Example
+```from nanonets import Simulation
+import numpy as np
 
-```python
-from nanonets import simulation
-
-# Define network topology
-topology = {
-    "Nx": 3,               # Number of particles in x-direction
-    "Ny": 3,               # Number of particles in y-direction
-    "Nz": 1,               # Number of particles in z-direction
-    "e_pos": [[0,0,0],     # Electrode positions
-              [1,2,0]],
-    "electrode_type": ['constant', 'floating']  # Electrode types
+# Define your network topology and parameters
+topology_parameter = {
+    'Nx': 5, 'Ny': 5,                           # 5x5 lattice
+    'e_pos': [[0,0], [4,4]],                    # Electrodes at two corners
+    'electrode_type': ['constant', 'constant']  # Both are not floating
 }
 
-# Create simulation instance
-sim = simulation(topology_parameter=topology)
+# Initialize simulation
+sim = Simulation(topology_parameter)
 
-# Define voltage configurations
-voltages = np.array([[0.8, 0.0, 0.0]])  # [V_e1, V_e2, V_G]
+# Run a stationary simulation (fixed voltages)
+N_volt        = 100                             # Number of voltages
+voltages      = np.zeros((N_volt,3))            # 3 Columns (Two E + Gate)
+voltages[:,0] = np.linspace(-0.1, 0.1, N_volt)  # Voltage Sweep at E1
+sim.run_const_voltages(voltages, target_electrode=1)
 
-# Run simulation
-sim.run_const_voltages(
-    voltages=voltages,
-    target_electrode=1,    # Index of electrode to monitor
-    T_val=0.0             # Temperature in Kelvin
-)
+# Access results
+currents    = sim.get_observable_storage()
+potentials  = sim.get_potential_storage()
 ```
 
-### Advanced Features
-
-- Custom nanoparticle properties:
-```python
-np_info = {
-    "eps_r": 2.6,         # Junction permittivity
-    "eps_s": 3.9,         # Environment permittivity
-    "mean_radius": 10.0,  # Average particle radius (nm)
-    "std_radius": 0.0,    # Radius standard deviation
-    "np_distance": 1.0    # Inter-particle spacing (nm)
-}
-```
-
-## Physical Model
-
-The simulator implements:
-- Electrostatic interactions using capacitance matrices
-- Single electron tunneling based on orthodox theory
-- Kinetic Monte Carlo for time evolution
-- Optional memristive effects in tunnel junctions
-
+## Citing
+If you use NanoNets for published work, please cite:
+<pre>@article{mensing2024kinetic,
+  title={A kinetic Monte Carlo approach for Boolean logic functionality in gold nanoparticle networks},
+  author={Mensing, Jonas and van der Wiel, Wilfred G and Heuer, Andreas},
+  journal={Frontiers in Nanotechnology},
+  volume={6},
+  pages={1364985},
+  year={2024},
+  publisher={Frontiers Media SA}}</pre>

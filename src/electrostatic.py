@@ -8,59 +8,52 @@ from itertools import combinations
 
 class NanoparticleElectrostatic(topology.NanoparticleTopology):
     """
-    Extension of NanoparticleTopology with electrostatic modeling for 2D nanoparticle networks.
+    Extends NanoparticleTopology with electrostatic modeling and physical parameters
+    for 2D nanoparticle networks.
 
-    This class adds physical parameters and methods to the base topology class, enabling calculation
-    of capacitance matrices, charge induction, and proper packing of polydisperse spherical nanoparticles.
-    Electrodes can be set as 'constant' (voltage-biased) or 'floating'. The class supports both regular
-    lattice and random planar (Delaunay) networks, and ensures network geometry is physically plausible.
-
-    Main features:
-    --------------
-    - Assigns and updates nanoparticle radii (with minimum radius enforced)
-    - Efficiently packs the network to prevent nanoparticle overlaps, respecting the network topology
-    - Calculates full capacitance matrix and its inverse, including electrode and self-capacitance terms
-    - Supports rapid updates of nanoparticle charges as electrode/gate voltages change
-    - Allows random removal of junctions while ensuring the network stays connected
-    - Distinguishes 'constant' vs. 'floating' electrodes for proper boundary conditions
+    This class enables computation of capacitance matrices, induced charges, 
+    polydisperse packing, and physically accurate (planar) network geometries.
+    Supports both regular lattice and random (Delaunay) planar networks,
+    with advanced handling of boundary conditions for 'constant' (voltage-biased)
+    and 'floating' electrodes.
 
     Attributes
     ----------
     Inherited from NanoparticleTopology:
         N_particles : int
-            Number of nanoparticles
+            Number of nanoparticles.
         N_electrodes : int
-            Number of electrodes
+            Number of electrodes.
         N_junctions : int
-            Number of junctions per nanoparticle
+            Number of junctions per nanoparticle (target/average).
         G : nx.DiGraph
-            NetworkX graph object representing network topology
+            NetworkX directed graph object.
         pos : dict
-            Node positions {index: (x, y)}
+            Mapping of node indices to 2D positions.
         net_topology : np.ndarray
-            Topology matrix encoding connections
+            Matrix encoding connections and electrode links.
 
     Added by this class:
         electrode_type : np.ndarray of str
-            Types for each electrode ('constant' or 'floating')
+            Type for each electrode ('constant' or 'floating').
         floating_indices : np.ndarray of int
-            Indices of floating electrodes (used for boundary conditions)
+            Indices of floating electrodes.
         radius_vals : np.ndarray of float
-            Radii for each nanoparticle [nm]
+            Radii of nanoparticles [nm].
         capacitance_matrix : np.ndarray
-            NxN matrix of mutual/self capacitances [aF]
+            Full network capacitance matrix [aF].
         inv_capacitance_matrix : np.ndarray
-            Inverse of capacitance matrix [1/aF]
+            Inverse capacitance matrix [1/aF].
         charge_vector : np.ndarray
-            Vector of induced nanoparticle charges [aC]
+            Vector of induced NP charges [aC].
         self_capacitance : np.ndarray
-            Self-capacitance for each nanoparticle [aF]
+            Self-capacitance per NP [aF].
         electrode_capacitance_matrix : np.ndarray
-            Electrode-NP capacitance matrix [aF]
+            Capacitance matrix between electrodes and NPs [aF].
         dist_matrix : np.ndarray
-            Pairwise NP-NP distances [nm]
+            Pairwise NP-NP distance matrix [nm].
         electrode_dist_matrix : np.ndarray
-            Electrode-NP distances [nm]
+            Pairwise NP-electrode distance matrix [nm].
 
     Physical Constants
     ------------------
@@ -75,36 +68,35 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
         MIN_NP_RADIUS : float
             Minimum allowed NP radius [nm]
 
-    Methods (highlights)
-    --------------------
+    Methods
+    -------
         init_nanoparticle_radius(mean, std)
-            Assign/initialize all nanoparticle radii
+            Initialize all NP radii (with optional polydispersity).
         update_nanoparticle_radius(indices, mean, std)
-            Update radii for selected nanoparticles
+            Update radii for selected NPs.
         pack_planar_circles(...)
-            Pack NPs to remove overlaps, keeping network planar
+            Adjust NP positions to remove overlaps, keeping network planar.
         calc_capacitance_matrix(eps_r, eps_s)
-            Build capacitance matrix for the network
+            Calculate the full NP network capacitance matrix.
         calc_electrode_capacitance_matrix()
-            Calculate all NP-electrode and self capacitances
+            Compute NP-electrode and self-capacitance terms.
         init_charge_vector(voltage_values)
-            Set induced NP charges from electrode voltages
+            Set induced NP charges based on electrode voltages.
         get_charge_vector()
-            Get current induced NP charge vector [aC]
+            Return induced NP charge vector [aC].
         get_capacitance_matrix()
-            Get full NP capacitance matrix [aF]
+            Return full NP capacitance matrix [aF].
         get_self_capacitance()
-            Get self-capacitance for each NP [aF]
+            Return self-capacitance per NP [aF].
         get_dist_matrix()
-            Get NP-NP distance matrix [nm]
+            Return NP-NP distance matrix [nm].
         delete_n_junctions(n)
-            Randomly remove n junctions (without disconnecting network)
+            Randomly remove n junctions (ensuring network remains connected).
 
     Notes
     -----
-    - All units are nanometers (nm) for distances/radii and attofarads (aF) for capacitance.
-    - The class ensures that physically impossible configurations (e.g., overlapping NPs)
-      are avoided as much as possible in both geometry and capacitance calculations.
+    - All distances/radii in nanometers (nm); all capacitances in attofarads (aF).
+    - The class enforces physical plausibility (no overlaps, realistic capacitances).
     """
     # Physical constants
     EPSILON_0           = 8.85418781762039e-3  # aF/nm, vacuum permittivity

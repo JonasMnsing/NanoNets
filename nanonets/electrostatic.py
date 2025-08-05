@@ -1,6 +1,6 @@
 import numpy as np
 import networkx as nx
-import topology
+from . import topology
 from typing import List, Optional
 from shapely.geometry import Point, LineString
 from shapely.ops import unary_union, nearest_points

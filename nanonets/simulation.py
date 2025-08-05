@@ -1,5 +1,5 @@
-import tunneling
-import monte_carlo
+from . import tunneling
+from . import monte_carlo
 import numpy as np
 import pandas as pd
 import os.path

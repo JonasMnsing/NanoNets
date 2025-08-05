@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nanonets"
+version = "0.1.0"
+description = "Single-electron nanoparticle network simulator"
+authors = [
+    { name="Jonas Mensing", email="jonasmensing@posteo.de" }
+]
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "scipy",
+    "networkx",
+    "pandas",
+    "numba"
+]
+
+[tool.setuptools.packages.find]
+include = ["nanonets"]

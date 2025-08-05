@@ -1,5 +1,5 @@
 import numpy as np
-import electrostatic
+from . import electrostatic
 from typing import Tuple, List, Optional
 
 class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):

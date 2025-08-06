@@ -867,6 +867,24 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
             raise RuntimeError("Electrode distance matrix not calculated. Call pack_planar_circles first.")
         return self.electrode_dist_matrix
     
+    def get_radius(self) -> np.ndarray:
+        """Get the radius of each NP
+
+        Returns
+        -------
+        np.ndarray
+            Array containing nanoparticle radius [nm]
+            Shape: (N_particles,)
+        
+        Raises
+        ------
+        RuntimeError
+            If radius hasn't been calculated
+        """
+        if not hasattr(self, "radius_vals"):
+            raise RuntimeError("Nanoparticle radius not defined. Call init_nanoparticle_radius first.")
+        return self.radius_vals
+    
     # def calc_capacitance_matrix(self, eps_r: float = 2.6, eps_s: float = 3.9)->None:
     #     """
     #     Calculate the capacitance matrix of the nanoparticle network.

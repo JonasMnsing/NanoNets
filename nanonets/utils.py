@@ -1,13 +1,16 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib import cm
+from matplotlib.colors import Normalize
+
 import numpy as np
 import pandas as pd
 import networkx as nx
-import nanonets
 import scienceplots
 import multiprocessing
 import logging
 
+from . import simulation
 from scipy.interpolate import interp1d
 from typing import Any, Callable, Union, Tuple, List, Dict, Optional
 from scipy.signal.windows import hann
@@ -15,9 +18,12 @@ from scipy.signal import welch
 from scipy.stats import entropy
 from pathlib import Path
 
-blue_color  = '#348ABD'
-red_color   = '#A60628'
-green_color = '#228833'
+# Constants
+BLUE_COLOR          = '#348ABD'
+RED_COLOR           = '#A60628'
+GREEN_COLOR         = '#228833'
+NO_CONNECTION       = -100
+ELECTRODE_RADIUS    = 10.0
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # SAMPLING METHODS
@@ -230,7 +236,7 @@ def sinusoidal_voltages(N_samples : int, topology_parameter : dict, amplitudes :
     
     return time_steps, voltages
 
-def distribute_array_across_processes(process : int, data : np.ndarray, N_processes : int)->np.ndarray:
+def distribute_array_across_processes(process : int, data : np.ndarray, N_processes : int) -> np.ndarray:
     """Returns part of an array to be simulated by a certain process
 
     Parameters
@@ -1309,8 +1315,47 @@ def spectral_entropy(signal: np.ndarray, dt: float, n_padded: int = 0, use_hann:
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # SIMULATION HELPER FUNCTIONS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
-def run_simulation(time_steps: np.ndarray, voltages: np.ndarray, topology: Dict[str, Any],
-                   out_folder: Union[Path, str], stat_size: int, T_val: float, sim_kwargs: Optional[Dict[str,Any]] = None)->None:
+def run_static_simulation(voltages: np.ndarray, topology: Dict[str, Any], out_folder: Union[Path, str],
+                          net_kwargs: Optional[Dict[str,Any]] = None, sim_kwargs: Optional[Dict[str,Any]] = None)->None:
+    """Instantiate and run one nanonets static simulation.
+
+    Parameters
+    ----------
+    voltages : np.ndarray
+        2D array of shape (n_volt, n_electrodes) of applied voltages.
+    topology : dict
+        Network topology
+    out_folder : pathlib.Path or str
+        Directory where simulation outputs are saved.
+    net_kwargs : dict, optional
+        Additional keyword arguments for nanonets.simulation(). Defaults to None
+    sim_kwargs : dict, optional
+        Additional keyword arguments for nanonets.run_static_voltages(). Defaults to None.
+
+    Returns
+    -------
+    None
+    """
+    net_kwargs = net_kwargs or {}
+    sim_kwargs = sim_kwargs or {}
+    try:
+        target = len(topology["e_pos"]) - 1
+        sim = simulation.Simulation(
+            topology_parameter=topology,
+            folder=str(out_folder)+"/",
+            **net_kwargs,
+        )
+        sim.run_static_voltages(
+            voltages=voltages,
+            target_electrode=target,
+            **sim_kwargs,
+        )
+        logging.info(f"Done {topology}")
+    except Exception:
+        logging.exception(f"Error for topology {topology}")
+
+def run_dynamic_simulation(time_steps: np.ndarray, voltages: np.ndarray, topology: Dict[str, Any], out_folder: Union[Path, str],
+                           net_kwargs: Optional[Dict[str,Any]] = None, sim_kwargs: Optional[Dict[str,Any]] = None)->None:
     """Instantiate and run one nanonets simulation.
 
     Parameters
@@ -1323,36 +1368,34 @@ def run_simulation(time_steps: np.ndarray, voltages: np.ndarray, topology: Dict[
         Network topology with keys 'Nx', 'Ny', 'Nz', 'e_pos', and 'electrode_type'.
     out_folder : pathlib.Path or str
         Directory where simulation outputs are saved.
-    stat_size : int
-        Number of data points for statistical analysis.
-    T_val : float
-        Temperature in Kelvin.
+    net_kwargs : dict, optional
+        Additional keyword arguments for nanonets.simulation(). Defaults to None
     sim_kwargs : dict, optional
-        Additional keyword arguments for nanonets.simulation(). Defaults to None.
+        Additional keyword arguments for nanonets.run_static_voltages(). Defaults to None.
 
     Returns
     -------
     None
     """
     sim_kwargs = sim_kwargs or {}
+    net_kwargs = net_kwargs or {}
 
     try:
         target = len(topology["e_pos"]) - 1
-        sim = nanonets.simulation(
+        sim = simulation.Simulation(
             topology_parameter=topology,
             folder=str(out_folder)+"/",
-            **sim_kwargs,
+            **net_kwargs,
         )
-        sim.run_var_voltages(
+        sim.run_dynamic_voltages(
             voltages=voltages,
             time_steps=time_steps,
             target_electrode=target,
-            T_val=T_val,
-            stat_size=stat_size
+            **sim_kwargs,
         )
-        logging.info(f"Done N={topology['Nx']} @ T={T_val}K")
+        logging.info(f"Done {topology}")
     except Exception:
-        logging.exception(f"Error for topology {topology} @ T={T_val}K")
+        logging.exception(f"Error for topology {topology}")
 
 def batch_launch(func: Callable[..., Any], tasks: List[Tuple[Tuple[Any,...]]], max_procs: int)->None:
     """
@@ -1431,6 +1474,86 @@ def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XN
 
     return fig, ax
 
+def display_network(G, pos: dict, radius: np.ndarray, net_topology: np.ndarray, fig: plt.Figure, ax: plt.Axes):
+    """
+    Visualize a nanoparticle network, including particles and electrodes.
+
+    Parameters
+    ----------
+    G : networkx.Graph
+        The network graph.
+    pos : dict
+        Node positions {index: (x, y)}.
+    radius : np.ndarray
+        Radii for each nanoparticle.
+    net_topology : np.ndarray
+        Topology matrix. First column: electrode (or NO_CONNECTION).
+    fig, ax : matplotlib Figure and Axes
+        Output axes for plotting.
+
+    Returns
+    -------
+    fig, ax : tuple
+        The matplotlib Figure and Axes with the plot.
+    """
+    ax.set_aspect('equal')
+
+    # Draw network edges
+    for u,v in G.edges():
+        x0,y0 = pos[u]; x1,y1 = pos[v]
+        ax.plot([x0,x1],[y0,y1], 'black', lw=1)
+
+    # Draw nanoparticles
+    for i in range(len(radius)):
+        x, y = pos[i]
+        circle = plt.Circle((x, y), radius[i], fill=True,
+                            edgecolor='black', lw=1, zorder=2, facecolor=BLUE_COLOR)
+        ax.add_patch(circle)
+
+    # Draw electrodes
+    N_e = len(G.nodes) - len(radius)
+    for i in range(1,N_e+1):
+        e_node = -int(i)
+        x, y = pos[-i]
+        # Draw electrode circle
+        circ = plt.Circle((x, y), ELECTRODE_RADIUS, fill=True,
+                        edgecolor='black', lw=1, zorder=2, facecolor=RED_COLOR)
+        ax.add_patch(circ)
+
+    # Autoscale and padding
+    xs = [p[0] for p in pos.values()]
+    ys = [p[1] for p in pos.values()]
+    pad = max(np.max(radius), ELECTRODE_RADIUS) + 1
+    ax.set_xlim(min(xs) - pad, max(xs) + pad)
+    ax.set_ylim(min(ys) - pad, max(ys) + pad)
+    
+    return fig, ax
+
+def update_circle_colors(ax: plt.Axes, pot: np.ndarray, vlim=None, cmap="coolwarm", colorbar=False):
+    """
+    Update nanoparticle circles colored by potential.
+    
+    Parameters
+    ----------
+    ax : matplotlib Axes
+    pot : np.ndarray
+        Potentials for each node.
+    vlim : float, optional
+        Color scale limit. If None, +- max|pot| used.
+    cmap : str
+        Matplotlib colormap name.
+    """
+    vlim = np.max(np.abs(pot)) if vlim is None else vlim
+    norm = Normalize(-vlim,vlim)
+    cmap = cm.get_cmap(cmap)
+    n    = len(pot)
+    for i in range(n):
+        ax.patches[i].set_facecolor(cmap(norm(pot[i])))
+    
+    if colorbar:
+        sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+        plt.colorbar(sm, ax=ax, fraction=0.046, pad=0.04, label='$\phi$ [mV]')
+
 def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_landscape=None, pos=None, fig=None, ax=None,
                              arrowsize=12, node_size=300, blue_color='#348ABD', red_color='#A60628',
                              position_by_currents=False, display_path=None, edge_vmin=None, edge_vmax=None):
@@ -1488,15 +1611,15 @@ def display_network_currents(df : pd.DataFrame, row, N_electrodes : int, charge_
             states  = charge_landscape.loc[row[0]:row[1],:].mean().values
         else:
             states  = charge_landscape.loc[row,:].values
-        colors  = np.repeat(blue_color, len(G.nodes)-N_electrodes)
-        colors[np.where(states < 0)] = red_color
-        colors  = np.insert(colors, 0, np.repeat(blue_color, N_electrodes))
+        colors  = np.repeat(BLUE_COLOR, len(G.nodes)-N_electrodes)
+        colors[np.where(states < 0)] = RED_COLOR
+        colors  = np.insert(colors, 0, np.repeat(BLUE_COLOR, N_electrodes))
         states  = np.abs(states)
         states  = node_size*(states - np.min(states))/(np.max(states)-np.min(states))
         states  = np.insert(states, 0, np.repeat(node_size, N_electrodes))
     else:
         states  = np.repeat(node_size, len(G.nodes))
-        colors  = np.repeat(blue_color, len(G.nodes))
+        colors  = np.repeat(BLUE_COLOR, len(G.nodes))
 
     for val, junction in zip(values_new, junctions_new):
 
@@ -1585,50 +1708,52 @@ def vary_currents_by_error(df : pd.DataFrame, M : int, current_col='Current', er
 
     return df_norm
 
-def display_network(np_network_sim : nanonets.simulation, fig=None, ax=None, blue_color='#348ABD', red_color='#A60628', save_to_path=False, 
-                    style_context=['science','bright'], node_size=300, edge_width=1.0, font_size=12, title='', title_size='small',
-                    arrows=False, provide_electrode_labels=None, np_numbers=False, height_scale=1, width_scale=1, margins=None):
 
-    n_floatings = len(np_network_sim.floating_indices)
-    colors      = np.repeat(blue_color, np_network_sim.N_particles+np_network_sim.N_electrodes)
+
+# def display_network(np_network_sim : simulation.Simulation, fig=None, ax=None, blue_color='#348ABD', red_color='#A60628', save_to_path=False, 
+#                     style_context=['science','bright'], node_size=300, edge_width=1.0, font_size=12, title='', title_size='small',
+#                     arrows=False, provide_electrode_labels=None, np_numbers=False, height_scale=1, width_scale=1, margins=None):
+
+#     n_floatings = len(np_network_sim.floating_indices)
+#     colors      = np.repeat(blue_color, np_network_sim.N_particles+np_network_sim.N_electrodes)
     
-    if np_numbers:
-        node_labels = {i : i for i in np_network_sim.G.nodes}
-    else:
-        node_labels = {i : '' for i in np_network_sim.G.nodes}
+#     if np_numbers:
+#         node_labels = {i : i for i in np_network_sim.G.nodes}
+#     else:
+#         node_labels = {i : '' for i in np_network_sim.G.nodes}
 
-    if provide_electrode_labels == None:
-        if n_floatings == 0:
-            colors[np_network_sim.N_particles:] = red_color
-        else: 
-            colors[np_network_sim.N_particles-n_floatings:-n_floatings] = red_color
-    else:
-        colors[np_network_sim.N_particles-n_floatings:-n_floatings] = None
+#     if provide_electrode_labels == None:
+#         if n_floatings == 0:
+#             colors[np_network_sim.N_particles:] = red_color
+#         else: 
+#             colors[np_network_sim.N_particles-n_floatings:-n_floatings] = red_color
+#     else:
+#         colors[np_network_sim.N_particles-n_floatings:-n_floatings] = None
     
-        for i, electrode_label in enumerate(provide_electrode_labels):
-            node_labels[-1-i] = electrode_label
+#         for i, electrode_label in enumerate(provide_electrode_labels):
+#             node_labels[-1-i] = electrode_label
 
-    with plt.style.context(style_context):
+#     with plt.style.context(style_context):
 
-        if fig == None:
-            fig = plt.figure()
-            fig.set_figheight(fig.get_figheight()*height_scale)
-            fig.set_figwidth(fig.get_figwidth()*width_scale)
-        if ax == None:
-            ax = fig.add_subplot()
+#         if fig == None:
+#             fig = plt.figure()
+#             fig.set_figheight(fig.get_figheight()*height_scale)
+#             fig.set_figwidth(fig.get_figwidth()*width_scale)
+#         if ax == None:
+#             ax = fig.add_subplot()
 
-        ax.axis('off')
-        ax.set_title(title, size=title_size)
+#         ax.axis('off')
+#         ax.set_title(title, size=title_size)
 
-        nx.draw_networkx(G=np_network_sim.G, pos=np_network_sim.pos, ax=ax, node_color=colors, arrows=arrows,
-                         node_size=node_size, font_size=font_size, width=edge_width, labels=node_labels,
-                         clip_on=False, margins=margins, bbox={"color":"white"})
+#         nx.draw_networkx(G=np_network_sim.G, pos=np_network_sim.pos, ax=ax, node_color=colors, arrows=arrows,
+#                          node_size=node_size, font_size=font_size, width=edge_width, labels=node_labels,
+#                          clip_on=False, margins=margins, bbox={"color":"white"})
 
-        if save_to_path != False:
+#         if save_to_path != False:
 
-            fig.savefig(save_to_path, bbox_inches='tight', transparent=True)
+#             fig.savefig(save_to_path, bbox_inches='tight', transparent=True)
 
-    return fig, ax
+#     return fig, ax
 
 def display_landscape(path : str, row, Nx, Ny, fig=None, ax=None, cmap='coolwarm', vmin=None, vmax=None,
                         x_label='$x_{NP}$', y_label='$y_{NP}$', colorbar=False, interpolation=None, cbar_label=''):
@@ -1731,11 +1856,11 @@ def sim_run_for_gradient_decent(thread : int, return_dic : dict, voltages : np.a
     """
 
     if initial_charge_vector is None:
-        class_instance  = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter)
+        class_instance  = simulation.Simulation(network_topology=network_topology, topology_parameter=topology_parameter)
         class_instance.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
                                         stat_size=stat_size, save=False, output_potential=True, init=True)
     else:
-        class_instance  = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter)
+        class_instance  = simulation.Simulation(network_topology=network_topology, topology_parameter=topology_parameter)
         class_instance.init_based_on_charge_vector(voltages=voltages, initial_charge_vector=initial_charge_vector)
         class_instance.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode,
                                         stat_size=stat_size, save=False, output_potential=True, init=False)
@@ -1900,7 +2025,7 @@ def time_series_gradient_decent(x_vals : np.array, y_target : np.array, learning
 def metropolis_criterion(delta_func, beta):
     return np.exp(-beta * delta_func)
 
-def return_res(np_network_sim : nanonets.simulation, time : np.array, voltages : np.array, stat_size=20, I_to_U=1e-4, fit_after_n=0):
+def return_res(np_network_sim : simulation.Simulation, time : np.array, voltages : np.array, stat_size=20, I_to_U=1e-4, fit_after_n=0):
 
     currents = []
 
@@ -1914,7 +2039,7 @@ def return_res(np_network_sim : nanonets.simulation, time : np.array, voltages :
 
     return I_mean[fit_after_n:], I_std[fit_after_n:], res
 
-def metropolis_optimization(np_network_sim : nanonets.simulation, time : np.array, voltages : np.array, n_runs : int,
+def metropolis_optimization(np_network_sim : simulation.Simulation, time : np.array, voltages : np.array, n_runs : int,
                             gamma : float, beta : float, V_std=0.01, Vg_std=0.01, I_to_U=1e-4, stat_size=20, save_best_at=None, fit_after_n=0):
 
     N_voltages          = voltages.shape[0]
@@ -1989,7 +2114,7 @@ def train_test_split(time, voltages, train_length, test_length, prediction_dista
 
     return t_train, u_train, y_train, t_test, u_test, y_test
 
-def select_electrode_currents(np_network_sim : nanonets.simulation):
+def select_electrode_currents(np_network_sim : simulation.Simulation):
 
     # Return Network Currents
     jump_paths, network_I   = np_network_sim.return_network_currents()
@@ -2021,7 +2146,7 @@ def memory_capacity_simulation(time, voltages, train_length, test_length, rememb
                                                                                 test_length=test_length, remember_distance=remember_distance)
     
     # Run Train Simulation
-    np_network_sim = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, np_info=np_info,
+    np_network_sim = simulation.Simulation(network_topology=network_topology, topology_parameter=topology_parameter, np_info=np_info,
                                          folder=folder, add_to_path=f'_mc_train_{remember_distance}{path_info}')
     np_network_sim.run_var_voltages(voltages=u_train, time_steps=t_train, target_electrode=(np_network_sim.N_electrodes-1),
                                     save_th=save_th, R=R, Rstd=Rstd, init=init)
@@ -2074,7 +2199,7 @@ def train_reservoir(time, voltages, train_length, test_length, prediction_distan
                                                                         test_length=test_length, prediction_distance=prediction_distance)
     
     # Run Train Simulation
-    np_network_sim = nanonets.simulation(network_topology=network_topology, topology_parameter=topology_parameter, np_info=np_info,
+    np_network_sim = simulation.Simulation(network_topology=network_topology, topology_parameter=topology_parameter, np_info=np_info,
                                          folder=folder, add_to_path=f'_train_{prediction_distance}{path_info}')
     np_network_sim.run_var_voltages(voltages=u_train, time_steps=t_train, target_electrode=(np_network_sim.N_electrodes-1), save_th=save_th, R=R, Rstd=Rstd)
 

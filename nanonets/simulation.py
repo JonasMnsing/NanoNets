@@ -558,7 +558,10 @@ class Simulation(tunneling.NanoparticleTunneling):
             Dictionary mapping each (row, col) pair (junction) to its average network current.
             Keys are (origin, target) tuples, values are floats (current).
         """
-        return {(self.adv_index_rows[i], self.adv_index_cols[i]) : val for i, val in enumerate(self.network_current_storage)}
+        return {
+            (self.adv_index_rows[i], self.adv_index_cols[i]) : np.array(self.network_current_storage)[:,i].copy()
+            for i in range(len(self.network_current_storage[0]))
+        }
     
     def get_eq_jump_storage(self) -> np.ndarray:
         """

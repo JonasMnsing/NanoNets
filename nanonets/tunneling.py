@@ -452,7 +452,7 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         cond_matrix = np.zeros((total_n, total_n))
 
         for s_raw, t_raw, R_l in zip(src, tgt, self.resistances):
-            g = 1.0 / R_l
+            g = 1.0 / (2*R_l)
             i = raw2dense[s_raw]
             j = raw2dense[t_raw]
 
@@ -528,7 +528,7 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         self.transfer_coeffs = transfer_coeffs
 
     def calibrate_electrodes(self, ref_electrodes: List[int], ref_current: float = 1e-9,
-                             alpha: float = 0.3, use_mean: bool = False):
+                             alpha: float = 1.0, use_mean: bool = False):
         """
         Calibrate voltage amplitudes for all electrodes to achieve specified output current scaling.
 
@@ -543,7 +543,7 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         ref_current : float, optional
             Desired reference output current [A] at the output (default: 1e-9).
         alpha : float, optional
-            Ratio of control output current to reference output current (default: 0.3).
+            Ratio of control output current to reference output current (default: 1.0).
         use_mean : bool, optional
             If True, each reference electrode is calibrated to drive ref_current
             individually (voltages will be higher). If False, reference voltages

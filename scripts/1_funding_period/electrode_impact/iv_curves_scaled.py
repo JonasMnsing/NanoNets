@@ -14,6 +14,7 @@ N_PROCS         = 10
 T_VAL           = 5
 LOG_LEVEL       = logging.INFO
 PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/electrode_impact/voltage_sweep/")
+VOLTAGE_RANGE   = np.load("scripts/1_funding_period/electrode_impact/voltage_range.npy")
 INPUT_POS       = [0,1,2,5]
 # ---------------------
 
@@ -21,7 +22,7 @@ def main():
     logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")
     PATH.mkdir(parents=True, exist_ok=True)
     tasks = []
-    for n in range(N_MIN, N_MAX+1):
+    for i, n in enumerate(range(N_MIN, N_MAX+1)):
         topo = {"Nx": n, "Ny": n,
                 "e_pos" : [[0,0], 
                            [int((n-1)/2),0],
@@ -34,11 +35,11 @@ def main():
                 "electrode_type" : ['constant']*N_E}
         for pos in INPUT_POS:
             volt        = np.zeros(shape=(N_DATA,N_E+1))
-            volt[:,pos] = np.linspace(V_MIN, V_MAX, N_DATA)
+            volt[:,pos] = np.linspace(V_MIN, V_MAX, N_DATA)*VOLTAGE_RANGE[i,pos]
             args        = (volt,topo,PATH)
             kwargs      = {
-                'net_kwargs':{'add_to_path':f'_{pos}_T_{T_VAL}'},
-                'sim_kwargs':{'save_th':10, 'T_val':T_VAL},
+                'net_kwargs':{'add_to_path':f'_{pos}_scaled'},
+                'sim_kwargs':{'save_th':10},
             }
             tasks.append((args,kwargs))
     

@@ -8,13 +8,12 @@ from nanonets.utils import run_static_simulation, batch_launch
 # ─── Configuration ───
 N_MIN, N_MAX    = 3, 16
 N_E             = 8
-V_MIN, V_MAX    = 0.0, 1.0
+V_MIN, V_MAX    = 0.0, 0.2
 N_DATA          = 100
 N_PROCS         = 10
-T_VAL           = 5
 LOG_LEVEL       = logging.INFO
 PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/electrode_impact/voltage_sweep/")
-INPUT_POS       = [0,1,2,5]
+INPUT_POS       = [1,3]
 # ---------------------
 
 def main():
@@ -32,15 +31,15 @@ def main():
                            [int((n)/2),(n-1)],
                            [n-1,n-1]],
                 "electrode_type" : ['constant']*N_E}
-        for pos in INPUT_POS:
-            volt        = np.zeros(shape=(N_DATA,N_E+1))
-            volt[:,pos] = np.linspace(V_MIN, V_MAX, N_DATA)
-            args        = (volt,topo,PATH)
-            kwargs      = {
-                'net_kwargs':{'add_to_path':f'_{pos}_T_{T_VAL}'},
-                'sim_kwargs':{'save_th':10, 'T_val':T_VAL},
-            }
-            tasks.append((args,kwargs))
+        volt                    = np.zeros(shape=(N_DATA,N_E+1))
+        volt[:,INPUT_POS[0]]    = np.linspace(V_MIN, V_MAX, N_DATA)
+        volt[:,INPUT_POS[1]]    = np.linspace(V_MIN, V_MAX, N_DATA)
+        args                    = (volt,topo,PATH)
+        kwargs      = {
+            'net_kwargs':{'add_to_path':'_two_input'},
+            'sim_kwargs':{'save_th':10},
+        }
+        tasks.append((args,kwargs))
     
     batch_launch(run_static_simulation, tasks, N_PROCS)
         

@@ -1,71 +1,64 @@
-"""
-Influence of variable system size on Boolean Logic Functionality. Simulation covers N x N lattice networks.
-The sampled phase space, i.e. Control and Input Voltage range remains const.
-"""
-
+import logging
 import numpy as np
-import sys
+from pathlib import Path
 
-# Add to path
-sys.path.append("/home/j/j_mens07/phd/NanoNets/src/")
-sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
+# Nanonets
+from nanonets import Simulation
+from nanonets.utils import logic_gate_sample, distribute_array_across_processes, batch_launch, run_static_simulation
 
-import nanonets
-import nanonets_utils
-import multiprocessing
+# ─── Configuration ───
+N_MIN, N_MAX    = 3, 16
+N_E             = 8
+V_CONTROL       = 0.1
+V_INPUT         = 0.01
+V_GATE          = 0.0
+N_DATA          = 20000
+N_PROCS         = 10
+T_VAL           = 5
+LOG_LEVEL       = logging.INFO
+PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/system_size/unscaled/")
+INPUT_POS       = [1,3]
+N_REF_NET       = 9
+E_POS_REF       = 1
+# --------------------- 
 
-# Simulation Function
-def parallel_code(thread, rows, N_voltages, N_p_min, N_p_max):
+# Scale Voltage ranges
+def get_transfer_coeff(n):
+    topo = {"Nx": n, "Ny": n,
+            "e_pos" : [[0,0], [int((n-1)/2),0], [n-1,0], [0,int((n-1)/2)],
+                       [0,n-1], [n-1,int((n)/2)], [int((n)/2),(n-1)], [n-1,n-1]],
+            "electrode_type" : ['constant']*8}
+    sim_class = Simulation(topology_parameter=topo)
+    sim_class.build_conductance_matrix()
+    sim_class.init_transfer_coeffs()
+    return sim_class.get_transfer_coeffs()
+def get_scaling_factor(n=9, e_pos=1):
+    transf_coeff            = np.array([get_transfer_coeff(nn) for nn in range(N_MIN, N_MAX + 1)])
+    factor                  = transf_coeff[n-N_MIN,e_pos]/np.array(transf_coeff)
+    factor[factor==np.inf]  = 0
+    return factor
 
-    for N in range(N_p_min, N_p_max+1):
-
-        # Maximum absolute voltage values and input voltage
-        U_e = 0.1 * alpha(N)
-        U_i = 0.01 * alpha(N)
+def main():
+    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")
+    PATH.mkdir(parents=True, exist_ok=True)
+    scale = get_scaling_factor(N_REF_NET, E_POS_REF)
+    tasks = []
+    
+    for i, n in enumerate(range(N_MIN, N_MAX + 1)):
+        topo = {"Nx": n, "Ny": n,
+                "e_pos" : [[0,0], [int((n-1)/2),0], [n-1,0], [0,int((n-1)/2)],
+                           [0,n-1], [n-1,int((n)/2)], [int((n)/2),(n-1)], [n-1,n-1]],
+                "electrode_type" : ['constant']*N_E}
+        volt = logic_gate_sample(V_CONTROL, INPUT_POS, N_DATA, topo, V_INPUT,
+                                 V_GATE, sample_technique='uniform')
+        volt *= scale[i,:]
         
-        # Topology Parameter
-        topology_parameter          = {
-            "Nx"                :   N,
-            "Ny"                :   N,
-            "Nz"                :   1,
-            "e_pos"             :   [[0,0,0], [int((N-1)/2),0,0], [N-1,0,0], 
-                                    [0,int((N-1)/2),0], [N-1,int((N)/2),0], [0,N-1,0],
-                                    [int((N)/2),(N-1),0], [N-1,N-1,0]],
-            "electrode_type"    :   ['constant','constant','constant','constant','constant','constant','constant','constant']
-        }
+        for p in range(N_PROCS):
+            volt_p  = distribute_array_across_processes(p, volt, N_PROCS)
+            args    = (volt_p,topo,PATH)
+            tasks.append(args)
 
-        if topology_parameter["electrode_type"][-1] == "constant":
-            folder  = "/home/j/j_mens07/phd/data/1_funding_period/current/system_size/"
-        else:
-            folder  = "/home/j/j_mens07/phd/data/1_funding_period/potential/system_size/"
+    batch_launch(run_static_simulation, tasks, N_PROCS)
 
-        voltages            = nanonets_utils.logic_gate_sample(U_e=U_e, input_pos=[1,3], N_samples=N_voltages, sample_technique='uniform',
-                                                               topology_parameter=topology_parameter, U_i=U_i)
-        voltages            = np.round(voltages,4)
-        target_electrode    = len(topology_parameter["e_pos"]) - 1
-        thread_rows         = rows[thread]
-        
-        sim_class = nanonets.simulation(topology_parameter=topology_parameter, folder=folder)
-        sim_class.run_const_voltages(voltages=voltages[thread_rows,:], target_electrode=target_electrode, save_th=20)
-
-def alpha(N_NP):
-    return np.round(((N_NP**2)/81)**(1/3),2)
-
-if __name__ == '__main__':
-
-    # N_p x N_p Values for Network Size 
-    N_p_min = 9
-    N_p_max = 16
-
-    # Number of voltages and CPU processes
-    N_voltages  = 20000 #80640
-    N_processes = 10 #36
-
-    # Simulated rows for each process
-    index   = [i for i in range(N_voltages)]
-    rows    = [index[i::N_processes] for i in range(N_processes)]
-
-    for i in range(N_processes):
-
-        process = multiprocessing.Process(target=parallel_code, args=(i, rows, N_voltages, N_p_min, N_p_max))
-        process.start()
+if __name__ == "__main__":
+    main()

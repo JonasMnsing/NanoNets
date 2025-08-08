@@ -51,12 +51,13 @@ def main():
                 "electrode_type" : ['constant']*N_E}
         volt = logic_gate_sample(V_CONTROL, INPUT_POS, N_DATA, topo, V_INPUT,
                                  V_GATE, sample_technique='uniform')
-        volt *= scale[i,:]
+        volt *= np.hstack((scale[i,:],0.0))
         
         for p in range(N_PROCS):
             volt_p  = distribute_array_across_processes(p, volt, N_PROCS)
             args    = (volt_p,topo,PATH)
-            tasks.append(args)
+            kwargs  = {}
+            tasks.append((args,kwargs))
 
     batch_launch(run_static_simulation, tasks, N_PROCS)
 

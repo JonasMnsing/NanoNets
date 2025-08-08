@@ -36,9 +36,10 @@ def main():
         volt = logic_gate_sample(V_CONTROL, INPUT_POS, N_DATA, topo, V_INPUT,
                                  V_GATE, sample_technique='uniform')
         for p in range(N_PROCS):
-            volt_p  = distribute_array_across_processes(p, volt, N_PROCS)
+            volt_p  = distribute_array_across_processes(p, volt.copy(), N_PROCS)
             args    = (volt_p,topo,PATH)
-            tasks.append(args)
+            kwargs  = {}
+            tasks.append((args,kwargs))
 
     batch_launch(run_static_simulation, tasks, N_PROCS)
 

@@ -1,8 +1,6 @@
 from pathlib import Path
 import logging, numpy as np
-import sys
-sys.path.append("src/")
-import nanonets_utils
+from nanonets.utils import batch_launch, run_dynamic_simulation, sinusoidal_voltages
 
 # ─── Configuration ────────────────────────────────────────────────────────────────
 T_VAL           = 5.0
@@ -34,7 +32,7 @@ def main():
 
         # shared topology for this circuit
         topo = {"Nx": N_NP,"Ny": 1,"Nz": 1,
-                "e_pos": [[0, 0, 0], [N_NP-1, 0, 0]],
+                "e_pos": [[0, 0], [N_NP-1, 0]],
                 "electrode_type": electrode_types}
 
         for freq_mhz in FREQ_LIST_MHZ:
@@ -45,21 +43,20 @@ def main():
             stat_size   = max(STAT_SIZE_BASE, int(np.round(300*freq_mhz/5.0)))
 
             # generate sinusoidal waveforms for all electrodes
-            time_steps, volt = nanonets_utils.sinusoidal_voltages(N_steps,topo,
-                                                                  amplitudes=[AMPLITUDE, 0.0],
-                                                                  frequencies=[f0_hz, 0.0],
-                                                                  time_step=dt)
+            time_steps, volt = sinusoidal_voltages(
+                N_steps,topo, amplitudes=[AMPLITUDE, 0.0],
+                frequencies=[f0_hz, 0.0],time_step=dt)
 
             # output directory per frequency
             out_base.mkdir(exist_ok=True)
-            args    = (time_steps, volt, topo, out_base, stat_size, T_VAL)
+            args    = (time_steps, volt, topo, out_base)
             kwargs  = {
-                'sim_kwargs': {'high_C_output'  :   False,
-                               'add_to_path'    :   f"_{freq_mhz:.3f}"}
+                'net_kwargs': {'add_to_path' : f"_{freq_mhz:.3f}"},
+                'sim_kwargs': {'T_val':T_VAL, 'stat_size':stat_size, 'save':True}
             }
             tasks.append((args, kwargs))
 
-    nanonets_utils.batch_launch(nanonets_utils.run_simulation, tasks, CPU_CNT)
+    batch_launch(run_dynamic_simulation, tasks, CPU_CNT)
 
 if __name__ == "__main__":
     main()

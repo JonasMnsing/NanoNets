@@ -1,8 +1,6 @@
 from pathlib import Path
 import logging, numpy as np
-import sys
-sys.path.append("src/")
-import nanonets_utils
+from nanonets.utils import batch_launch, run_dynamic_simulation
 
 # ─── Configuration ────────────────────────────────────────────────────────────────
 T_VAL        = 5.0
@@ -29,14 +27,14 @@ def main():
     out_base.mkdir(parents=True, exist_ok=True)
 
     # --- 2‐electrode (one constant, one floating) setup ---
-    topo_2 = {"Nx": N_P,"Ny": N_P,"Nz": 1,
-              "e_pos": [[(N_P-1)//2, 0, 0],[(N_P-1)//2, N_P-1, 0]],
+    topo_2 = {"Nx": N_P,"Ny": N_P,
+              "e_pos": [[(N_P-1)//2, 0],[(N_P-1)//2, N_P-1]],
               "electrode_type": ['constant', 'floating']}
     # --- 8‐electrode (7 constant, 1 floating) setup ---
     topo_8 = {"Nx": N_P,"Ny": N_P,"Nz": 1,
-                "e_pos": [[(N_P-1)//2, 0, 0],[0, 0, 0],[N_P-1, 0, 0],
-                        [0, (N_P-1)//2, 0],[N_P-1, (N_P-1)//2, 0],
-                        [0, N_P-1, 0],[N_P-1, N_P-1, 0],[(N_P-1)//2, N_P-1, 0]],
+                "e_pos": [[(N_P-1)//2, 0],[0, 0],[N_P-1, 0],
+                        [0, (N_P-1)//2],[N_P-1, (N_P-1)//2],
+                        [0, N_P-1],[N_P-1, N_P-1],[(N_P-1)//2, N_P-1]],
                 "electrode_type": ['constant']*7 + ['floating']}
     for topo in [topo_2, topo_8]:
         n_elec = len(topo["e_pos"])
@@ -44,14 +42,14 @@ def main():
             volt        = np.zeros((N_VOLTAGES, n_elec+1), float)
             volt[:, 0]  = U0
             out_base.mkdir(exist_ok=True)
-            args    = (time_pts, volt, topo, out_base, STAT_SIZE, T_VAL)
+            args    = (time_pts, volt, topo, out_base)
             kwargs  = {
-                'sim_kwargs': {'high_C_output'  :   False,
-                               'add_to_path'    :   f"_{U0:.3f}"}
+                'net_kwargs': {'add_to_path' : f"_{U0:.3f}"},
+                'sim_kwargs': {'T_val':T_VAL,'stat_size':STAT_SIZE,'save':True}
             }
             tasks.append((args, kwargs))
 
-    nanonets_utils.batch_launch(nanonets_utils.run_simulation, tasks, CPU_CNT)
+    batch_launch(run_dynamic_simulation, tasks, CPU_CNT)
 
 if __name__ == "__main__":
     main()

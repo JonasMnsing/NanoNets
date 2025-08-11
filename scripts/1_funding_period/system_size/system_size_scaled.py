@@ -33,9 +33,10 @@ def get_transfer_coeff(n):
     sim_class.init_transfer_coeffs()
     return sim_class.get_transfer_coeffs()
 def get_scaling_factor(n=9, e_pos=1):
-    transf_coeff            = np.array([get_transfer_coeff(nn) for nn in range(N_MIN, N_MAX + 1)])
-    factor                  = transf_coeff[n-N_MIN,e_pos]/np.array(transf_coeff)
-    factor[factor==np.inf]  = 1
+    transf_coeff    = np.array([get_transfer_coeff(nn) for nn in range(N_MIN, N_MAX + 1)])
+    factor          = np.ones_like(transf_coeff, dtype=float)
+    np.divide(transf_coeff[n-N_MIN,e_pos], transf_coeff, out=factor, where=transf_coeff!=0)
+
     return factor
 
 def main():
@@ -58,7 +59,7 @@ def main():
             kwargs  = {}
             tasks.append((args,kwargs))
 
-    # batch_launch(run_static_simulation, tasks, N_PROCS)
+    batch_launch(run_static_simulation, tasks, N_PROCS)
 
 if __name__ == "__main__":
     main()

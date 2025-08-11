@@ -431,6 +431,7 @@ class Simulation(tunneling.NanoparticleTunneling):
         self.state_storage              = np.zeros(shape=(n_time, self.model.N_particles))
         self.potential_storage          = np.zeros(shape=(n_time, self.model.N_particles+self.model.N_electrodes))
         self.network_current_storage    = np.zeros(shape=(n_time, n_junctions))
+        self.jump_storage               = np.zeros(n_time)
 
         # Store equilibrated charge distribution
         observable = np.zeros(shape=(stat_size, n_time))
@@ -469,6 +470,7 @@ class Simulation(tunneling.NanoparticleTunneling):
                 self.state_storage[i,:]             += self.model.get_state() / stat_size
                 self.potential_storage[i,:]         += self.model.get_potential() / stat_size
                 self.network_current_storage[i,:]   += self.model.get_network_current() / stat_size
+                self.jump_storage[i]                += total_jumps / stat_size
 
                 # Remove voltage offset for next step
                 self.model.charge_vector -= offset
@@ -482,6 +484,10 @@ class Simulation(tunneling.NanoparticleTunneling):
         self.state_storage              = np.delete(self.state_storage, -1, axis=0)
         self.potential_storage          = np.delete(self.potential_storage, -1, axis=0)
         self.network_current_storage    = np.delete(self.network_current_storage, -1, axis=0)
+        self.jump_storage               = np.delete(self.jump_storage, -1)
+        self.observable_storage         = np.delete(self.observable_storage, -1)
+        self.observable_error_storage   = np.delete(self.observable_error_storage, -1)
+        self.eq_jump_storage            = np.repeat(eq_jumps, len(self.observable_storage))
 
         # Prepare output voltage arrays for saving
         V_safe_vals                         = np.zeros(shape=(self.potential_storage.shape[0],self.N_electrodes+1))
@@ -652,7 +658,6 @@ class Simulation(tunneling.NanoparticleTunneling):
         Eq_Jumps (equilibration steps), Jumps (total KMC steps), Observable (main value), and Error (statistical error).
         Appends to file if already exists, otherwise creates a new file with headers.
         """
-
         # Get storage arrays and ensure shape is correct for stacking
         val_a   = self.get_eq_jump_storage().reshape(-1, 1)
         val_b   = self.get_jump_storage().reshape(-1, 1)

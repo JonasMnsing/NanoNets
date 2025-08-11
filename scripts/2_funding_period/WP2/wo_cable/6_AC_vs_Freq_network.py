@@ -1,9 +1,7 @@
 import logging
 from pathlib import Path
 import numpy as np
-import sys
-sys.path.append("src/")
-import nanonets_utils
+from nanonets.utils import batch_launch, run_dynamic_simulation, sinusoidal_voltages
 
 # ─── Configuration ────────────────────────────────────────────────────────────────
 T_VAL           = 5.0
@@ -27,19 +25,19 @@ def main():
     topo_list = []
     # 2‐electrode: one constant + floating
     topo_list.append({"Nx": N_NP,"Ny": N_NP,"Nz": 1,
-                      "e_pos": [[(N_NP-1)//2, 0, 0],[(N_NP-1)//2, N_NP-1, 0]],
+                      "e_pos": [[(N_NP-1)//2, 0],[(N_NP-1)//2, N_NP-1]],
                       "electrode_type": ['constant', 'floating']})
     # 8‐electrode: 7 constant + floating
     topo_list.append({"Nx": N_NP,"Ny": N_NP,"Nz": 1,
                     "e_pos": [
-                        [(N_NP-1)//2, 0, 0],
-                        [0, 0, 0],
-                        [N_NP-1, 0, 0],
-                        [0, (N_NP-1)//2, 0],
-                        [N_NP-1, (N_NP-1)//2, 0],
-                        [0, N_NP-1, 0],
-                        [N_NP-1, N_NP-1, 0],
-                        [(N_NP-1)//2, N_NP-1, 0]
+                        [(N_NP-1)//2, 0],
+                        [0, 0],
+                        [N_NP-1, 0],
+                        [0, (N_NP-1)//2],
+                        [N_NP-1, (N_NP-1)//2],
+                        [0, N_NP-1],
+                        [N_NP-1, N_NP-1],
+                        [(N_NP-1)//2, N_NP-1]
                     ],
                     "electrode_type": ['constant']*7 + ['floating']})
 
@@ -57,7 +55,7 @@ def main():
             N_steps     = int(np.ceil(T_sim / dt))
             stat_size   = max(STAT_SIZE_BASE, int(np.round(300 * freq_mhz / 5.0)))
 
-            time_steps, volt = nanonets_utils.sinusoidal_voltages(
+            time_steps, volt = sinusoidal_voltages(
                 N_steps,
                 topo,
                 amplitudes=[AMPLITUDE]+(n_elec-1)*[0.0],
@@ -69,12 +67,12 @@ def main():
             out_base.mkdir(exist_ok=True)
             args    = (time_steps, volt, topo, out_base, stat_size, T_VAL)
             kwargs  = {
-                'sim_kwargs': {'high_C_output'  :   False,
-                               'add_to_path'    :   f"_{freq_mhz:.3f}"}
+                'net_kwargs': {'add_to_path' : f"_{freq_mhz:.3f}"},
+                'sim_kwargs': {'T_val':T_VAL,'stat_size':stat_size,'save':True}
             }
             tasks.append((args, kwargs))
 
-    nanonets_utils.batch_launch(nanonets_utils.run_simulation, tasks, CPU_CNT)
+    batch_launch(run_dynamic_simulation, tasks, CPU_CNT)
 
 if __name__ == "__main__":
     main()

@@ -65,7 +65,7 @@ def main():
 
             # output directory per frequency
             out_base.mkdir(exist_ok=True)
-            args    = (time_steps, volt, topo, out_base, stat_size, T_VAL)
+            args    = (time_steps, volt, topo, out_base)
             kwargs  = {
                 'net_kwargs': {'add_to_path' : f"_{freq_mhz:.3f}"},
                 'sim_kwargs': {'T_val':T_VAL,'stat_size':stat_size,'save':True}

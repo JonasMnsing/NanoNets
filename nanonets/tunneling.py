@@ -456,6 +456,10 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
             i = raw2dense[s_raw]
             j = raw2dense[t_raw]
 
+            # Catch Floating Electrodes
+            if hasattr(self, 'floating_indices') and i in self.floating_indices or j in self.floating_indices:
+                continue
+            
             # symmetric update
             cond_matrix[i, i] += g
             cond_matrix[j, j] += g

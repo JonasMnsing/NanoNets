@@ -72,7 +72,7 @@ class Simulation(tunneling.NanoparticleTunneling):
     """
 
     def __init__(self, topology_parameter : dict, folder: str = '', add_to_path: str = "", res_info: dict = None, res_info2: dict = None,
-                 np_info: dict = None, np_info2: dict = None, seed: int = None, high_C_output: bool = False, **kwargs):
+                 np_info: dict = None, np_info2: dict = None, seed: int = None, high_C_output: bool = False, pack_optimizer: bool = True, **kwargs):
         """
         Defines network topology, electrostatic properties, and tunneling junctions for a given topology.
 
@@ -173,7 +173,10 @@ class Simulation(tunneling.NanoparticleTunneling):
         self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
         if np_info2 is not None:
             self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
-        self.pack_planar_circles()
+        if pack_optimizer:
+            self.pack_planar_circles()
+        else:
+            self.pack_for_cubic()
         self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'])
         self.calc_electrode_capacitance_matrix()
 

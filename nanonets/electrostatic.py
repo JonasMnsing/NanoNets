@@ -504,7 +504,31 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
             d = coords_np - epos
             el_dist[idx - 1] = np.linalg.norm(d, axis=1)
         self.electrode_dist_matrix = el_dist
-    
+
+    def pack_for_cubic(self):
+        
+        r_val  = self.radius_vals[0]
+        r_val2 = self.radius_vals[-1]
+        
+        for n in range(self.N_particles-1):
+            self.pos[n] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[n][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[n][1])
+        self.pos[self.N_particles-1] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[self.N_particles-1][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*(self.pos[self.N_particles-1][1]-1) + r_val2+r_val + self.MIN_NP_NP_DISTANCE)
+        for e in range(1,self.N_electrodes):
+            self.pos[-e] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[-e][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[-e][1])
+        self.pos[-self.N_electrodes] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[-self.N_electrodes][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*(self.pos[-self.N_electrodes][1]-1) + 2*r_val2 + self.MIN_NP_NP_DISTANCE)
+
+        dist_matrix = np.zeros(shape=(self.N_particles,self.N_particles))
+        for i in range(self.N_particles):
+            for j in range(self.N_particles):
+                dist_matrix[i,j] = np.sqrt((self.pos[i][0]-self.pos[j][0])**2 + (self.pos[i][1]-self.pos[j][1])**2)
+        self.dist_matrix = dist_matrix
+
+        el_dist = np.zeros((self.N_electrodes, self.N_particles))
+        for i in range(1, self.N_electrodes + 1):
+            for j in range(self.N_particles):
+                el_dist[i - 1, j] = np.sqrt((self.pos[-i][0]-self.pos[j][0])**2 + (self.pos[-i][1]-self.pos[j][1])**2)
+        self.electrode_dist_matrix = el_dist
+
     def calc_capacitance_matrix(self, eps_r: float = 2.6, eps_s: float = 3.9)->None:
         """
         Calculate the capacitance matrix (NxN) for the nanoparticle network.

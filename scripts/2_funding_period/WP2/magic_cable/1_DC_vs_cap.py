@@ -3,7 +3,7 @@ import logging, numpy as np
 from nanonets.utils import batch_launch, run_dynamic_simulation
 
 # ─── Configuration ────────────────────────────────────────────────────────────────
-U_0         = 0.1
+U_0         = 0.02
 T_VAL       = 5.0
 STAT_SIZE   = 50
 N_VOLT      = 200000
@@ -54,27 +54,27 @@ def main():
         tasks.append((args, kwargs))
 
     # Eight-electrode (constant at 7, floating last)
-    topo8 = {
-        "Nx": N_P,
-        "Ny": N_P,
-        "e_pos": [[(N_P-1)//2,0],[0,0],[N_P-1,0],
-                   [0,(N_P-1)//2],[N_P-1,(N_P-1)//2],
-                   [0,N_P-1],[N_P-1,N_P-1],[(N_P-1)//2,N_P-1]],
-        "electrode_type": ['constant']*7 + ['floating']
-    }
-    volt8       = np.zeros((N_VOLT, len(topo8['e_pos'])+1), float)
-    volt8[:, 0] = U_0
+    # topo8 = {
+    #     "Nx": N_P,
+    #     "Ny": N_P,
+    #     "e_pos": [[(N_P-1)//2,0],[0,0],[N_P-1,0],
+    #                [0,(N_P-1)//2],[N_P-1,(N_P-1)//2],
+    #                [0,N_P-1],[N_P-1,N_P-1],[(N_P-1)//2,N_P-1]],
+    #     "electrode_type": ['constant']*7 + ['floating']
+    # }
+    # volt8       = np.zeros((N_VOLT, len(topo8['e_pos'])+1), float)
+    # volt8[:, 0] = U_0
 
-    for cap in CAP_VALS:
-        args    = (time_steps, volt8, topo8, out_base)
-        kwargs  = {'net_kwargs': {'high_C_output': True,
-                                 'np_info2': {'np_index': [81],
-                                              'mean_radius': cap,
-                                              'std_radius': 0.0},
-                                 'pack_optimizer':False,
-                                 'add_to_path': f"_{cap}"},
-                    'sim_kwargs': {'T_val':T_VAL,'stat_size':STAT_SIZE,'save':True}}
-        tasks.append((args, kwargs))
+    # for cap in CAP_VALS:
+    #     args    = (time_steps, volt8, topo8, out_base)
+    #     kwargs  = {'net_kwargs': {'high_C_output': True,
+    #                              'np_info2': {'np_index': [81],
+    #                                           'mean_radius': cap,
+    #                                           'std_radius': 0.0},
+    #                              'pack_optimizer':False,
+    #                              'add_to_path': f"_{cap}"},
+    #                 'sim_kwargs': {'T_val':T_VAL,'stat_size':STAT_SIZE,'save':True}}
+    #     tasks.append((args, kwargs))
 
     # Launch all simulations in parallel
     batch_launch(run_dynamic_simulation, tasks, CPU_CNT)

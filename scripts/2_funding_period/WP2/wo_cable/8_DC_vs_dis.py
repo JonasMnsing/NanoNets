@@ -8,7 +8,6 @@ from nanonets.utils import batch_launch, run_dynamic_simulation, sinusoidal_volt
 T_VAL       = 5.0
 V_DRIVE     = 0.02
 N_VOLT      = 50000
-STAT_SIZE   = 200
 TIME_STEP   = 1e-10
 STAT_SIZE   = 500
 OUTPUT_DIR  = Path("/home/j/j_mens07/phd/data/2_funding_period/")

@@ -213,7 +213,7 @@ def sinusoidal_voltages(N_samples : int, topology_parameter : dict, amplitudes :
         Time and Voltages
     """
     # Voltages and Time Scale
-    N_electrodes    = len(topology_parameter["e_pos"])
+    N_electrodes    = len(topology_parameter["electrode_type"])
     voltages        = np.zeros(shape=(N_samples, N_electrodes+1))
     time_steps      = time_step*np.arange(N_samples)
     
@@ -1381,7 +1381,7 @@ def run_dynamic_simulation(time_steps: np.ndarray, voltages: np.ndarray, topolog
     net_kwargs = net_kwargs or {}
 
     try:
-        target = len(topology["e_pos"]) - 1
+        target = voltages.shape[1] - 2
         sim = simulation.Simulation(
             topology_parameter=topology,
             folder=str(out_folder)+"/",

@@ -9,9 +9,7 @@ V_DRIVE    = 1.0
 N_VOLT     = 50000
 TIME_STEP  = 1e-10
 STAT_SIZE  = 200
-# NP_LIST    = [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40]
-NP_LIST    = [42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80]
-
+NP_LIST    = [2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40]
 BASE_DIR   = Path("/home/j/j_mens07/phd/data/2_funding_period/")
 # BASE_DIR   = Path("/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/")
 LOG_LEVEL  = logging.INFO

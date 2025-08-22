@@ -114,14 +114,19 @@ class Simulation(tunneling.NanoparticleTunneling):
         """
 
         # --- Electrode type and inheritance ---
-        electrode_type  = topology_parameter['electrode_type']
+        if "electrode_type" in kwargs:
+            electrode_type  = kwargs['electrode_type']
+        else:
+            electrode_type  = topology_parameter['electrode_type']
         super().__init__(electrode_type, seed)
 
         # --- Topology type ---
         if 'Nx' in topology_parameter:
             self.network_topology = 'lattice'
-        else:
+        elif 'Np' in topology_parameter:
             self.network_topology = 'random'
+        else:
+            self.network_topology = None
 
         # --- Default NP info ---
         if np_info is None:
@@ -153,6 +158,9 @@ class Simulation(tunneling.NanoparticleTunneling):
             # --- Topology ---
             self.lattice_network(N_x=topology_parameter["Nx"], N_y=topology_parameter["Ny"])
             self.add_electrodes_to_lattice_net(topology_parameter["e_pos"])
+
+            if high_C_output:
+                self.add_np_to_output()
                                     
         # --- Random Topology ---
         elif self.network_topology == "random":
@@ -162,21 +170,31 @@ class Simulation(tunneling.NanoparticleTunneling):
             # --- Topology ---
             self.random_network(N_particles=topology_parameter["Np"])
             self.add_electrodes_to_random_net(electrode_positions=topology_parameter["e_pos"])
-        
-        else:
-            raise ValueError("Only 'lattice' and 'random' topologies are supported.")
-        
-        if high_C_output:
-            self.add_np_to_output()
 
-        # --- Electrostatics ---
-        self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
-        if np_info2 is not None:
-            self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
-        if pack_optimizer:
-            self.pack_planar_circles()
+            if high_C_output:
+                self.add_np_to_output()
         else:
-            self.pack_for_cubic()
+            # Path variable
+            path_var = 'custom_network'+add_to_path+'.csv'
+        
+        # --- Electrostatics ---
+        if self.network_topology is not None:
+            self.init_nanoparticle_radius(np_info['mean_radius'], np_info['std_radius'])
+            if np_info2 is not None:
+                self.update_nanoparticle_radius(np_info2['np_index'], np_info2['mean_radius'], np_info2['std_radius'])
+            if pack_optimizer:
+                self.pack_planar_circles()
+            else:
+                self.pack_for_cubic()
+        else:
+            self.net_topology           = kwargs["net_topology"]
+            self.dist_matrix            = kwargs["dist_matrix"]
+            self.electrode_dist_matrix  = kwargs["electrode_dist_matrix"]
+            self.radius_vals            = kwargs["radius_vals"]
+            self.N_particles            = self.electrode_dist_matrix.shape[1]
+            self.N_electrodes           = self.electrode_dist_matrix.shape[0]
+            self.N_junctions            = self.net_topology.shape[1]-1
+
         self.calc_capacitance_matrix(np_info['eps_r'], np_info['eps_s'])
         self.calc_electrode_capacitance_matrix()
 

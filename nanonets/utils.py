@@ -1381,7 +1381,7 @@ def run_dynamic_simulation(time_steps: np.ndarray, voltages: np.ndarray, topolog
     net_kwargs = net_kwargs or {}
 
     try:
-        target = len(topology["e_pos"]) - 1
+        target = voltages.shape[1] - 2
         sim = simulation.Simulation(
             topology_parameter=topology,
             folder=str(out_folder)+"/",

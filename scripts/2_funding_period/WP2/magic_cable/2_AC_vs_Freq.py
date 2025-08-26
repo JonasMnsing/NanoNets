@@ -12,10 +12,10 @@ N_PERIODS       = 150
 N_NP            = 9
 FREQ_LIST_MHZ   = [133.,105.,86.,68.,55.,44.,36.,28.,23.,18.,15.,12.,10.,8.,6.,5.,2.,1.,
                    0.5,0.25,0.12,0.06,0.03,0.01,0.008,0.006,0.004,0.002,0.001]
-CAP_VALS        = [5e1, 1e2, 5e2, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6]
+CAP_VALS        = [1e0, 5e0, 1e1, 5e1, 1e2, 5e2, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6]
 AMPLITUDE       = 0.1
-OUTPUT_DIR      = Path("/home/j/j_mens07/phd/data/2_funding_period/")
-# OUTPUT_DIR      = Path("/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/")
+# OUTPUT_DIR      = Path("/home/j/j_mens07/phd/data/2_funding_period/")
+OUTPUT_DIR      = Path("/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/")
 LOG_LEVEL       = logging.INFO
 CPU_CNT         = 10
 # ────────────────────────────────────────────────────────────────────────────────
@@ -27,20 +27,20 @@ def main():
     # Define two floating-output electrode networks: 2‐electrode and 8‐electrode
     topo_list = []
     # 2‐electrode: one constant + floating
-    topo_list.append({"Nx": N_NP,"Ny": N_NP,"Nz": 1,
-                      "e_pos": [[(N_NP-1)//2, 0, 0],[(N_NP-1)//2, N_NP-1, 0]],
+    topo_list.append({"Nx": N_NP,"Ny": N_NP,
+                      "e_pos": [[(N_NP-1)//2, 0],[(N_NP-1)//2, N_NP-1]],
                       "electrode_type": ['constant', 'floating']})
     # 8‐electrode: 7 constant + floating
-    topo_list.append({"Nx": N_NP,"Ny": N_NP,"Nz": 1,
+    topo_list.append({"Nx": N_NP,"Ny": N_NP,
                     "e_pos": [
-                        [(N_NP-1)//2, 0, 0],
-                        [0, 0, 0],
-                        [N_NP-1, 0, 0],
-                        [0, (N_NP-1)//2, 0],
-                        [N_NP-1, (N_NP-1)//2, 0],
-                        [0, N_NP-1, 0],
-                        [N_NP-1, N_NP-1, 0],
-                        [(N_NP-1)//2, N_NP-1, 0]
+                        [(N_NP-1)//2, 0],
+                        [0, 0],
+                        [N_NP-1, 0],
+                        [0, (N_NP-1)//2],
+                        [N_NP-1, (N_NP-1)//2],
+                        [0, N_NP-1],
+                        [N_NP-1, N_NP-1],
+                        [(N_NP-1)//2, N_NP-1]
                     ],
                     "electrode_type": ['constant']*7 + ['floating']})
 

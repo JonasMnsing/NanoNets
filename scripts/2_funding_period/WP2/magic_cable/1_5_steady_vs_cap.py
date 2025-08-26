@@ -5,13 +5,12 @@ from nanonets.utils import batch_launch, run_static_simulation
 # ─── Configuration ────────────────────────────────────────────────────────────────
 U_0         = 0.1
 T_VAL       = 5.0
-STAT_SIZE   = 50
 N_VOLT      = 1000
 N_P         = 9
 # FOLDER      = Path("/home/j/j_mens07/phd/data/2_funding_period/")
 FOLDER      = Path("/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/")
 CAP_VALS    = [1e0, 5e0, 1e1, 5e1, 1e2, 5e2, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6]
-CPU_CNT     = len(CAP_VALS)
+CPU_CNT     = 10
 LOG_LEVEL   = logging.INFO
 # ────────────────────────────────────────────────────────────────────────────────
 
@@ -31,7 +30,7 @@ def main():
         "Nx": N_P,
         "Ny": N_P,
         "e_pos": [[(N_P-1)//2,0], [(N_P-1)//2, N_P-1]],
-        "electrode_type": ['constant', 'floating']
+        "electrode_type": ['constant', 'constant']
     }
 
     volt2       = np.zeros((N_VOLT, len(topo2['e_pos'])+1), float)
@@ -56,7 +55,7 @@ def main():
         "e_pos": [[(N_P-1)//2,0],[0,0],[N_P-1,0],
                    [0,(N_P-1)//2],[N_P-1,(N_P-1)//2],
                    [0,N_P-1],[N_P-1,N_P-1],[(N_P-1)//2,N_P-1]],
-        "electrode_type": ['constant']*7 + ['floating']
+        "electrode_type": ['constant']*7 + ['constant']
     }
     volt8       = np.zeros((N_VOLT, len(topo8['e_pos'])+1), float)
     volt8[:, 0] = np.arange(-U_0, U_0, N_VOLT)

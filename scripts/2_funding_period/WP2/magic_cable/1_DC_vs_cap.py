@@ -11,7 +11,7 @@ TIME_STEP   = 1e-10
 N_P         = 9
 # FOLDER      = Path("/home/j/j_mens07/phd/data/2_funding_period/")
 FOLDER      = Path("/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/")
-CAP_VALS    = [1e0,5e0,1e1, 5e1, 1e2, 5e2, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6]
+CAP_VALS    = [1e0, 5e0,1e1, 5e1, 1e2, 5e2, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6]
 CPU_CNT     = len(CAP_VALS)
 LOG_LEVEL   = logging.INFO
 # ────────────────────────────────────────────────────────────────────────────────

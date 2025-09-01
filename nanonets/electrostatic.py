@@ -185,7 +185,13 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
         factor  = 4 * self.PI * self.EPSILON_0 * eps_r * (np_radius1 * np_radius2) / distance
         arg     = (distance**2 - np_radius1**2 - np_radius2**2) / (2 * np_radius1 * np_radius2)
         U_val   = np.arccosh(arg)
-        s       = np.sum([1.0 / np.sinh(n * U_val) for n in range(1 ,N_sum + 1)])
+        if U_val * (N_sum + 1) > 700:
+            # Use the exponential approximation to prevent overflow
+            s = np.sum([2.0 * np.exp(-n * U_val) for n in range(1, N_sum + 1)])
+        else:
+            # Use the original exact series solution
+            s = np.sum([1.0 / np.sinh(n * U_val) for n in range(1, N_sum + 1)])
+        # s       = np.sum([1.0 / np.sinh(n * U_val) for n in range(1 ,N_sum + 1)])
         cap     = factor * np.sinh(U_val) * s
 
         return cap

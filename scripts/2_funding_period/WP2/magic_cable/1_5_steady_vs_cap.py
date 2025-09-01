@@ -5,13 +5,14 @@ from nanonets.utils import batch_launch, run_static_simulation
 # ─── Configuration ────────────────────────────────────────────────────────────────
 U_0         = 0.1
 T_VAL       = 5.0
-N_VOLT      = 1000
+N_VOLT      = 1001
 N_P         = 9
 # FOLDER      = Path("/home/j/j_mens07/phd/data/2_funding_period/")
 FOLDER      = Path("/mnt/c/Users/jonas/Desktop/phd/data/2_funding_period/")
 CAP_VALS    = [1e0, 5e0, 1e1, 5e1, 1e2, 5e2, 1e3, 5e3, 1e4, 5e4, 1e5, 5e5, 1e6]
 CPU_CNT     = 10
 LOG_LEVEL   = logging.INFO
+
 # ────────────────────────────────────────────────────────────────────────────────
 
 def main():
@@ -34,7 +35,7 @@ def main():
     }
 
     volt2       = np.zeros((N_VOLT, len(topo2['e_pos'])+1), float)
-    volt2[:, 0] = np.arange(-U_0, U_0, N_VOLT)
+    volt2[:, 0] = np.linspace(-U_0, U_0, N_VOLT)
 
     for cap in CAP_VALS:
         # Prepare args and kwargs
@@ -58,7 +59,7 @@ def main():
         "electrode_type": ['constant']*7 + ['constant']
     }
     volt8       = np.zeros((N_VOLT, len(topo8['e_pos'])+1), float)
-    volt8[:, 0] = np.arange(-U_0, U_0, N_VOLT)
+    volt8[:, 0] = np.linspace(-U_0, U_0, N_VOLT)
 
     for cap in CAP_VALS:
         args    = (volt8, topo8, out_base)

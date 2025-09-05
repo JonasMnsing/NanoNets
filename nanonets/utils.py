@@ -6,15 +6,11 @@ from matplotlib.colors import Normalize
 import numpy as np
 import pandas as pd
 import networkx as nx
-import scienceplots
 import multiprocessing
 import logging
 
 from . import simulation
-from scipy.interpolate import interp1d
 from typing import Any, Callable, Union, Tuple, List, Dict, Optional
-from scipy.signal.windows import hann
-from scipy.signal import welch
 from scipy.stats import entropy
 from pathlib import Path
 
@@ -1430,7 +1426,8 @@ def batch_launch(func: Callable[..., Any], tasks: List[Tuple[Tuple[Any,...]]], m
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XNOR', 'NAND', 'NOR'], 
-    dpi: int = 200, x_limits: List[float] = [0.45, 10], y_limits: List[float] = [1.0, 100], xlabel: str = 'Fitness', ylabel: str = 'Abundance') -> Tuple[plt.Figure, plt.Axes]:
+    dpi: int = 200, x_limits: List[float] = [0.45, 10], y_limits: List[float] = [1.0, 100],
+    xlabel: str = 'Fitness', ylabel: str = 'Abundance', style_sheet: List[str] = ["science","bright","grid"]) -> Tuple[plt.Figure, plt.Axes]:
     """
     Plot the abundance of logic gates as a function of their fitness values.
 
@@ -1450,6 +1447,8 @@ def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XN
         Label for the x-axis (default is 'Fitness').
     ylabel : str, optional
         Label for the y-axis (default is 'Abundance').
+    style_sheet : List[str], optional
+        List of style constraints
 
     Returns
     -------
@@ -1459,7 +1458,7 @@ def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XN
 
     marker = ['o','s','^','<','>','v','P']
 
-    with plt.style.context(["science","bright","grid"]):
+    with plt.style.context(style_sheet):
         fig, ax = plt.subplots(dpi=dpi)
         for i, gate in enumerate(gates):
             ax.plot(df[f'{gate} Fitness'], df[f'{gate} Fitness Abundance'], marker=marker[i % len(marker)], markevery=0.1, label=f'{gate}')

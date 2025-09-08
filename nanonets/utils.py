@@ -1068,7 +1068,7 @@ def autocorrelation(x : np.ndarray, y : np.ndarray, lags : int)->np.ndarray:
 
     return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
 
-def fft(signal: np.ndarray, dt: float,n_padded: int = 0, use_hann: bool = False) -> tuple[np.ndarray, np.ndarray]:
+def fft(signal: np.ndarray, dt: float,n_padded: int = 0, use_hann: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute one‐sided FFT amplitude spectrum of a real-signal.
     
@@ -1335,7 +1335,8 @@ def run_static_simulation(voltages: np.ndarray, topology: Dict[str, Any], out_fo
     net_kwargs = net_kwargs or {}
     sim_kwargs = sim_kwargs or {}
     try:
-        target = len(topology["e_pos"]) - 1
+        # target = len(topology["e_pos"]) - 1
+        target = voltages.shape[1] - 2
         sim = simulation.Simulation(
             topology_parameter=topology,
             folder=str(out_folder)+"/",

@@ -309,14 +309,14 @@ def load_simulation_results(folder : str, N : Union[int, List[int]], N_e : Union
             if disordered:
                 data = {key : pd.read_csv(f"{folder}Np={key}_Nj=4_Ne={N_e}.csv") for key in N}
             else:
-                data = {key : pd.read_csv(f"{folder}Nx={key}_Ny={key}_Nz=1_Ne={N_e}.csv") for key in N}
+                data = {key : pd.read_csv(f"{folder}Nx={key}_Ny={key}_Ne={N_e}.csv") for key in N}
 
         else:
             for key in N:
                 if disordered:
                     data[key] = pd.read_csv(f"{folder}Np={key}_Nj=4_Ne={N_e}.csv")
                 else:
-                    data[key] = pd.read_csv(f"{folder}Nx={key}_Ny={key}_Nz=1_Ne={N_e}.csv")
+                    data[key] = pd.read_csv(f"{folder}Nx={key}_Ny={key}_Ne={N_e}.csv")
 
     # For variable numbers of electrodes
     elif (isinstance(N, int) and isinstance(N_e, list)):
@@ -326,21 +326,21 @@ def load_simulation_results(folder : str, N : Union[int, List[int]], N_e : Union
             if disordered:
                 data = {key : pd.read_csv(f"{folder}Np={N}_Nj=4_Ne={key}.csv") for key in N_e}
             else:
-                data = {key : pd.read_csv(f"{folder}Nx={N}_Ny={N}_Nz=1_Ne={key}.csv") for key in N_e}
+                data = {key : pd.read_csv(f"{folder}Nx={N}_Ny={N}_Ne={key}.csv") for key in N_e}
 
         else:
             for key in N_e:
                 if disordered:
                     data[key] = pd.read_csv(f"{folder}Np={N}_Nj=4_Ne={key}.csv")
                 else:
-                    data[key] = pd.read_csv(f"{folder}Nx={N}_Ny={N}_Nz=1_Ne={key}.csv")
+                    data[key] = pd.read_csv(f"{folder}Nx={N}_Ny={N}_Ne={key}.csv")
 
     else:
 
         if disordered:
             data  = pd.read_csv(f"{folder}Np={N}_Nj=4_Ne={N_e}.csv")
         else:
-            data  = pd.read_csv(f"{folder}Nx={N}_Ny={N}_Nz=1_Ne={N_e}.csv")
+            data  = pd.read_csv(f"{folder}Nx={N}_Ny={N}_Ne={N_e}.csv")
 
     return data
 

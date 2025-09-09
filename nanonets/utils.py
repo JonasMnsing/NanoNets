@@ -374,7 +374,7 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
     # Copy DataFame and drop Zeros
     data    = df.copy()
     data    = data[data['Error'] != 0.0]
-    data    = data[data['Current'].abs() > 0.0] if drop_zero else data
+    data    = data[data['Observable'].abs() > 0.0] if drop_zero else data
 
     # Sort the DataFrame by relevant columns
     data    = data.sort_values(by=sort_cols)
@@ -411,7 +411,7 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
     return data
 
 def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], input_cols: List[str],
-                         disordered: bool = False, off_state: float = 0.0, on_state: float = 0.01, max_error=np.inf) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
+                         disordered: bool = False, off_state: float = 0.0, on_state: float = None, max_error=np.inf) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
     """Load and prepare simulation results.
 
     Parameters
@@ -443,17 +443,21 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
 
     if isinstance(data, dict):
         for key, df in data.items():
-            data[key]   = df[(df['Error']/df['Current']).abs() < max_error].reset_index(drop=True)
+            data[key] = df[(df['Error']/df['Observable']).abs() < max_error].reset_index(drop=True)
     else:
-        data    = data[(data['Error']/data['Current']).abs() < max_error].reset_index(drop=True)
+        data = data[(data['Error']/data['Observable']).abs() < max_error].reset_index(drop=True)
 
     if isinstance(N, list) and isinstance(N_e, int):
         if isinstance(on_state, float):
-            on_state    = [on_state for _ in range(len(N))]
-        prepared_data   = {key: prepare_for_fitness_calculation(data[key], N_e, input_cols, off_state=off_state, on_state=on_state[i]) for i, key in enumerate(data.keys())}
+            on_state = [on_state for _ in range(len(N))]
+        if on_state is None:
+            on_state = [data[n_val].loc[:,input_cols[0]].max() for n_val in N]         
+        prepared_data = {key: prepare_for_fitness_calculation(data[key], N_e, input_cols, off_state=off_state, on_state=on_state[i]) for i, key in enumerate(data.keys())}
     elif isinstance(N, int) and isinstance(N_e, list):
         if isinstance(on_state, float):
-            on_state    = [on_state for _ in range(len(N_e))]
+            on_state = [on_state for _ in range(len(N_e))]
+        if on_state is None:
+            on_state = [data[n_val].loc[:,input_cols[0]].max() for n_val in N]
         prepared_data = {key: prepare_for_fitness_calculation(data[key], key, input_cols, off_state=off_state, on_state=on_state[i]) for i, key in enumerate(data.keys())}
     else:
         prepared_data = prepare_for_fitness_calculation(data, N_e, input_cols, off_state=off_state, on_state=on_state)
@@ -487,133 +491,133 @@ def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame
 
     if gate == 'AND':
 
-        df['off']   = (df00['Current'] + df01['Current'] + df10['Current'])/3
-        df['on']    = df11['Current']
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
-                               (df01['Current'] - df['off'])**2 +
-                               (df10['Current'] - df['off'])**2 +
-                               (df11['Current'] - df['on'])**2)/4)
+        df['off']   = (df00['Observable'] + df01['Observable'] + df10['Observable'])/3
+        df['on']    = df11['Observable']
+        df['res']   = np.sqrt(((df00['Observable'] - df['off'])**2 +
+                               (df01['Observable'] - df['off'])**2 +
+                               (df10['Observable'] - df['off'])**2 +
+                               (df11['Observable'] - df['on'])**2)/4)
 
     elif gate == 'OR':
 
-        df['off']   = df00['Current']
-        df['on']    = (df01['Current'] + df10['Current'] + df11['Current'])/3
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
-                               (df01['Current'] - df['on'])**2 +
-                               (df10['Current'] - df['on'])**2 +
-                               (df11['Current'] - df['on'])**2)/4)
+        df['off']   = df00['Observable']
+        df['on']    = (df01['Observable'] + df10['Observable'] + df11['Observable'])/3
+        df['res']   = np.sqrt(((df00['Observable'] - df['off'])**2 +
+                               (df01['Observable'] - df['on'])**2 +
+                               (df10['Observable'] - df['on'])**2 +
+                               (df11['Observable'] - df['on'])**2)/4)
 
     elif gate == 'XOR':
 
-        df['off']   = (df00['Current'] + df11['Current'])/2
-        df['on']    = (df01['Current'] + df10['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
-                               (df01['Current'] - df['on'])**2 +
-                               (df10['Current'] - df['on'])**2 +
-                               (df11['Current'] - df['off'])**2)/4)
+        df['off']   = (df00['Observable'] + df11['Observable'])/2
+        df['on']    = (df01['Observable'] + df10['Observable'])/2
+        df['res']   = np.sqrt(((df00['Observable'] - df['off'])**2 +
+                               (df01['Observable'] - df['on'])**2 +
+                               (df10['Observable'] - df['on'])**2 +
+                               (df11['Observable'] - df['off'])**2)/4)
 
     elif gate == 'NAND':
 
-        df['on']    = (df00['Current'] + df01['Current'] + df10['Current'])/3
-        df['off']   = df11['Current']
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
-                               (df01['Current'] - df['on'])**2 +
-                               (df10['Current'] - df['on'])**2 +
-                               (df11['Current'] - df['off'])**2)/4)
+        df['on']    = (df00['Observable'] + df01['Observable'] + df10['Observable'])/3
+        df['off']   = df11['Observable']
+        df['res']   = np.sqrt(((df00['Observable'] - df['on'])**2 +
+                               (df01['Observable'] - df['on'])**2 +
+                               (df10['Observable'] - df['on'])**2 +
+                               (df11['Observable'] - df['off'])**2)/4)
 
     elif gate == 'NOR':
 
-        df['on']    = df00['Current']
-        df['off']   = (df01['Current'] + df10['Current'] + df11['Current'])/3
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
-                               (df01['Current'] - df['off'])**2 +
-                               (df10['Current'] - df['off'])**2 +
-                               (df11['Current'] - df['off'])**2)/4)
+        df['on']    = df00['Observable']
+        df['off']   = (df01['Observable'] + df10['Observable'] + df11['Observable'])/3
+        df['res']   = np.sqrt(((df00['Observable'] - df['on'])**2 +
+                               (df01['Observable'] - df['off'])**2 +
+                               (df10['Observable'] - df['off'])**2 +
+                               (df11['Observable'] - df['off'])**2)/4)
 
     elif gate == 'XNOR':
 
-        df['on']    = (df00['Current'] + df11['Current'])/2
-        df['off']   = (df01['Current'] + df10['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
-                               (df01['Current'] - df['off'])**2 +
-                               (df10['Current'] - df['off'])**2 +
-                               (df11['Current'] - df['on'])**2)/4)
+        df['on']    = (df00['Observable'] + df11['Observable'])/2
+        df['off']   = (df01['Observable'] + df10['Observable'])/2
+        df['res']   = np.sqrt(((df00['Observable'] - df['on'])**2 +
+                               (df01['Observable'] - df['off'])**2 +
+                               (df10['Observable'] - df['off'])**2 +
+                               (df11['Observable'] - df['on'])**2)/4)
     
     elif gate == 'P':
 
-        df['on']    = (df10['Current'] + df11['Current'])/2
-        df['off']   = (df00['Current'] + df01['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
-                               (df01['Current'] - df['off'])**2 +
-                               (df10['Current'] - df['on'])**2 +
-                               (df11['Current'] - df['on'])**2)/4)
+        df['on']    = (df10['Observable'] + df11['Observable'])/2
+        df['off']   = (df00['Observable'] + df01['Observable'])/2
+        df['res']   = np.sqrt(((df00['Observable'] - df['off'])**2 +
+                               (df01['Observable'] - df['off'])**2 +
+                               (df10['Observable'] - df['on'])**2 +
+                               (df11['Observable'] - df['on'])**2)/4)
     
     elif gate == 'notP':
 
-        df['on']    = (df00['Current'] + df01['Current'])/2
-        df['off']   = (df10['Current'] + df11['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
-                               (df01['Current'] - df['on'])**2 +
-                               (df10['Current'] - df['off'])**2 +
-                               (df11['Current'] - df['off'])**2)/4)
+        df['on']    = (df00['Observable'] + df01['Observable'])/2
+        df['off']   = (df10['Observable'] + df11['Observable'])/2
+        df['res']   = np.sqrt(((df00['Observable'] - df['on'])**2 +
+                               (df01['Observable'] - df['on'])**2 +
+                               (df10['Observable'] - df['off'])**2 +
+                               (df11['Observable'] - df['off'])**2)/4)
 
     elif gate == 'Q':
 
-        df['on']    = (df01['Current'] + df11['Current'])/2
-        df['off']   = (df00['Current'] + df10['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
-                               (df01['Current'] - df['on'])**2 +
-                               (df10['Current'] - df['off'])**2 +
-                               (df11['Current'] - df['on'])**2)/4)
+        df['on']    = (df01['Observable'] + df11['Observable'])/2
+        df['off']   = (df00['Observable'] + df10['Observable'])/2
+        df['res']   = np.sqrt(((df00['Observable'] - df['off'])**2 +
+                               (df01['Observable'] - df['on'])**2 +
+                               (df10['Observable'] - df['off'])**2 +
+                               (df11['Observable'] - df['on'])**2)/4)
     
     elif gate == 'notQ':
 
-        df['on']    = (df00['Current'] + df10['Current'])/2
-        df['off']   = (df01['Current'] + df11['Current'])/2
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
-                               (df01['Current'] - df['off'])**2 +
-                               (df10['Current'] - df['on'])**2 +
-                               (df11['Current'] - df['off'])**2)/4)
+        df['on']    = (df00['Observable'] + df10['Observable'])/2
+        df['off']   = (df01['Observable'] + df11['Observable'])/2
+        df['res']   = np.sqrt(((df00['Observable'] - df['on'])**2 +
+                               (df01['Observable'] - df['off'])**2 +
+                               (df10['Observable'] - df['on'])**2 +
+                               (df11['Observable'] - df['off'])**2)/4)
 
     elif gate == 'PnotQ':
 
-        df['on']    = df10['Current']
-        df['off']   = (df00['Current'] + df01['Current'] + df11['Current'])/3
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
-                               (df01['Current'] - df['off'])**2 +
-                               (df10['Current'] - df['on'])**2 +
-                               (df11['Current'] - df['off'])**2)/4)
+        df['on']    = df10['Observable']
+        df['off']   = (df00['Observable'] + df01['Observable'] + df11['Observable'])/3
+        df['res']   = np.sqrt(((df00['Observable'] - df['off'])**2 +
+                               (df01['Observable'] - df['off'])**2 +
+                               (df10['Observable'] - df['on'])**2 +
+                               (df11['Observable'] - df['off'])**2)/4)
     
     elif gate == 'notPQ':
 
-        df['on']    = df01['Current']
-        df['off']   = (df00['Current'] + df10['Current'] + df11['Current'])/3
-        df['res']   = np.sqrt(((df00['Current'] - df['off'])**2 +
-                               (df01['Current'] - df['on'])**2 +
-                               (df10['Current'] - df['off'])**2 +
-                               (df11['Current'] - df['off'])**2)/4)
+        df['on']    = df01['Observable']
+        df['off']   = (df00['Observable'] + df10['Observable'] + df11['Observable'])/3
+        df['res']   = np.sqrt(((df00['Observable'] - df['off'])**2 +
+                               (df01['Observable'] - df['on'])**2 +
+                               (df10['Observable'] - df['off'])**2 +
+                               (df11['Observable'] - df['off'])**2)/4)
     
     elif gate == 'notPandQ':
 
-        df['on']    = (df00['Current'] + df01['Current'] + df11['Current'])/3
-        df['off']   = df10['Current']
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
-                               (df01['Current'] - df['on'])**2 +
-                               (df10['Current'] - df['off'])**2 +
-                               (df11['Current'] - df['on'])**2)/4)
+        df['on']    = (df00['Observable'] + df01['Observable'] + df11['Observable'])/3
+        df['off']   = df10['Observable']
+        df['res']   = np.sqrt(((df00['Observable'] - df['on'])**2 +
+                               (df01['Observable'] - df['on'])**2 +
+                               (df10['Observable'] - df['off'])**2 +
+                               (df11['Observable'] - df['on'])**2)/4)
     
     elif gate == 'PandnotQ':
 
-        df['on']    = (df00['Current'] + df10['Current'] + df11['Current'])/3
-        df['off']   = df01['Current']
-        df['res']   = np.sqrt(((df00['Current'] - df['on'])**2 +
-                               (df01['Current'] - df['off'])**2 +
-                               (df10['Current'] - df['on'])**2 +
-                               (df11['Current'] - df['on'])**2)/4)
+        df['on']    = (df00['Observable'] + df10['Observable'] + df11['Observable'])/3
+        df['off']   = df01['Observable']
+        df['res']   = np.sqrt(((df00['Observable'] - df['on'])**2 +
+                               (df01['Observable'] - df['off'])**2 +
+                               (df10['Observable'] - df['on'])**2 +
+                               (df11['Observable'] - df['on'])**2)/4)
 
     return df
 
-def fitness(df: pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_state:float = 0.0, on_state:float = 0.01,
+def fitness(df: pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_state:float = 0.0, on_state:float = None,
     gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']) -> pd.DataFrame:
     """
     Calculate the fitness of a set of logic gates based on their residual sum of squares (RSS).
@@ -642,17 +646,18 @@ def fitness(df: pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_st
     """
     if gates is None:
         gates = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'P', 'notP', 'Q', 'notQ', 'PnotQ', 'notPQ', 'notPandQ', 'PandnotQ']
-
+    if on_state is None:
+        on_state = df.loc[:,input_cols[0]].max()
     df00    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
     df01    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
     df10    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
     df11    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
 
     fitness = pd.DataFrame(0, index=np.arange(len(df00)), columns=list(df00.columns) + [g + ' Fitness' for g in gates])
-    fitness = fitness.drop(columns=['Current','Error'])
+    fitness = fitness.drop(columns=['Observable','Error'])
 
     for col in list(df00.columns):
-        if col != 'Current' and col != 'Error':
+        if col != 'Observable' and col != 'Error':
             fitness[col]    = (df00[col].values + df01[col].values + df10[col].values + df11[col].values)/4
 
     for gate in gates:
@@ -805,16 +810,16 @@ def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_colu
 
     # Extract current values for all input combinations
     df_tmp              = df[(df[input1_column] == off_state) & (df[input2_column] == off_state)].reset_index(drop=True)
-    values_input['I00'] = df_tmp['Current']
+    values_input['I00'] = df_tmp['Observable']
     errors_input['E00'] = df_tmp['Error']
     df_tmp              = df[(df[input1_column] == off_state) & (df[input2_column] == on_state)].reset_index(drop=True)
-    values_input['I01'] = df_tmp['Current']
+    values_input['I01'] = df_tmp['Observable']
     errors_input['E01'] = df_tmp['Error']
     df_tmp              = df[(df[input1_column] == on_state) & (df[input2_column] == off_state)].reset_index(drop=True)
-    values_input['I10'] = df_tmp['Current']
+    values_input['I10'] = df_tmp['Observable']
     errors_input['E10'] = df_tmp['Error']
     df_tmp              = df[(df[input1_column] == on_state) & (df[input2_column] == on_state)].reset_index(drop=True)
-    values_input['I11'] = df_tmp['Current']
+    values_input['I11'] = df_tmp['Observable']
     errors_input['E11'] = df_tmp['Error']
 
     if n_bootstrap == 0:

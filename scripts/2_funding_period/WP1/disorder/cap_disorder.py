@@ -24,6 +24,7 @@ RAD_VALS    = [np.load("scripts/2_funding_period/WP2/wo_cable/data/radius_dis.np
 TOPO_VALS   = [np.load("scripts/2_funding_period/WP2/wo_cable/data/topo_dis.npy")[i] for i in range(N_PROCS)]
 DIST_VALS   = [np.load("scripts/2_funding_period/WP2/wo_cable/data/dist_dis.npy")[i] for i in range(N_PROCS)]
 E_DIST_VALS = [np.load("scripts/2_funding_period/WP2/wo_cable/data/e_dist_dis.npy")[i] for i in range(N_PROCS)]
+SAVE_TH     = 10
 # --------------------- 
 
 def get_transfer_coeff(n):
@@ -48,7 +49,7 @@ def main():
     volt    = logic_gate_sample(V_CONTROL, INPUT_POS, N_DATA, topo, V_INPUT, V_GATE, sample_technique='uniform')
     t_coeff = get_transfer_coeff(N_P)
     scale   = np.divide(t_coeff[1], t_coeff, where=t_coeff!=0)
-    volt    *= np.hstack((scale[i,:],0.0))
+    volt    *= np.hstack((scale,0.0))
 
     for i in range(N_PROCS):
         args    = (volt,"",PATH)
@@ -56,7 +57,7 @@ def main():
             'net_kwargs': {'add_to_path' : f"_{i}", "net_topology" : TOPO_VALS[i],
                         "dist_matrix" : DIST_VALS[i],"electrode_dist_matrix" : E_DIST_VALS[i],
                         "radius_vals" : RAD_VALS[i],"electrode_type" : ['constant']*(E_DIST_VALS[i].shape[0])},
-            'sim_kwargs': {'T_val':T_VAL,'save_th':100}
+            'sim_kwargs': {'T_val':T_VAL,'save_th':SAVE_TH}
         }
         tasks.append((args, kwargs))
 

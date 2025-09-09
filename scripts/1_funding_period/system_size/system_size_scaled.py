@@ -21,6 +21,7 @@ PATH            = Path("/scratch/j_mens07/data/1_funding_period/system_size/syst
 INPUT_POS       = [1,3]
 N_REF_NET       = 9
 E_POS_REF       = 1
+SAVE_TH         = 10
 # --------------------- 
 
 # Scale Voltage ranges
@@ -58,7 +59,7 @@ def main():
             volt_p  = distribute_array_across_processes(p, volt, N_PROCS)
             args    = (volt_p,topo,PATH)
             kwargs  = {"net_kwargs":{"pack_optimizer":False},
-                       "sim_kwargs":{"save_th":80}}
+                       "sim_kwargs":{"save_th":SAVE_TH}}
             tasks.append((args,kwargs))
 
     batch_launch(run_static_simulation, tasks, N_PROCS)

@@ -1,62 +1,66 @@
+import logging
 import numpy as np
-import sys
+from pathlib import Path
 
-# Add to path
-sys.path.append("/home/j/j_mens07/phd/NanoNets/src/")
-sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
+# Nanonets
+from nanonets import Simulation
+from nanonets.utils import logic_gate_sample, batch_launch, run_static_simulation
 
-import nanonets
-import nanonets_utils
-import multiprocessing
+# ─── Configuration ───
+N_P         = 9
+N_E         = 8
+V_CONTROL   = 0.1
+V_INPUT     = 0.01
+V_GATE      = 0.0
+N_DATA      = 20000
+N_PROCS     = 10
+LOG_LEVEL   = logging.INFO
+INPUT_POS   = [1,3]
+E_POS_REF   = 1
+MEAN_R2     = 50.0
+# PATH        = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/system_size_scaled/")
+PATH        = Path("/scratch/j_mens07/data/2_funding_period/static/cap_disorder/")
+SAVE_TH     = 10
+N_J_TOTAL   = 2*N_P*(N_P-1)
 
-# Simulation Function
-def parallel_code(thread, voltages, folder, topology_parameter, res_info, sigma_R):
+# --------------------- 
 
-    target_electrode    = len(topology_parameter["e_pos"]) - 1
-    sim_class           = nanonets.simulation(topology_parameter=topology_parameter, folder=folder, res_info=res_info,
-                                              seed=thread, add_to_path=f"_{sigma_R}_{thread}")
-    sim_class.run_const_voltages(voltages=voltages, target_electrode=target_electrode, save_th=20)
-    resistances  = sim_class.model.resistances
-    np.savetxt(f"{folder}resistances_{sigma_R}_{thread}.csv", resistances)
+def get_transfer_coeff(n):
+    topo = {"Nx": n, "Ny": n,
+            "e_pos" : [[0,0], [int((n-1)/2),0], [n-1,0], [0,int((n-1)/2)],
+                       [0,n-1], [n-1,int((n)/2)], [int((n)/2),(n-1)], [n-1,n-1]],
+            "electrode_type" : ['constant']*8}
+    sim_class = Simulation(topology_parameter=topo, pack_optimizer=False)
+    sim_class.build_conductance_matrix()
+    sim_class.init_transfer_coeffs()
+    return sim_class.get_transfer_coeffs()
+
+def main():
+    logging.basicConfig(level=LOG_LEVEL,format="%(asctime)s %(levelname)s: %(message)s")
+    PATH.mkdir(parents=True, exist_ok=True)
+    tasks   = []
+    topo    = {"Nx": N_P, "Ny": N_P,
+                "e_pos" : [[0,0], [int((N_P-1)/2),0], [N_P-1,0],
+                [0,int((N_P-1)/2)], [0,N_P-1], [N_P-1,int((N_P)/2)],
+                [int((N_P)/2),(N_P-1)], [N_P-1,N_P-1]],
+                "electrode_type" : ['constant']*N_E}
+    volt    = logic_gate_sample(V_CONTROL, INPUT_POS, N_DATA, topo, V_INPUT, V_GATE, sample_technique='uniform')
+    t_coeff = get_transfer_coeff(N_P)
+    scale   = np.divide(t_coeff[1], t_coeff, where=t_coeff!=0)
+    volt    *= np.hstack((scale,0.0))
+    for i in range(N_PROCS):
+        res_info2 = {'N':N_J_TOTAL//3,'mean_R':MEAN_R2,'std_R':0.0}
+        args    = (volt,"",PATH)
+        kwargs  = {
+            'net_kwargs': {"add_to_path" : f"_{i}",
+                           "pack_optimizer":False,
+                           "res_info2":res_info2,
+                           "seed":i},
+            'sim_kwargs': {"save_th":SAVE_TH}
+        }
+        tasks.append((args, kwargs))
+
+    batch_launch(run_static_simulation, tasks, N_PROCS)
 
 if __name__ == '__main__':
-
-    # N_p x N_p Values for Network Size 
-    N_p = 9
-
-    # Topology Parameter
-    topology_parameter          = {
-        "Nx"                :   N_p,
-        "Ny"                :   N_p,
-        "Nz"                :   1,
-        "e_pos"             :   [[0,0,0], [int((N_p-1)/2),0,0], [N_p-1,0,0], 
-                                [0,int((N_p-1)/2),0], [0,N_p-1,0], [N_p-1,int((N_p)/2),0],
-                                [int((N_p)/2),(N_p-1),0], [N_p-1,N_p-1,0]],
-        "electrode_type"    :   ['constant','constant','constant','constant','constant','constant','constant','floating']
-    }
-
-    if topology_parameter["electrode_type"][-1] == "constant":
-        folder  = "/home/j/j_mens07/phd/data/1_funding_period/current/res_disorder/"
-    else:
-        folder  = "/home/j/j_mens07/phd/data/1_funding_period/potential/res_disorder/"
-
-    # Number of voltages and CPU processes
-    N_voltages  = 20000 #80640
-    N_processes = 10 #36
-
-    # Voltage values
-    U_e         = 0.1
-    voltages    = nanonets_utils.logic_gate_sample(U_e=U_e, input_pos=[1,3], N_samples=N_voltages, topology_parameter=topology_parameter)
-
-    # Nanoparticle Information
-    sigma_R = 5.0
-    res_info = {
-        "mean_R"    : 25.0,     # Average resistance
-        "std_R"     : sigma_R,  # Standard deviation of resistances
-        "dynamic"   : False     # Dynamic or constant resistances
-    }
-   
-    for i in range(N_processes):
-
-        process = multiprocessing.Process(target=parallel_code, args=(i, voltages, folder, topology_parameter, res_info, sigma_R))
-        process.start()
+    main()

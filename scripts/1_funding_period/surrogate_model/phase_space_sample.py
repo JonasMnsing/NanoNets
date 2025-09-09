@@ -1,61 +1,41 @@
-"""
-Phase space sample of a 9 x 9 lattice network.
-"""
-
+import logging
 import numpy as np
-import sys
+from pathlib import Path
+from nanonets.utils import distribute_array_across_processes, batch_launch, run_static_simulation
 
-# Add to path
-sys.path.append("/home/j/j_mens07/phd/NanoNets/src/")
-sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
+# ─── Configuration ───
+N_PARTICLES = 9
+N_E         = 8
+V_CONTROL   = 0.1
+V_GATE      = 0.0
+N_DATA      = 512000
+N_PROCS     = 64
+LOG_LEVEL   = logging.INFO
+PATH        = Path("/scratch/j_mens07/data/1_funding_period/phase_space_sample/")
+SAVE_TH     = 10
+# --------------------- 
 
-import nanonets
-import nanonets_utils
-import multiprocessing
-
-# Simulation Function
-def parallel_code(thread, rows, voltages):
-
-    target_electrode    = len(topology_parameter["e_pos"]) - 1
-    thread_rows         = rows[thread]
+def main():
+    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")
+    PATH.mkdir(parents=True, exist_ok=True)
+    tasks = []
+    topo = {"Nx": N_PARTICLES, "Ny": N_PARTICLES,
+            "e_pos" : [[0,0], [int((N_PARTICLES-1)/2),0], [N_PARTICLES-1,0],
+                       [0,int((N_PARTICLES-1)/2)], [0,N_PARTICLES-1],
+                       [N_PARTICLES-1,int((N_PARTICLES)/2)],
+                       [int((N_PARTICLES)/2),(N_PARTICLES-1)], [N_PARTICLES-1,N_PARTICLES-1]],
+            "electrode_type" : ['constant']*N_E}
+    volt = np.random.uniform(-V_CONTROL, V_CONTROL, size=(N_DATA,N_E-1))
+    volt = np.hstack((volt,np.zeros(shape=(N_DATA,2))))
     
-    sim_class = nanonets.simulation(topology_parameter=topology_parameter, folder=folder)
-    sim_class.run_const_voltages(voltages=voltages[thread_rows,:], target_electrode=target_electrode, save_th=20)
+    for p in range(N_PROCS):
+        volt_p  = distribute_array_across_processes(p, volt, N_PROCS)
+        args    = (volt_p, topo, PATH)
+        kwargs  = {"net_kwargs":{"pack_optimizer":False},
+                    "sim_kwargs":{"save_th":SAVE_TH}}
+        tasks.append((args,kwargs))
 
-if __name__ == '__main__':
+    batch_launch(run_static_simulation, tasks, N_PROCS)
 
-    # N_p x N_p Values for Network Size 
-    N_p = 9
-
-    # Topology Parameter
-    topology_parameter          = {
-        "Nx"                :   N_p,
-        "Ny"                :   N_p,
-        "Nz"                :   1,
-        "e_pos"             :   [[0,0,0], [int((N_p-1)/2),0,0], [N_p-1,0,0], 
-                                [0,int((N_p-1)/2),0], [0,N_p-1,0], [N_p-1,int((N_p)/2),0],
-                                [int((N_p)/2),(N_p-1),0], [N_p-1,N_p-1,0]],
-        "electrode_type"    :   ['constant','constant','constant','constant','constant','constant','constant','floating']
-    }
-
-    if topology_parameter["electrode_type"][-1] == "constant":
-        folder  = "/home/j/j_mens07/phd/data/1_funding_period/current/surrogate_model/"
-    else:
-        folder  = "/home/j/j_mens07/phd/data/1_funding_period/potential/surrogate_model/"
-
-    # Number of voltages and CPU processes
-    N_voltages  = 100000 #80640
-    N_processes = 10 #36
-
-    # Voltage values
-    U_e         = 0.1
-    voltages    = nanonets_utils.lhs_sample(U_e=U_e, N_samples=N_voltages, topology_parameter=topology_parameter)
-    
-    # Simulated rows for each process
-    index   = [i for i in range(N_voltages)]
-    rows    = [index[i::N_processes] for i in range(N_processes)]
-
-    for i in range(N_processes):
-
-        process = multiprocessing.Process(target=parallel_code, args=(i, rows, voltages))
-        process.start()
+if __name__ == "__main__":
+    main()

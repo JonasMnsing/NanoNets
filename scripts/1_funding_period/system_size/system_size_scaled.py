@@ -16,10 +16,12 @@ N_DATA          = 20000
 N_PROCS         = 10
 T_VAL           = 5
 LOG_LEVEL       = logging.INFO
-PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/system_size/unscaled/")
+# PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/system_size_scaled/")
+PATH            = Path("/scratch/j_mens07/data/1_funding_period/system_size/system_size_scaled/")
 INPUT_POS       = [1,3]
 N_REF_NET       = 9
 E_POS_REF       = 1
+SAVE_TH         = 10
 # --------------------- 
 
 # Scale Voltage ranges
@@ -28,15 +30,15 @@ def get_transfer_coeff(n):
             "e_pos" : [[0,0], [int((n-1)/2),0], [n-1,0], [0,int((n-1)/2)],
                        [0,n-1], [n-1,int((n)/2)], [int((n)/2),(n-1)], [n-1,n-1]],
             "electrode_type" : ['constant']*8}
-    sim_class = Simulation(topology_parameter=topo)
+    sim_class = Simulation(topology_parameter=topo, pack_optimizer=False)
     sim_class.build_conductance_matrix()
     sim_class.init_transfer_coeffs()
     return sim_class.get_transfer_coeffs()
+
 def get_scaling_factor(n=9, e_pos=1):
     transf_coeff    = np.array([get_transfer_coeff(nn) for nn in range(N_MIN, N_MAX + 1)])
     factor          = np.ones_like(transf_coeff, dtype=float)
     np.divide(transf_coeff[n-N_MIN,e_pos], transf_coeff, out=factor, where=transf_coeff!=0)
-
     return factor
 
 def main():
@@ -56,7 +58,8 @@ def main():
         for p in range(N_PROCS):
             volt_p  = distribute_array_across_processes(p, volt, N_PROCS)
             args    = (volt_p,topo,PATH)
-            kwargs  = {}
+            kwargs  = {"net_kwargs":{"pack_optimizer":False},
+                       "sim_kwargs":{"save_th":SAVE_TH}}
             tasks.append((args,kwargs))
 
     batch_launch(run_static_simulation, tasks, N_PROCS)

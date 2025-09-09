@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Nanonets
 from nanonets import Simulation
-from nanonets.utils import logic_gate_sample, batch_launch, run_static_simulation
+from nanonets.utils import logic_gate_sample, distribute_array_across_processes ,batch_launch, run_static_simulation
 
 # ─── Configuration ───
 N_P         = 9
@@ -12,17 +12,19 @@ N_E         = 8
 V_CONTROL   = 0.1
 V_INPUT     = 0.01
 V_GATE      = 0.0
-N_DATA      = 20000
-N_PROCS     = 10
+N_DATA      = 32000
+N_PROCS     = 64
+T_VAL       = 5
 LOG_LEVEL   = logging.INFO
 INPUT_POS   = [1,3]
 E_POS_REF   = 1
-MEAN_R2     = 50.0
 # PATH        = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/system_size_scaled/")
 PATH        = Path("/scratch/j_mens07/data/2_funding_period/static/cap_disorder/")
-SAVE_TH     = 10
-N_J_TOTAL   = 2*N_P*(N_P-1)
-
+RAD_VALS    = np.load("scripts/2_funding_period/WP2/wo_cable/data/radius_dis_corner.npy")
+TOPO_VALS   = np.load("scripts/2_funding_period/WP2/wo_cable/data/topo_dis_corner.npy")
+DIST_VALS   = np.load("scripts/2_funding_period/WP2/wo_cable/data/dist_dis_corner.npy")
+E_DIST_VALS = np.load("scripts/2_funding_period/WP2/wo_cable/data/e_dist_dis_corner.npy")
+SAVE_TH     = 100
 # --------------------- 
 
 def get_transfer_coeff(n):
@@ -48,16 +50,16 @@ def main():
     t_coeff = get_transfer_coeff(N_P)
     scale   = np.divide(t_coeff[1], t_coeff, where=t_coeff!=0)
     volt    *= np.hstack((scale,0.0))
-    for i in range(N_PROCS):
-        res_info2 = {'N':N_J_TOTAL//3,'mean_R':MEAN_R2,'std_R':0.0}
-        args    = (volt,"",PATH)
-        kwargs  = {
-            'net_kwargs': {"add_to_path" : f"_{i}",
-                           "pack_optimizer":False,
-                           "res_info2":res_info2,
-                           "seed":i},
-            'sim_kwargs': {"save_th":SAVE_TH}
-        }
+    kwargs  = {
+        'net_kwargs': {'add_to_path' : f"_corner", "net_topology" : TOPO_VALS,
+                    "dist_matrix" : DIST_VALS,"electrode_dist_matrix" : E_DIST_VALS,
+                    "radius_vals" : RAD_VALS,"electrode_type" : ['constant']*(E_DIST_VALS.shape[0])},
+        'sim_kwargs': {'T_val':T_VAL,'save_th':SAVE_TH}
+    }
+
+    for p in range(N_PROCS):
+        volt_p  = distribute_array_across_processes(p, volt, N_PROCS)
+        args    = (volt_p,"",PATH)
         tasks.append((args, kwargs))
 
     batch_launch(run_static_simulation, tasks, N_PROCS)

@@ -251,7 +251,7 @@ class Simulation(tunneling.NanoparticleTunneling):
                 "error_th"        : 0.05,
                 "max_jumps"       : 10000000,
                 "eq_steps"        : 100000,
-                "jumps_per_batch" : 5000,
+                "jumps_per_batch" : 2000,
                 "kmc_counting"    : False,
                 "min_batches"     : 5
             }

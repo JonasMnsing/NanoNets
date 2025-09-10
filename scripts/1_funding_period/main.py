@@ -1,41 +1,42 @@
-"""
-Run KMC Code for const set of voltages with fixed parameters defined in "params.csv" @ folder.
-Output Electrode @ last position in topology_parameter key "pos"
-"""
+import logging
+from pathlib import Path
+from nanonets.utils import logic_gate_sample, distribute_array_across_processes, batch_launch, run_static_simulation
 
-import numpy as np
-import sys
+# ─── Configuration ───
+N_PARTICLES     = 9
+N_ELECTRODES    = 8
+V_CONTROL       = 0.002
+V_INPUT         = 0.004
+V_GATE          = 0.0
+N_DATA          = 5000
+N_PROCS         = 10
+T_VAL           = 5
+LOG_LEVEL       = logging.INFO
+PATH            = Path("/home/j/j_mens07/phd/NanoNets/scripts/1_funding_period/")
+INPUT_POS       = [1,3]
+SAVE_TH         = 10
+# --------------------- 
 
-# Add to path
-sys.path.append("/home/jonas/phd/NanoNets/src/")
-sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
+def main():
+    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")
+    PATH.mkdir(parents=True, exist_ok=True)
+    tasks = []
+    topo = {"Nx": N_PARTICLES, "Ny": N_PARTICLES,
+            "e_pos" : [[0,0], [int((N_PARTICLES-1)/2),0], [N_PARTICLES-1,0],
+                       [0,int((N_PARTICLES-1)/2)], [0,N_PARTICLES-1],
+                       [N_PARTICLES-1,int((N_PARTICLES)/2)],
+                       [int((N_PARTICLES)/2),(N_PARTICLES-1)], [N_PARTICLES-1,N_PARTICLES-1]],
+            "electrode_type" : ['constant']*N_ELECTRODES}
+    volt = logic_gate_sample(V_CONTROL, INPUT_POS, N_DATA, topo, V_INPUT,
+                                V_GATE, sample_technique='uniform')
+    for p in range(N_PROCS):
+        volt_p  = distribute_array_across_processes(p, volt, N_PROCS)
+        args    = (volt_p,topo,PATH)
+        kwargs  = {"net_kwargs":{"pack_optimizer":False},
+                    "sim_kwargs":{"save_th":SAVE_TH}}
+        tasks.append((args,kwargs))
 
-import nanonets
-import nanonets_utils
-import multiprocessing
+    batch_launch(run_static_simulation, tasks, N_PROCS)
 
-# Simulation Function
-def parallel_code(thread, rows, voltages, topology_parameter, sim_dic, folder, np_info, T_val, save_th, add_to_path):
-
-    target_electrode    = len(topology_parameter["e_pos"]) - 1
-    thread_rows         = rows[thread]
-        
-    sim_class = nanonets.simulation(network_topology='cubic', topology_parameter=topology_parameter, folder=folder, np_info=np_info, add_to_path=add_to_path)
-    sim_class.run_const_voltages(voltages=voltages[thread_rows,:], target_electrode=target_electrode, T_val=T_val, sim_dic=sim_dic, save_th=save_th)
-
-if __name__ == '__main__':
-
-    folder      = "scripts/1_funding_period/iv_curves/temperature/"
-    voltages    = np.loadtxt(folder+'volt.csv')
-    N_voltages  = voltages.shape[0]
-
-    N_processes, network_topology, topology_parameter, sim_dic, np_info, T_val, save_th, add_to_path = nanonets_utils.load_params(folder=folder)
-    
-    index   = [i for i in range(N_voltages)]
-    rows    = [index[i::N_processes] for i in range(N_processes)]
-
-    for i in range(N_processes):
-
-        process = multiprocessing.Process(target=parallel_code, args=(i, rows, voltages, topology_parameter, sim_dic, folder,
-                                                                      np_info, T_val, save_th, add_to_path))
-        process.start()
+if __name__ == "__main__":
+    main()

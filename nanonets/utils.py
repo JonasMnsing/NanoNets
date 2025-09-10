@@ -1071,7 +1071,7 @@ def autocorrelation(x : np.ndarray, y : np.ndarray, lags : int)->np.ndarray:
         Autocorrelation for each lag from 0 to lags-1
     """
 
-    return [np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)]
+    return np.array([np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)])
 
 def fft(signal: np.ndarray, dt: float,n_padded: int = 0, use_hann: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     """

@@ -9,8 +9,8 @@ from nanonets.utils import logic_gate_sample, distribute_array_across_processes,
 # ─── Configuration ───
 N_MIN, N_MAX    = 3, 16
 N_E             = 8
-V_CONTROL       = 0.1
-V_INPUT         = 0.01
+V_CONTROL       = 0.09
+V_INPUT         = 0.03
 V_GATE          = 0.0
 N_DATA          = 20000
 N_PROCS         = 10

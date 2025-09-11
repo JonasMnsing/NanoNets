@@ -617,7 +617,7 @@ def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame
 
     return df
 
-def fitness(df: pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_state:float = 0.0, on_state:float = None,
+def fitness(df: pd.DataFrame, input_cols: List[str], delta: float = 0.01, off_state: float = 0.0, on_state: float = None,
     gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']) -> pd.DataFrame:
     """
     Calculate the fitness of a set of logic gates based on their residual sum of squares (RSS).

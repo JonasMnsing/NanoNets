@@ -211,7 +211,7 @@ class Simulation(tunneling.NanoparticleTunneling):
         self.path2  = folder + 'mean_state_'    + path_var
         self.path3  = folder + 'net_currents_'  + path_var
 
-    def run_static_voltages(self, voltages : np.ndarray, target_electrode : int, T_val: float = 5.0, sim_dic: dict = None, save_th: int = None, verbose: bool = False):
+    def run_static_voltages(self, voltages : np.ndarray, target_electrode : int, T_val: float = 0.1, sim_dic: dict = None, save_th: int = None, verbose: bool = False):
         """
         Run a kinetic Monte Carlo simulation at fixed electrode voltages, estimating either the steady-state
         current or, for floating electrodes, the equilibrium potential at a selected electrode.
@@ -223,7 +223,7 @@ class Simulation(tunneling.NanoparticleTunneling):
         target_electrode : int
             Index of the electrode for which to record current (constant) or potential (floating).
         T_val : float, optional
-            Network temperature [K]. Default: 5.0.
+            Network temperature [K]. Default: 1.0.
         sim_dic : dict, optional
             Dictionary of simulation parameters:
                 error_th        : Target relative error of the main observable.
@@ -348,7 +348,7 @@ class Simulation(tunneling.NanoparticleTunneling):
 
                 j = i+1
 
-    def run_dynamic_voltages(self, voltages: np.ndarray, time_steps: np.ndarray, target_electrode: int, T_val: float = 5.0, eq_steps: int = 0, save: bool = False,
+    def run_dynamic_voltages(self, voltages: np.ndarray, time_steps: np.ndarray, target_electrode: int, T_val: float = 0.1, eq_steps: int = 0, save: bool = False,
                          stat_size: int = 10, init_charges: bool = None, verbose: bool = False):
         """
         Run kinetic Monte Carlo simulation for time-dependent electrode voltages.

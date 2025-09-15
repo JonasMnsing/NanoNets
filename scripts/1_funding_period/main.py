@@ -7,7 +7,7 @@ from nanonets.utils import logic_gate_sample, distribute_array_across_processes,
 # ─── Configuration ───
 N_PARTICLES     = 9
 N_ELECTRODES    = 8
-V_CONTROL       = 0.02
+V_CONTROL       = 0.05
 V_INPUT         = 0.01
 V_GATE          = 0.0
 N_DATA          = 5000

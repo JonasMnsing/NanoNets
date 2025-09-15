@@ -1479,7 +1479,7 @@ def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XN
 
     return fig, ax
 
-def display_network(G, pos: dict, radius: np.ndarray, net_topology: np.ndarray, fig: plt.Figure, ax: plt.Axes):
+def display_network(G, pos: dict, radius: np.ndarray, fig: plt.Figure, ax: plt.Axes):
     """
     Visualize a nanoparticle network, including particles and electrodes.
 
@@ -1491,8 +1491,6 @@ def display_network(G, pos: dict, radius: np.ndarray, net_topology: np.ndarray, 
         Node positions {index: (x, y)}.
     radius : np.ndarray
         Radii for each nanoparticle.
-    net_topology : np.ndarray
-        Topology matrix. First column: electrode (or NO_CONNECTION).
     fig, ax : matplotlib Figure and Axes
         Output axes for plotting.
 

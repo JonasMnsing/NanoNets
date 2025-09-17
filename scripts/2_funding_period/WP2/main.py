@@ -1,42 +1,42 @@
+import logging
 import numpy as np
-import sys
+from pathlib import Path
+from nanonets.utils import sinusoidal_voltages, batch_launch, run_dynamic_simulation
 
-# Add to path
-sys.path.append("/home/jonas/phd/NanoNets/src/")
-sys.path.append("/mnt/c/Users/jonas/Desktop/phd/NanoNets/src/")
-sys.path.append("/home/j/j_mens07/phd/NanoNets/src/")
+# ─── Configuration ───
+N_PARTICLES     = 9
+N_ELECTRODES    = 8
+AMPLITUDE       = [0.02] + [0.0]*(N_ELECTRODES-1)
+FREQUENCY       = [16.0 * 1e6] + [0.0]*(N_ELECTRODES-1)
+V_GATE          = 0.0
+N_PERIODS       = 100
+N_PROCS         = 1
+LOG_LEVEL       = logging.INFO
+PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/nanonets/scripts/2_funding_period/WP2/")
+STAT_SIZE       = 200
+# --------------------- 
 
-import nanonets
-import nanonets_utils
+def main():
+    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")
+    PATH.mkdir(parents=True, exist_ok=True)
+    tasks = []
+    topo = {"Nx": N_PARTICLES, "Ny": N_PARTICLES,
+            "e_pos" : [[int((N_PARTICLES-1)/2),0], [0,0], [N_PARTICLES-1,0],
+                       [0,int((N_PARTICLES-1)/2)], [N_PARTICLES-1,int((N_PARTICLES)/2)], 
+                       [0,N_PARTICLES-1], [N_PARTICLES-1,N_PARTICLES-1],
+                       [int((N_PARTICLES)/2),(N_PARTICLES-1)]],
+            "electrode_type" : ['constant']*(N_ELECTRODES-1) + ['floating']}
+    dt          = 1/(40 * FREQUENCY[0])
+    T_sim       = N_PERIODS / FREQUENCY[0]
+    N_steps     = int(np.ceil(T_sim / dt))
+    time, volt  = sinusoidal_voltages(N_steps, topo, AMPLITUDE, FREQUENCY, time_step=dt)
+    
+    args    = (time, volt, topo,PATH)
+    kwargs  = {"net_kwargs":{"pack_optimizer":False},
+                "sim_kwargs":{'stat_size':STAT_SIZE, 'save':True}}
+    tasks.append((args,kwargs))
 
-# Network Paramter
-N_p                 = 9
-folder              = "scripts/2_funding_period/WP2/"
-topology_parameter  = {
-    "Nx"                : N_p,
-    "Ny"                : N_p,
-    "Nz"                : 1,
-    "e_pos"             : [[(N_p-1)//2,0,0],[0,0,0],[N_p-1,0,0],[0,(N_p-1)//2,0],
-                           [N_p-1,(N_p-1)//2,0],[0,N_p-1,0],[N_p-1,N_p-1,0],[(N_p-1)//2,N_p-1,0]],
-    "electrode_type"    : ['constant','constant','constant','constant','constant','constant','constant','floating']
-}
-target_electrode    = len(topology_parameter["e_pos"])-1
-np_info = {
-    "eps_r"         : 2.6, 
-    "eps_s"         : 3.9,
-    "mean_radius"   : 10.0,
-    "std_radius"    : 0.0,
-    "np_distance"   : 1.0
-}
+    batch_launch(run_dynamic_simulation, tasks, N_PROCS)
 
-# Voltage Paramter
-N_voltages              = 10000
-amplitudes              = [0.01,0.0,-0.02,0.0,0.01,0.05,0.0,0.0]
-frequencies             = [4.0,0.0,0.0,0.0,0.1,0.0,0.0,0.0]
-phase                   = 0.0
-offset                  = 0.0
-time_steps, voltages    = nanonets_utils.sinusoidal_voltages(N_samples=N_voltages, topology_parameter=topology_parameter,
-                                                             amplitudes=amplitudes, frequencies=frequencies, phase=phase, offset=offset)
-
-sim_class = nanonets.simulation(topology_parameter=topology_parameter, folder=folder, np_info=np_info)
-sim_class.run_var_voltages(voltages=voltages, time_steps=time_steps, target_electrode=target_electrode)
+if __name__ == "__main__":
+    main()

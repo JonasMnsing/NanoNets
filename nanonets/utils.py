@@ -10,7 +10,7 @@ import multiprocessing
 import logging
 
 from . import simulation
-from typing import Any, Callable, Union, Tuple, List, Dict, Optional
+from typing import Any, Callable, Union, Set, Tuple, List, Dict, Optional
 from scipy.stats import entropy
 from pathlib import Path
 
@@ -344,6 +344,72 @@ def load_simulation_results(folder : str, N : Union[int, List[int]], N_e : Union
 
     return data
 
+# def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List[str], drop_zero=True, off_state=0.0, on_state=0.01)->pd.DataFrame:
+#     """Prepares a pandas DataFrame for the calculation of logic gate fitness, ensuring that all input state combinations are present for each set of rows.
+
+#     Parameters
+#     ----------
+#     df : pd.DataFrame
+#         Boolean logic simulation DataFrame
+#     N_e : int
+#         Number of Electrodes
+#     input_cols : List[str]
+#         List of input voltage columns (e.g., ['E0', 'E1']).
+#     drop_zero : bool, optional
+#         Whether to drop rows with zero observable current, by default True
+#     off_state : float, optional
+#         Value representing the off-state voltage, by default 0.0
+#     on_state : float, optional
+#         Value representing the on-state voltage, by default 0.01
+
+#     Returns
+#     -------
+#     pd.DataFrame
+#         The filtered and cleaned DataFrame
+#     """
+
+#     # Prepare column names for sorting
+#     sort_cols   = [f'E{i}' for i in range(N_e) if f'E{i}' not in input_cols] + ['G'] + input_cols
+
+#     # Copy DataFame and drop Zeros
+#     data    = df.copy()
+#     data    = data[data['Error'] != 0.0]
+#     data    = data[data['Observable'].abs() > 0.0] if drop_zero else data
+
+#     # Sort the DataFrame by relevant columns
+#     data    = data.sort_values(by=sort_cols)
+#     data    = data.reset_index(drop=True)
+#     N_data  = len(data)
+    
+#     # Collect indices of rows to drop
+#     rows_to_drop    = []
+#     i_input1        = input_cols[0]
+#     i_input2        = input_cols[1]
+#     i               = 0
+    
+#     while i < N_data-3:
+
+#         cond1   = (data[i_input1][i]      == off_state)   and (data[i_input2][i]      == off_state)
+#         cond2   = (data[i_input1][i + 1]  == off_state)   and (data[i_input2][i + 1]  == on_state)
+#         cond3   = (data[i_input1][i + 2]  == on_state)    and (data[i_input2][i + 2]  == off_state)
+#         cond4   = (data[i_input1][i + 3]  == on_state)    and (data[i_input2][i + 3]  == on_state)
+        
+#         cond5   = data['G'][i] == data['G'][i + 1]
+#         cond6   = data['G'][i] == data['G'][i + 2]
+#         cond7   = data['G'][i] == data['G'][i + 3]
+
+#         # If any condition fails, mark the rows for dropping
+#         if not (cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7):
+#             rows_to_drop.extend([i])
+#             i += 1
+#         else:
+#             i += 4
+    
+#     # Drop the rows at once and reset the index
+#     data = data.drop(rows_to_drop).reset_index(drop=True)
+
+#     return data
+
 def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List[str], drop_zero=True, off_state=0.0, on_state=0.01)->pd.DataFrame:
     """Prepares a pandas DataFrame for the calculation of logic gate fitness, ensuring that all input state combinations are present for each set of rows.
 
@@ -368,47 +434,43 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
         The filtered and cleaned DataFrame
     """
 
-    # Prepare column names for sorting
-    sort_cols   = [f'E{i}' for i in range(N_e) if f'E{i}' not in input_cols] + ['G'] + input_cols
+    # Create a copy to avoid modifying the original DataFrame
+    data = df.copy()
 
-    # Copy DataFame and drop Zeros
-    data    = df.copy()
-    data    = data[data['Error'] != 0.0]
-    data    = data[data['Observable'].abs() > 0.0] if drop_zero else data
+    # Initial filtering based on 'Error' and 'Observable'
+    data = data[data['Error'] != 0.0]
+    if drop_zero:
+        data = data[data['Observable'].abs() > 0.0]
 
-    # Sort the DataFrame by relevant columns
-    data    = data.sort_values(by=sort_cols)
-    data    = data.reset_index(drop=True)
-    N_data  = len(data)
+    # 1. Define the columns that should be constant for a group
+    # These are all electrode columns that are NOT inputs, plus the 'G' column.
+    group_cols = [f'E{i}' for i in range(N_e) if f'E{i}' not in input_cols] + ['G']
     
-    # Collect indices of rows to drop
-    rows_to_drop    = []
-    i_input1        = input_cols[0]
-    i_input2        = input_cols[1]
-    i               = 0
-    
-    while i < N_data-3:
+    # 2. Define the set of required input states we're looking for
+    required_states: Set[Tuple[float, float]] = {
+        (off_state, off_state),
+        (off_state, on_state),
+        (on_state, off_state),
+        (on_state, on_state),
+    }
 
-        cond1   = (data[i_input1][i]      == off_state)   and (data[i_input2][i]      == off_state)
-        cond2   = (data[i_input1][i + 1]  == off_state)   and (data[i_input2][i + 1]  == on_state)
-        cond3   = (data[i_input1][i + 2]  == on_state)    and (data[i_input2][i + 2]  == off_state)
-        cond4   = (data[i_input1][i + 3]  == on_state)    and (data[i_input2][i + 3]  == on_state)
-        
-        cond5   = data['G'][i] == data['G'][i + 1]
-        cond6   = data['G'][i] == data['G'][i + 2]
-        cond7   = data['G'][i] == data['G'][i + 3]
+    # 3. Group by the constant columns and filter the groups
+    # A group is kept only if it has exactly 4 rows and contains all required input combinations.
+    def is_complete_group(group):
+        # Quick check for size
+        if len(group) != 4:
+            return False
+        # Get the actual input states present in the group
+        actual_states = set(zip(group[input_cols[0]], group[input_cols[1]]))
+        # Compare the set of actual states to the set of required states
+        return actual_states == required_states
 
-        # If any condition fails, mark the rows for dropping
-        if not (cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7):
-            rows_to_drop.extend([i])
-            i += 1
-        else:
-            i += 4
-    
-    # Drop the rows at once and reset the index
-    data = data.drop(rows_to_drop).reset_index(drop=True)
+    # Apply the filter function to the grouped data
+    filtered_data = data.groupby(group_cols).filter(is_complete_group)
 
-    return data
+    # Sort the final result for consistent ordering and reset the index
+    sort_cols = group_cols + input_cols
+    return filtered_data.sort_values(by=sort_cols).reset_index(drop=True)
 
 def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], input_cols: List[str],
                          disordered: bool = False, off_state: float = 0.0, on_state: float = None, max_error=np.inf,

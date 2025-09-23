@@ -411,7 +411,8 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
     return data
 
 def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], input_cols: List[str],
-                         disordered: bool = False, off_state: float = 0.0, on_state: float = None, max_error=np.inf) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
+                         disordered: bool = False, off_state: float = 0.0, on_state: float = None, max_error=np.inf,
+                         drop_zero=True) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
     """Load and prepare simulation results.
 
     Parameters
@@ -452,15 +453,15 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
             on_state = [on_state for _ in range(len(N))]
         if on_state is None:
             on_state = [data[n_val].loc[:,input_cols[0]].max() for n_val in N]         
-        prepared_data = {key: prepare_for_fitness_calculation(data[key], N_e, input_cols, off_state=off_state, on_state=on_state[i]) for i, key in enumerate(data.keys())}
+        prepared_data = {key: prepare_for_fitness_calculation(data[key], N_e, input_cols, off_state=off_state, on_state=on_state[i], drop_zero=drop_zero) for i, key in enumerate(data.keys())}
     elif isinstance(N, int) and isinstance(N_e, list):
         if isinstance(on_state, float):
             on_state = [on_state for _ in range(len(N_e))]
         if on_state is None:
             on_state = [data[n_val].loc[:,input_cols[0]].max() for n_val in N]
-        prepared_data = {key: prepare_for_fitness_calculation(data[key], key, input_cols, off_state=off_state, on_state=on_state[i]) for i, key in enumerate(data.keys())}
+        prepared_data = {key: prepare_for_fitness_calculation(data[key], key, input_cols, off_state=off_state, on_state=on_state[i], drop_zero=drop_zero) for i, key in enumerate(data.keys())}
     else:
-        prepared_data = prepare_for_fitness_calculation(data, N_e, input_cols, off_state=off_state, on_state=on_state)
+        prepared_data = prepare_for_fitness_calculation(data, N_e, input_cols, off_state=off_state, on_state=on_state, drop_zero=drop_zero)
 
     return prepared_data
 

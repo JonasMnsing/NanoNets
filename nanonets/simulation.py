@@ -72,7 +72,7 @@ class Simulation(tunneling.NanoparticleTunneling):
     """
 
     def __init__(self, topology_parameter : dict, folder: str = '', add_to_path: str = "", res_info: dict = None, res_info2: dict = None,
-                 np_info: dict = None, np_info2: dict = None, seed: int = None, high_C_output: bool = False, pack_optimizer: bool = True, **kwargs):
+                 np_info: dict = None, np_info2: dict = None, seed: int = None, high_C_output: bool = False, pack_optimizer: bool = False, **kwargs):
         """
         Defines network topology, electrostatic properties, and tunneling junctions for a given topology.
 

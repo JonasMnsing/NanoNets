@@ -1248,9 +1248,109 @@ def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int,
 
     return h_strength
 
+def harmonic_strength_robust(
+    signal: np.ndarray, 
+    f0: float, 
+    dt: float, 
+    N_f: int,
+    use_hann: bool = False, 
+    n_padded: int = 0, 
+    snr_threshold: float = 10.0
+) -> np.ndarray:
+    """
+    Compute the relative amplitudes of harmonics using an SNR-based validity check.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        Input time-domain signal.
+    f0 : float
+        Fundamental frequency (Hz).
+    dt : float
+        Sampling interval (seconds).
+    N_f : int
+        Number of harmonics to include (excludes the fundamental).
+    use_hann : bool, optional
+        If True, apply a Hann window before FFT.
+    n_padded : int, optional
+        Length to zero-pad signal to before FFT.
+    snr_threshold : float, optional
+        Minimum SNR of the fundamental peak relative to the noise floor
+        for the calculation to be considered valid.
+
+    Returns
+    -------
+    h_strength : np.ndarray
+        Relative amplitudes of harmonics 2 through N_f+1, normalized to the
+        fundamental amplitude: A_n / A_1. Returns zeros if SNR is too low.
+    """
+    # Compute maximum allowable harmonics
+    fs = 1.0 / dt
+    if (N_f + 1) * f0 > fs / 2:
+        max_harmonics = int(np.floor((fs / 2) / f0)) - 1
+        raise ValueError(
+            f"N_f={N_f} exceeds maximum detectable harmonics "
+            f"({max_harmonics}) for dt={dt} and f0={f0}."
+        )
+
+    # Remove DC component
+    x = np.asarray(signal, dtype=float)
+    x = x - np.mean(x)
+
+    # Compute spectrum
+    freqs, amps = fft(x, dt, n_padded=n_padded, use_hann=use_hann)
+
+    # --- Robustness Improvement ---
+    
+    # 1. Estimate the noise floor
+    # We create a mask to exclude the regions around the fundamental and harmonics
+    # from our noise calculation.
+    is_peak_region = np.zeros_like(freqs, dtype=bool)
+    freq_resolution = freqs[1] - freqs[0]
+    # Define a bandwidth around each harmonic to exclude, e.g., 5 bins wide
+    exclude_width_bins = 5 
+    
+    for n in range(1, N_f + 2):
+        harmonic_freq = n * f0
+        # Find the index of the closest frequency bin
+        idx = np.argmin(np.abs(freqs - harmonic_freq))
+        # Exclude a small window around this index
+        start_idx = max(0, idx - exclude_width_bins // 2)
+        end_idx = min(len(freqs), idx + exclude_width_bins // 2 + 1)
+        is_peak_region[start_idx:end_idx] = True
+
+    # Calculate noise floor as the median of the spectrum *outside* the peak regions
+    noise_floor = np.median(amps[~is_peak_region])
+    
+    # Avoid division by zero in the unlikely case of a perfectly silent signal
+    if noise_floor == 0:
+        noise_floor = 1e-12 
+
+    # 2. Find fundamental amplitude and calculate its SNR
+    idx1 = np.argmin(np.abs(freqs - f0))
+    A1 = amps[idx1]
+    snr_f0 = A1 / noise_floor
+
+    # 3. Apply the SNR threshold
+    if snr_f0 < snr_threshold:
+        # The fundamental is not distinct enough from the noise
+        return np.zeros(N_f)
+
+    # --- End of Improvement ---
+
+    # Proceed with calculation as before
+    harmonics = np.arange(2, N_f + 2)
+    h_strength = np.empty(N_f, dtype=float)
+
+    for i, n in enumerate(harmonics):
+        idx = np.argmin(np.abs(freqs - n * f0))
+        h_strength[i] = amps[idx] / A1
+
+    return h_strength
+
 def total_harmonic_distortion(signal: np.ndarray, f0: float, dt: float,
                               N_f: int, use_hann: bool = False, n_padded: int = 0, 
-                              dB: bool = False) -> float:
+                              snr_threshold: float = 10, dB: bool = False) -> float:
     """
     Compute the Total Harmonic Distortion (THD) of a signal, based on the
     first N_f harmonics beyond the fundamental.
@@ -1283,7 +1383,8 @@ def total_harmonic_distortion(signal: np.ndarray, f0: float, dt: float,
         Total Harmonic Distortion in percent.
     """
     # Get normalized harmonic strengths
-    h       = harmonic_strength(signal, f0, dt, N_f, use_hann=use_hann, n_padded=n_padded)
+    # h       = harmonic_strength(signal, f0, dt, N_f, use_hann=use_hann, n_padded=n_padded)
+    h       = harmonic_strength_robust(signal, f0, dt, N_f, use_hann, n_padded, snr_threshold)
     ratio   = np.sqrt(np.sum(h**2))
 
     # Output

@@ -344,72 +344,6 @@ def load_simulation_results(folder : str, N : Union[int, List[int]], N_e : Union
 
     return data
 
-# def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List[str], drop_zero=True, off_state=0.0, on_state=0.01)->pd.DataFrame:
-#     """Prepares a pandas DataFrame for the calculation of logic gate fitness, ensuring that all input state combinations are present for each set of rows.
-
-#     Parameters
-#     ----------
-#     df : pd.DataFrame
-#         Boolean logic simulation DataFrame
-#     N_e : int
-#         Number of Electrodes
-#     input_cols : List[str]
-#         List of input voltage columns (e.g., ['E0', 'E1']).
-#     drop_zero : bool, optional
-#         Whether to drop rows with zero observable current, by default True
-#     off_state : float, optional
-#         Value representing the off-state voltage, by default 0.0
-#     on_state : float, optional
-#         Value representing the on-state voltage, by default 0.01
-
-#     Returns
-#     -------
-#     pd.DataFrame
-#         The filtered and cleaned DataFrame
-#     """
-
-#     # Prepare column names for sorting
-#     sort_cols   = [f'E{i}' for i in range(N_e) if f'E{i}' not in input_cols] + ['G'] + input_cols
-
-#     # Copy DataFame and drop Zeros
-#     data    = df.copy()
-#     data    = data[data['Error'] != 0.0]
-#     data    = data[data['Observable'].abs() > 0.0] if drop_zero else data
-
-#     # Sort the DataFrame by relevant columns
-#     data    = data.sort_values(by=sort_cols)
-#     data    = data.reset_index(drop=True)
-#     N_data  = len(data)
-    
-#     # Collect indices of rows to drop
-#     rows_to_drop    = []
-#     i_input1        = input_cols[0]
-#     i_input2        = input_cols[1]
-#     i               = 0
-    
-#     while i < N_data-3:
-
-#         cond1   = (data[i_input1][i]      == off_state)   and (data[i_input2][i]      == off_state)
-#         cond2   = (data[i_input1][i + 1]  == off_state)   and (data[i_input2][i + 1]  == on_state)
-#         cond3   = (data[i_input1][i + 2]  == on_state)    and (data[i_input2][i + 2]  == off_state)
-#         cond4   = (data[i_input1][i + 3]  == on_state)    and (data[i_input2][i + 3]  == on_state)
-        
-#         cond5   = data['G'][i] == data['G'][i + 1]
-#         cond6   = data['G'][i] == data['G'][i + 2]
-#         cond7   = data['G'][i] == data['G'][i + 3]
-
-#         # If any condition fails, mark the rows for dropping
-#         if not (cond1 and cond2 and cond3 and cond4 and cond5 and cond6 and cond7):
-#             rows_to_drop.extend([i])
-#             i += 1
-#         else:
-#             i += 4
-    
-#     # Drop the rows at once and reset the index
-#     data = data.drop(rows_to_drop).reset_index(drop=True)
-
-#     return data
-
 def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List[str], drop_zero=True, off_state=0.0, on_state=0.01)->pd.DataFrame:
     """Prepares a pandas DataFrame for the calculation of logic gate fitness, ensuring that all input state combinations are present for each set of rows.
 
@@ -1136,6 +1070,46 @@ def autocorrelation(x : np.ndarray, y : np.ndarray, lags : int)->np.ndarray:
 
     return np.array([np.corrcoef(x, y)[0,1] if l==0 else np.corrcoef(x[:-l], y[l:])[0,1] for l in range(lags)])
 
+def cross_correlation(x: np.ndarray, y: np.ndarray, lags: int) -> np.ndarray:
+    """Compute cross-correlation between two arrays "x" and "y" for a range of lags.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        First time series array.
+    y : np.ndarray
+        Second time series array. Must have the same length as x.
+    lags : int
+        Number of lags to compute on each side (from -lags to +lags).
+
+    Returns
+    -------
+    np.ndarray
+        Cross-correlation for each lag from -lags to +lags.
+    """
+    if x.ndim != 1 or y.ndim != 1:
+        raise ValueError("Input arrays must be 1-dimensional.")
+    if len(x) != len(y):
+        raise ValueError("Input arrays must have the same length.")
+    if lags >= len(x):
+        raise ValueError("Lags must be smaller than the length of the arrays.")
+
+    corrs = []
+    for l in range(-lags, lags + 1):
+        if l == 0:
+            # For lag 0, use the full arrays
+            c = np.corrcoef(x, y)[0, 1]
+        elif l > 0:
+            # For positive lags, y is shifted left
+            c = np.corrcoef(x[:-l], y[l:])[0, 1]
+        else: # l < 0
+            # For negative lags, y is shifted right
+            # abs(l) is used to get a positive index for slicing
+            c = np.corrcoef(x[abs(l):], y[:-abs(l)])[0, 1]
+        corrs.append(c)
+        
+    return np.array(corrs)
+
 def fft(signal: np.ndarray, dt: float,n_padded: int = 0, use_hann: bool = False) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute one‐sided FFT amplitude spectrum of a real-signal.
@@ -1186,77 +1160,7 @@ def fft(signal: np.ndarray, dt: float,n_padded: int = 0, use_hann: bool = False)
 
     return freq, mag
 
-def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int,
-                      use_hann: bool = False, n_padded: int = 0, amplitude_threshold: float = 1e-3) -> np.ndarray:
-    """
-    Compute the relative amplitudes of the first N_f harmonics of a signal
-    driven by a known fundamental frequency f0.
-
-    Parameters
-    ----------
-    signal : np.ndarray
-        Input time-domain signal (single period or multiple periods).
-    f0 : float
-        Fundamental frequency (Hz).
-    dt : float
-        Sampling interval (seconds).
-    N_f : int
-        Number of harmonics to include (excludes the fundamental).
-    use_hann : bool, optional
-        If True, apply a Hann window before FFT to reduce spectral leakage.
-    n_padded : int, optional
-        Length to zero-pad signal to before FFT (improves frequency resolution).
-    amplitude_threshold : float, optional
-        Minimum A1 (in volts) to compute relative amplitudes.
-
-    Returns
-    -------
-    h_strength : np.ndarray
-        Relative amplitudes of harmonics 2 through N_f+1, normalized to the
-        fundamental amplitude: A_n / A_1.
-    """
-    # Compute maximum allowable harmonics
-    fs = 1.0 / dt
-    max_harmonics = int(np.floor((fs / 2) / f0)) - 1
-    if N_f > max_harmonics:
-        raise ValueError(
-            f"N_f={N_f} exceeds maximum detectable harmonics "
-            f"({max_harmonics}) for dt={dt} and f0={f0}."
-        )
-    
-    # Remove DC
-    x = np.asarray(signal, dtype=float)
-    x = x - np.mean(x)
-
-    # Compute spectrum (windowing and padding handled internally)
-    freqs, amps = fft(x, dt, n_padded=n_padded, use_hann=use_hann)
-
-    # Fundamental amplitude
-    idx1 = np.argmin(np.abs(freqs - f0))
-    A1   = amps[idx1]
-
-    if A1 < amplitude_threshold:
-        return np.zeros(N_f)
-
-    # Higher harmonics
-    harmonics   = np.arange(2, N_f + 2)
-    h_strength  = np.empty(N_f, dtype=float)
-
-    for i, n in enumerate(harmonics):
-        idx             = np.argmin(np.abs(freqs - n * f0))
-        h_strength[i]   = amps[idx] / A1
-
-    return h_strength
-
-def harmonic_strength_robust(
-    signal: np.ndarray, 
-    f0: float, 
-    dt: float, 
-    N_f: int,
-    use_hann: bool = False, 
-    n_padded: int = 0, 
-    snr_threshold: float = 10.0
-) -> np.ndarray:
+def harmonic_strength(signal: np.ndarray, f0: float, dt: float, N_f: int,use_hann: bool = False, n_padded: int = 0, snr_threshold: float = 10.0) -> np.ndarray:
     """
     Compute the relative amplitudes of harmonics using an SNR-based validity check.
 
@@ -1348,9 +1252,8 @@ def harmonic_strength_robust(
 
     return h_strength
 
-def total_harmonic_distortion(signal: np.ndarray, f0: float, dt: float,
-                              N_f: int, use_hann: bool = False, n_padded: int = 0, 
-                              snr_threshold: float = 10, dB: bool = False) -> float:
+def total_harmonic_distortion(signal: np.ndarray, f0: float, dt: float, N_f: int, use_hann: bool = False,
+                              n_padded: int = 0, snr_threshold: float = 10, dB: bool = False) -> float:
     """
     Compute the Total Harmonic Distortion (THD) of a signal, based on the
     first N_f harmonics beyond the fundamental.
@@ -1376,6 +1279,9 @@ def total_harmonic_distortion(signal: np.ndarray, f0: float, dt: float,
     dB : bool, optional
         If True, return THD in decibels: 20 * log10(ratio).
         Otherwise, return THD in percent: 100 * ratio.
+    snr_threshold : float, optional
+        Minimum SNR of the fundamental peak relative to the noise floor
+        for the calculation to be considered valid.
 
     Returns
     -------
@@ -1384,7 +1290,7 @@ def total_harmonic_distortion(signal: np.ndarray, f0: float, dt: float,
     """
     # Get normalized harmonic strengths
     # h       = harmonic_strength(signal, f0, dt, N_f, use_hann=use_hann, n_padded=n_padded)
-    h       = harmonic_strength_robust(signal, f0, dt, N_f, use_hann, n_padded, snr_threshold)
+    h       = harmonic_strength(signal, f0, dt, N_f, use_hann, n_padded, snr_threshold)
     ratio   = np.sqrt(np.sum(h**2))
 
     # Output
@@ -1590,6 +1496,76 @@ def batch_launch(func: Callable[..., Any], tasks: List[Tuple[Tuple[Any,...]]], m
         running.append(p)
     for p in running:
         p.join()
+
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Network Currents
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def get_net_currents(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reduces a DataFrame by subtracting symmetric column pairs.
+
+    This function identifies column pairs named '(u, v)' and '(v, u)',
+    calculates the difference (u,v) - (v,u), and creates a new
+    DataFrame with the results.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame where column names are strings of the format
+        '(item1, item2)'. It is expected that for each '(u, v)', a
+        corresponding '(v, u)' column exists.
+
+    Returns
+    -------
+    pd.DataFrame
+        A new DataFrame containing the subtracted values. The new columns
+        are named 'u_minus_v' to reflect the operation. The resulting
+        DataFrame will have half the number of columns of the original.
+    """
+    # A set to keep track of columns we've already included in a calculation
+    processed_columns = set()
+    
+    # A dictionary to build the new DataFrame from
+    new_df_data = {}
+
+    # Iterate over each column name in the original DataFrame
+    for col_name in df.columns:
+        # If we have already processed this column as a counterpart, skip it
+        if col_name in processed_columns:
+            continue
+
+        # --- Parse the column name to find its counterpart ---
+        try:
+            # 1. Remove the parentheses: '(u, v)' -> 'u, v'
+            # 2. Split by the comma and space: 'u, v' -> ['u', 'v']
+            u_str, v_str = col_name.strip("()").split(', ')
+        except ValueError:
+            # This handles cases where a column name doesn't fit the format
+            print(f"Warning: Skipping column '{col_name}' as it doesn't match the '(u, v)' format.")
+            continue
+
+        # Construct the name of the counterpart column
+        counterpart_col_name = f'({v_str}, {u_str})'
+
+        # --- Check for the counterpart and perform subtraction ---
+        if counterpart_col_name in df.columns:
+            # Define a clean name for the new column
+            new_col_name = f'({u_str}, {v_str})'
+            
+            # Perform the subtraction and store it in our dictionary
+            new_df_data[new_col_name] = df[col_name] - df[counterpart_col_name]
+
+            # Add both the original and counterpart columns to our set of
+            # processed columns so we don't calculate the inverse.
+            processed_columns.add(col_name)
+            processed_columns.add(counterpart_col_name)
+        else:
+            # This handles cases where a column doesn't have a symmetric pair
+            print(f"Warning: Counterpart for '{col_name}' not found. Skipping.")
+
+    # Create the new DataFrame from our dictionary of results
+    return pd.DataFrame(new_df_data)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # PLOTS

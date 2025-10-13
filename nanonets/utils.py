@@ -8,6 +8,7 @@ import pandas as pd
 import networkx as nx
 import multiprocessing
 import logging
+import ast
 
 from . import simulation
 from typing import Any, Callable, Union, Set, Tuple, List, Dict, Optional
@@ -1566,6 +1567,50 @@ def get_net_currents(df: pd.DataFrame) -> pd.DataFrame:
 
     # Create the new DataFrame from our dictionary of results
     return pd.DataFrame(new_df_data)
+
+def create_weighted_undirected_graph(data):
+    
+    G = nx.Graph()
+    for key_str, weight in data.items():
+        u, v = ast.literal_eval(key_str)
+        G.add_edge(u, v, weight=weight)
+
+    return G
+
+def display_net_flow_graph(net_graph: nx.DiGraph, ax=None, pos=None, node_color='#348ABD',
+                           node_size=40, font_size=None, cmap=plt.cm.Reds, vmin=None, vmax=None, log_sacle=False):
+    
+    # --- 1. Setup Figure and Axes ---
+    if ax is None:
+        fig, ax = plt.subplots(dpi=200)
+    
+    # --- 2. Calculate Node Positions ---
+    if pos is None:
+        pos = nx.kamada_kawai_layout(net_graph)
+
+    # --- 3. Get Edge Weights for Coloring ---
+    weights = [net_graph[u][v]['weight'] for u, v in net_graph.edges()]
+    # Use log scale for better color distribution with wide-ranging data
+    if log_sacle:
+        new_weights = np.log1p(np.array(weights))
+        norm_min    = np.log1p(vmin) if vmin is not None else min(new_weights)
+        norm_max    = np.log1p(vmax) if vmax is not None else max(new_weights)
+    else:
+        new_weights = np.array(weights)
+        norm_min    = vmin if vmin is not None else min(new_weights)
+        norm_max    = vmax if vmax is not None else max(new_weights)
+
+    # --- 4. Draw the Graph Components ---
+    nx.draw(net_graph, pos, node_color=node_color, node_size=node_size, ax=ax,
+            edge_color=new_weights, edge_cmap=cmap, width=1,
+            edge_vmin=norm_min, edge_vmax=norm_max)
+    
+    if font_size is not None:
+        nx.draw_networkx_labels(net_graph, pos, font_size=font_size, ax=ax)
+        
+    ax.axis('off')
+    
+    return ax
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # PLOTS

@@ -1298,7 +1298,7 @@ def total_harmonic_distortion(signal: np.ndarray, f0: float, dt: float, N_f: int
     if dB:
         return 20.0 * np.log10(ratio)
     else:
-        return ratio * 100.0
+        return ratio
 
 def harmonic_richness_index(signal: np.ndarray, f0: float, dt: float, N_f: int,
                             threshold: float = 0.01, use_hann: bool = False, n_padded: int = 0) -> float:

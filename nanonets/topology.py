@@ -774,14 +774,16 @@ if __name__ == '__main__':
 
     # Lattice
     #########
-    N_x, N_y        = 5,3
-    electrode_pos   = [[0,0],[2,0],[0,2],[2,2]]
+    # N_x, N_y        = 5,3
+    # electrode_pos   = [[0,0],[2,0],[0,2],[2,2]]
+    N_x, N_y        = 1,1
+    electrode_pos   = [[0,0],[0,0]]
     lattice_net     = NanoparticleTopology()
 
     # Build Network and attach Electrodes
     lattice_net.lattice_network(N_x, N_y)
     lattice_net.add_electrodes_to_lattice_net(electrode_pos)
-    lattice_net.add_np_to_output()
+    # lattice_net.add_np_to_output()
     is_valid = lattice_net.validate_network()
     print(lattice_net)
     print("This Network is valid!\n") if is_valid else print("This network is not valid!\n")

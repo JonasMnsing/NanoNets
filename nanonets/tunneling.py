@@ -1,4 +1,5 @@
 import numpy as np
+import networkx as nx
 from . import electrostatic
 from typing import Tuple, List, Optional
 
@@ -171,7 +172,39 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         # Flatten lists for fast vectorized lookup (event i→j: self.adv_index_rows[k], self.adv_index_cols[k])
         self.adv_index_cols = np.array([item for sublist in adv_index_cols for item in sublist], dtype=int)
         self.adv_index_rows = np.array([item for sublist in adv_index_rows for item in sublist], dtype=int)
-                
+
+    def init_SET(self, radius: float, eps_r: float = 2.6, eps_s: float = 3.9, R: float = 25.0, R_std: float = 0.0) -> None:
+
+        # Params
+        self.N_particles    = 1
+        self.N_electrodes   = 2
+        self.net_topology   = []
+
+        # Capacitance Matrix
+        d_np_e  = self.ELECTRODE_RADIUS + radius + self.MIN_NP_NP_DISTANCE
+        c_m     = self.mutual_capacitance_adjacent_spheres(eps_r, radius, self.ELECTRODE_RADIUS, d_np_e)
+        c_s     = self.self_capacitance_sphere(eps_s, radius)
+        c_total = 2*c_m + c_s
+        self.capacitance_matrix             = np.array([[c_total]])
+        self.inv_capacitance_matrix         = np.linalg.inv(self.capacitance_matrix)
+        self.electrode_capacitance_matrix   = np.array([[c_m],
+                                                        [c_m]])
+        self.self_capacitance               = c_s
+        self.const_capacitance_values       = np.full(4,(self.inv_capacitance_matrix[0,0]*self.ELE_CHARGE_A_C**2) / 2)
+
+        # Network
+        self.G = nx.DiGraph()
+        self.G.add_nodes_from([0,-1,-2])
+        self.G.add_edges_from([[-1,0],[0,-1],[0,-2],[-2,0]])
+        self.pos = {0   : [0,0],
+                    -1  : [-d_np_e, 0],
+                    -2  : [d_np_e, 0]}
+        
+        # Adv Indices
+        self.adv_index_rows = np.array([0,1,2,2])
+        self.adv_index_cols = np.array([2,2,0,1])
+        self.init_junction_resistances(R, R_std)
+
     def init_potential_vector(self, voltage_values: np.ndarray) -> None:
         """
         Initialize the full potential vector for the network, setting electrode and gate voltages.

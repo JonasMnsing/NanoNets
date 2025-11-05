@@ -1,0 +1,49 @@
+from pathlib import Path
+import logging, numpy as np
+from nanonets.utils import batch_launch, run_dynamic_simulation, sinusoidal_voltages
+
+# ─── Configuration ────────────────────────────────────────────────────────────────
+SAMPLE_P_PERIOD = 40
+N_PERIODS       = 40
+STAT_SIZE_BASE  = 10
+AMPLITUDE_LIST  = [0.02,0.03,0.04,0.05,0.06,0.07,0.08]
+FREQ_LIST_MHZ   = [0.005,0.01,0.03,0.06,0.12,0.25,0.5,1.,2.,5.,6.,8.,
+                   10.,12.,15.,18.,23.,28.,36.,44.,55.,68.,86.,105.,133.,266.,610.,1200.,2400.]
+OUTPUT_DIR      = Path("/home/j/j_mens07/phd/NanoNets/scripts/2_funding_period/WP2/AC/set/data/")
+LOG_LEVEL       = logging.INFO
+CPU_CNT         = 10
+topo            = {"Nx" : 1, "Ny" : 1, "electrode_type" : ['constant','constant']}
+# ────────────────────────────────────────────────────────────────────────────────
+
+def main():
+    logging.basicConfig(level=LOG_LEVEL,
+                        format="%(asctime)s %(levelname)s: %(message)s")
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    
+    tasks = []
+    for amp in AMPLITUDE_LIST:
+        for freq_mhz in FREQ_LIST_MHZ:
+            f0_hz       = freq_mhz * 1e6
+            dt          = 1 / (SAMPLE_P_PERIOD * f0_hz)
+            T_sim       = N_PERIODS / f0_hz
+            N_steps     = int(np.ceil(T_sim / dt))
+            stat_size   = max(STAT_SIZE_BASE, int(np.round(300*freq_mhz/5.0)))
+
+            time_steps, volt = sinusoidal_voltages(
+                N_steps, topo,
+                amplitudes=[amp, 0.0],
+                frequencies=[f0_hz, 0.0],
+                time_step=dt)
+            
+            # output directory per frequency
+            args    = (time_steps, volt, topo, OUTPUT_DIR)
+            kwargs  = {
+                'net_kwargs': {'add_to_path' : f"_{freq_mhz:.3f}_{amp:.3f}"},
+                'sim_kwargs': {'stat_size':stat_size, 'save':True}
+            }
+            tasks.append((args, kwargs))
+
+    batch_launch(run_dynamic_simulation, tasks, CPU_CNT)
+
+if __name__ == "__main__":
+    main()

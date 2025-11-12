@@ -3,17 +3,20 @@ import logging, numpy as np
 from nanonets.utils import batch_launch, run_dynamic_simulation, sinusoidal_voltages
 
 # ─── Configuration ────────────────────────────────────────────────────────────────
-N_NP            = 9
+N_NP            = 13
 STAT_SIZE_BASE  = 10
 N_PERIODS       = 100
 SAMPLE_P_PERIOD = 40
 
-AMPLITUDE_LIST  = [0.01,0.02,0.03,0.04,0.05,0.06,0.07,0.08]
-FREQ_LIST_MHZ   = [0.12,0.25,0.5,1.,2.,5.,10.,23.]
-OUTPUT_DIR      = Path("/scratch/j_mens07/data/")
+AMPLITUDE_LIST  = [0.02,0.03,0.04,0.05,0.06,0.07,0.08]
+# FREQ_LIST_MHZ   = [0.01,0.03,0.06,6.,8.,12.,15.,18.,28.,36.,44.,55.,68.,86.,105.,133.]
+FREQ_LIST_MHZ   = [0.005,0.01,0.03,0.06,0.12,0.25,0.5,1.,2.,5.,6.,8.,
+                   10.,12.,15.,18.,23.,28.,36.,44.,55.,68.,86.,105.,133.,266.,610.,1200.,2400.]
+OUTPUT_DIR      = Path("/scratch/j_mens07/data/2_funding_period/dynamic/AC/amp_freq/")
 LOG_LEVEL       = logging.INFO
-CPU_CNT         = 64
-ELECTRODE_TYPES = [['constant']*8, ['constant']*7 + ['floating']]
+CPU_CNT         = 32
+# ELECTRODE_TYPES = [['constant']*8, ['constant']*7 + ['floating']]
+ELECTRODE_TYPES = [['constant']*8]
 # ────────────────────────────────────────────────────────────────────────────────
 
 def main():

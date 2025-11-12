@@ -9,7 +9,7 @@ DT              = 1e-11
 DURATION        = 20e-6
 BANDWIDTH_HZ    = 4.35e9
 AMPLITUDE_LIST  = [0.01,0.02,0.03,0.04,0.05]
-OUTPUT_DIR      = Path("/scratch/j_mens07/data/2_funding_period/dynamic/Noise/white_noise/")
+OUTPUT_DIR      = Path("/scratch/j_mens07/data/2_funding_period/dynamic/Noise/pink_noise/")
 LOG_LEVEL       = logging.INFO
 CPU_CNT         = 5
 TOPOLOGY        = {"Nx": N_NP,"Ny": N_NP,"e_pos": [
@@ -25,7 +25,7 @@ def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
     tasks = []
     for amp in AMPLITUDE_LIST:
-        t, x            = generate_band_limited_noise(DURATION, BANDWIDTH_HZ, DT, is_pink=False)
+        t, x            = generate_band_limited_noise(DURATION, BANDWIDTH_HZ, DT, is_pink=True)
         voltages        = np.zeros((len(x),len(TOPOLOGY["electrode_type"])+1))
         voltages[:,0]   = amp*x
                     

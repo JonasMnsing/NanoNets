@@ -10,11 +10,11 @@ N_PERIODS       = 100
 AMPLITUDE       = 0.02
 OUTPUT_DIR      = Path("/scratch/j_mens07/data/2_funding_period/dynamic/AC/disorder/")
 LOG_LEVEL       = logging.INFO
-CPU_CNT         = 64
-RAD_VALS        = [np.load("/scratch/j_mens07/nanonets/scripts/2_funding_period/WP2/data/radius_dis_20.0.npy")[i] for i in range(CPU_CNT)]
-TOPO_VALS       = [np.load("/scratch/j_mens07/nanonets/scripts/2_funding_period/WP2/data/topo_dis_20.0.npy")[i] for i in range(CPU_CNT)]
-DIST_VALS       = [np.load("/scratch/j_mens07/nanonets/scripts/2_funding_period/WP2/data/dist_dis_20.0.npy")[i] for i in range(CPU_CNT)]
-E_DIST_VALS     = [np.load("/scratch/j_mens07/nanonets/scripts/2_funding_period/WP2/data/e_dist_dis_20.0.npy")[i] for i in range(CPU_CNT)]
+CPU_CNT         = 32
+RAD_VALS        = [np.load("/scratch/j_mens07/nanonets/scripts/2_funding_period/WP2/data/radius_dis_std_2.0.npy")[i] for i in range(CPU_CNT)]
+TOPO_VALS       = [np.load("/scratch/j_mens07/nanonets/scripts/2_funding_period/WP2/data/topo_dis_std_2.0.npy")[i] for i in range(CPU_CNT)]
+DIST_VALS       = [np.load("/scratch/j_mens07/nanonets/scripts/2_funding_period/WP2/data/dist_dis_std_2.0.npy")[i] for i in range(CPU_CNT)]
+E_DIST_VALS     = [np.load("/scratch/j_mens07/nanonets/scripts/2_funding_period/WP2/data/e_dist_dis_std_2.0.npy")[i] for i in range(CPU_CNT)]
 TOPO            = {""}
 FREQ_LIST_MHZ   = [133.,105.,86.,68.,55.,44.,36.,28.,23.,18.,15.,12.,10.,8.,6.,5.,2.,1.,
                    0.5,0.25,0.12,0.06,0.03,0.01]#,0.008,0.006,0.004,0.002,0.001]
@@ -43,7 +43,7 @@ def main():
             args = (time_steps, volt, "", OUTPUT_DIR)
 
             kwargs  = {
-                'net_kwargs': {'add_to_path' : f"_{i}_{freq_mhz:.3f}", "net_topology" : TOPO_VALS[i],
+                'net_kwargs': {'add_to_path' : f"_{i}_{freq_mhz:.3f}_std", "net_topology" : TOPO_VALS[i],
                             "dist_matrix" : DIST_VALS[i],"electrode_dist_matrix" : E_DIST_VALS[i],
                             "radius_vals" : RAD_VALS[i],"electrode_type" : ['constant']*(E_DIST_VALS[i].shape[0])},
                 'sim_kwargs': {'stat_size':stat_size, 'save':True}

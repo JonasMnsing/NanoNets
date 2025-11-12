@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import colorednoise as cn
 from matplotlib import cm
 from matplotlib.colors import Normalize
 
@@ -271,6 +272,58 @@ def logic_gate_time_series(U_e : List[float], input_pos : List[int], U_i : float
         voltages[i*N_samples//4:((i+1)*N_samples)//4, input_pos[1]] = U_i2[i]
     
     return time_steps, voltages
+
+def generate_band_limited_noise(duration_s: float, bandwidth_hz: float = 4.35e9, dt_s: float = 1e-11, is_pink: bool = False) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generates time and noise arrays (White or Pink) with a specified
+    sampling rate (dt) and bandwidth.
+
+    Parameters
+    ----------
+    duration_s: float
+        Total length of the simulation time series (seconds).
+    bandwidth_hz: float
+        The maximum frequency (Hz) to represent in the signal. (Ensures adequate sampling rate for the physical signal).
+    dt_s: float, optional
+        The discrete time step (seconds). Must be small enough to satisfy Nyquist. Default: 1e-11
+    is_pink: bool, optional
+        If True, generates Pink Noise (1/f). If False, generates White Noise.  Default: False
+
+    Returns:
+        A tuple: (time_series, noise_series)
+    """
+    
+    # --- 1. Validate Sampling Rate (Nyquist) ---
+    # The minimum required sampling rate (Fs) is 2 * bandwidth
+    fs_required = 2 * bandwidth_hz
+    fs_actual   = 1.0 / dt_s
+    if fs_actual < fs_required:
+        raise ValueError(f"Actual sampling rate (Fs={fs_actual:.2e} Hz) is less than the Nyquist rate required for a {bandwidth_hz:.2e} Hz signal (Fs_req={fs_required:.2e} Hz). Reduce dt_s.")
+
+    # --- 2. Define Time Series ---
+    n_samples   = int(duration_s / dt_s)
+    time_series = np.linspace(0, duration_s, n_samples, endpoint=False)
+    
+    # --- 3. Generate Noise ---
+    # Beta = 0 for White Noise (P(f) ~ f^0)
+    # Beta = 1 for Pink Noise (P(f) ~ f^-1)
+    beta = 1.0 if is_pink else 0.0
+    
+    # cn.powerlaw_psd_gaussian automatically scales the noise to the desired length (n_samples)
+    noise_series = cn.powerlaw_psd_gaussian(beta, n_samples)
+    
+    # --- 4. Normalize and Scale Amplitude ---
+    # The output of the generator is centered around zero with unit variance.
+    # We normalize to a maximum amplitude of 1.0 for a clean baseline.
+    max_abs_val = np.max(np.abs(noise_series))
+    
+    if max_abs_val > 0:
+        noise_series /= max_abs_val
+    
+    # The noise is naturally band-limited by the sampling frequency Fs=1/dt.
+    # We do not need extra filtering since Fs is set correctly by dt.
+    
+    return time_series, noise_series
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # LOAD SIMULATION RESULTS

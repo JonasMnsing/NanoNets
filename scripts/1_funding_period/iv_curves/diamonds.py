@@ -6,15 +6,15 @@ from pathlib import Path
 from nanonets.utils import logic_gate_sample, distribute_array_across_processes, batch_launch, run_static_simulation
 
 # ─── Configuration ───
-N_PROCS         = 32
+N_PROCS         = 1
 V_INPUT_MAX     = 0.5
 V_GATE_MAX      = 0.5
 N_INPUTS        = 960
 N_GATES         = 960
 V_INPUT         = np.round(np.linspace(-V_INPUT_MAX, V_INPUT_MAX, N_INPUTS),4)
-V_GATES         = np.round(np.linspace(-V_GATE_MAX, V_GATE_MAX, N_INPUTS),4)
+V_GATES         = [0.0] #np.round(np.linspace(-V_GATE_MAX, V_GATE_MAX, N_INPUTS),4)
 LOG_LEVEL       = logging.INFO
-PATH            = Path("/scratch/j_mens07/data/1_funding_period/iv_curves/set/")
+PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/nanonets/scripts/1_funding_period/iv_curves/set/data/")
 topo            = {"Nx": 1,"Ny": 1, "electrode_type": ['constant','constant']}
 # --------------------- 
 

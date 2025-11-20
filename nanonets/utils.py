@@ -17,7 +17,7 @@ from scipy.stats import entropy
 from pathlib import Path
 
 # Constants
-BLUE_COLOR          = '#348ABD'
+BLUE_COLOR          = '#4477AA'
 RED_COLOR           = '#A60628'
 GREEN_COLOR         = '#228833'
 NO_CONNECTION       = -100

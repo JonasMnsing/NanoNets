@@ -472,8 +472,8 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         if not hasattr(self, "resistances"):
             raise RuntimeError("Resistances have not been initialized.")
 
-        src = self.adv_index_rows.copy()
-        tgt = self.adv_index_cols.copy()
+        src = self.adv_index_rows.copy() - self.N_electrodes
+        tgt = self.adv_index_cols.copy() - self.N_electrodes
 
         # Get sorted list of all node indices (NPs >= 0, electrodes < 0)
         np_nodes    = sorted({idx for idx in np.concatenate([src, tgt]) if idx >= 0})

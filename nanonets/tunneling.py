@@ -718,7 +718,7 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         Returns
         -------
         np.ndarray
-            Symmetric conductance matrix [1/MΩ], shape: (N_total, N_total),
+            Symmetric conductance matrix [S], shape: (N_total, N_total),
             where N_total = N_particles + N_electrodes
 
         Raises

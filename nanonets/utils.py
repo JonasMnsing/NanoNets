@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Constants
 BLUE_COLOR          = '#4477AA'
-RED_COLOR           = '#A60628'
+RED_COLOR           = '#EE6677'
 GREEN_COLOR         = '#228833'
 NO_CONNECTION       = -100
 ELECTRODE_RADIUS    = 10.0

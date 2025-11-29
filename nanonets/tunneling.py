@@ -503,15 +503,16 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
 
     def init_transfer_coeffs(self, output_electrode: int = None) -> None:
         """
-        Calculate and store the current transfer coefficients for the network.
+        Calculate and store the DC transconductance vector for the network.
 
-        This computes, for each electrode, the fraction of injected current
-        that reaches a selected output electrode, using the conductance matrix.
+        This computes the current flowing into the selected output electrode
+        when 1V is applied to any other electrode (while others are grounded).
 
         Parameters
         ----------
         output_electrode : int, optional
-            Index of the output electrode (0-based). If None, uses the last electrode.
+            Index of the output electrode (0-based relative to electrode list). 
+            If None, uses the last electrode.
 
         Raises
         ------
@@ -523,46 +524,68 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         Stores
         ------
         self.transfer_coeffs : np.ndarray
-            1D array, shape (N_electrodes,), transfer coefficients (unitless).
-            self.transfer_coeffs[i] gives the proportion of current at the output
-            electrode when 1V is applied at electrode i.
+            1D array, shape (N_electrodes,). Units: Siemens [S].
+            Element [i] is the current at the output when Electrode i is set to 1.0V.
         """
         if not hasattr(self, "conductance_matrix"):
             raise RuntimeError("Conductance matrix not calculated. Call build_conductance_matrix first.")
 
         N_e     = self.N_electrodes
         N_p     = self.N_particles
-        n_nodes = N_e + N_p
+
+        # Indices for unknowns (NPs) and knowns (electrodes)
+        u_idx   = np.arange(N_p)
+        k_idx   = np.arange(N_p, N_e + N_p)
 
         # Output electrode: by default, the last one
         if output_electrode is None:
-            out_idx = N_e - 1
+            rel_out = N_e - 1
         else:
-            out_idx = int(output_electrode)
-            if not (0 <= out_idx < N_e):
-                raise ValueError(f"Invalid output_electrode index: {out_idx} (must be in 0..{N_e-1})")
+            rel_out = int(output_electrode)
+            if not (0 <= rel_out < N_e):
+                raise ValueError(f"Invalid output_electrode index: {rel_out}")
 
-        # Indices for unknowns (NPs) and knowns (electrodes)
-        u_idx   = np.arange(self.N_electrodes, n_nodes)
-        k_idx   = np.arange(self.N_electrodes)
+        # The actual matrix index for the output electrode
+        matrix_out_idx = k_idx[rel_out]
 
-        Y       = self.conductance_matrix
-        Y_uu    = Y[np.ix_(u_idx, u_idx)]
-        Y_uk    = Y[np.ix_(u_idx, k_idx)]
+        # Partition Matrix
+        Y = self.conductance_matrix
+        
+        # Internal-Internal Coupling
+        Y_uu = Y[np.ix_(u_idx, u_idx)]
 
-        # Precompute A = -Y_uu^{-1} Y_uk
-        inv_Yuu = np.linalg.inv(Y_uu)
-        A       = -inv_Yuu @ Y_uk  # (N_p, N_e)
+        # Internal-Electrode Coupling
+        Y_uk = Y[np.ix_(u_idx, k_idx)]
 
-        # Output electrode row (current into output for 1V at each electrode)
-        Y_out_k     = Y[out_idx, k_idx]
-        Y_out_u     = Y[out_idx, u_idx]
-        indirect    = Y_out_u @ A
+        # Solve Y_uu * A = Y_uk for A
+        A = np.linalg.solve(Y_uu, Y_uk)
 
-        transfer_coeffs = -Y_out_k - indirect
-        transfer_coeffs[out_idx] = 0.0  # By convention: self-coupling is zero
+        # Get the row connecting Internal nodes to the Output Electrode
+        Y_out_u = Y[matrix_out_idx, u_idx]
 
-        self.transfer_coeffs = transfer_coeffs
+        # Calculate the indirect current path (through the network)
+        indirect_coupling = Y_out_u @ A
+
+        # Get direct coupling (Electrode to Output Electrode, usually 0)
+        Y_out_k = Y[matrix_out_idx, k_idx]
+
+        # Formula: G_eff = Y_out_k - Y_out_u * A
+        self.transfer_coeffs            = -(Y_out_k - indirect_coupling)
+        self.transfer_coeffs[rel_out]   = 0.0
+
+        # # Precompute A = -Y_uu^{-1} Y_uk
+        # inv_Yuu = np.linalg.inv(Y_uu)
+        # A       = -inv_Yuu @ Y_uk  # (N_p, N_e)
+
+        # # Output electrode row (current into output for 1V at each electrode)
+        # Y_out_k     = Y[out_idx, k_idx]
+        # Y_out_u     = Y[out_idx, u_idx]
+        # indirect    = Y_out_u @ A
+
+        # transfer_coeffs = -Y_out_k - indirect
+        # transfer_coeffs[out_idx] = 0.0  # By convention: self-coupling is zero
+
+        # self.transfer_coeffs = transfer_coeffs
 
     def calibrate_electrodes(self, ref_electrodes: List[int], ref_current: float = 1e-9,
                              alpha: float = 1.0, use_mean: bool = False):

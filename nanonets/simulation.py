@@ -299,12 +299,12 @@ class Simulation(tunneling.NanoparticleTunneling):
             resistances                     = self.get_tunneling_rate_prefactor()
 
             # --- Instantiate (Numba-optimized) model ---
-            model = monte_carlo.MonteCarlo(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
+            self.model = monte_carlo.MonteCarlo(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
                                 temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles, floating_electrodes)
 
             # --- Run KMC simulation (with or without dynamic resistances) ---
             if self.dynamic_resistances:
-                eq_jumps = model.run_equilibration_steps_var_resistance(
+                eq_jumps = self.model.run_equilibration_steps_var_resistance(
                     eq_steps, 
                     self.dynamic_resistances_info['slope'], 
                     self.dynamic_resistances_info['shift'],
@@ -314,7 +314,7 @@ class Simulation(tunneling.NanoparticleTunneling):
                 )
                 
                 # Production Run until Current at target electrode is less than error_th or max_jumps was passed
-                model.kmc_simulation_var_resistance(
+                self.model.kmc_simulation_var_resistance(
                     target_electrode, error_th, max_jumps, jumps_per_batch, 
                     self.dynamic_resistances_info['slope'],
                     self.dynamic_resistances_info['shift'],
@@ -324,30 +324,30 @@ class Simulation(tunneling.NanoparticleTunneling):
                     kmc_counting, verbose
                 )
             else:
-                eq_jumps = model.run_equilibration_steps(eq_steps)
-                model.kmc_simulation(
+                eq_jumps = self.model.run_equilibration_steps(eq_steps)
+                self.model.kmc_simulation(
                     target_electrode, error_th, max_jumps, jumps_per_batch,
                     output_potential, kmc_counting, min_batches, verbose
                 )
             
             # --- Collect simulation results ---
-            self.observable_storage.append(model.get_observable())
-            self.observable_error_storage.append(model.get_observable_error())
-            self.state_storage.append(model.get_state())
-            self.potential_storage.append(model.get_potential())
-            self.network_current_storage.append(model.get_network_current())
+            self.observable_storage.append(self.model.get_observable())
+            self.observable_error_storage.append(self.model.get_observable_error())
+            self.state_storage.append(self.model.get_state())
+            self.potential_storage.append(self.model.get_potential())
+            self.network_current_storage.append(self.model.get_network_current())
             self.eq_jump_storage.append(eq_jumps)
-            self.jump_storage.append(model.get_jump())
-            self.time_storage.append(model.get_time())
+            self.jump_storage.append(self.model.get_jump())
+            self.time_storage.append(self.model.get_time())
 
             # --- Store extra data if verbose ---
             if verbose:
-                self.observable_per_batch.append(model.get_target_observable_per_it())
-                self.time_per_batch.append(model.get_time_per_it())
-                self.potential_per_batch.append(model.get_potential_per_it())
+                self.observable_per_batch.append(self.model.get_target_observable_per_it())
+                self.time_per_batch.append(self.model.get_time_per_it())
+                self.potential_per_batch.append(self.model.get_potential_per_it())
                 # self.jump_per_batch.append(model.get_jump_per_batch())
                 if self.dynamic_resistances:
-                    self.resistance_per_batch.append(model.get_resistances_per_it())
+                    self.resistance_per_batch.append(self.model.get_resistances_per_it())
                 
             # --- Periodically save to disk ---
             if (save_th is not None and ((i + 1) % save_th == 0)):

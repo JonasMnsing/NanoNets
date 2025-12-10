@@ -2,6 +2,7 @@ import numpy as np
 import networkx as nx
 from . import electrostatic
 from typing import Tuple, List, Optional
+from scipy.linalg import eig
 
 class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
     """
@@ -573,20 +574,7 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         self.transfer_coeffs            = -(Y_out_k - indirect_coupling)
         self.transfer_coeffs[rel_out]   = 0.0
 
-        # # Precompute A = -Y_uu^{-1} Y_uk
-        # inv_Yuu = np.linalg.inv(Y_uu)
-        # A       = -inv_Yuu @ Y_uk  # (N_p, N_e)
-
-        # # Output electrode row (current into output for 1V at each electrode)
-        # Y_out_k     = Y[out_idx, k_idx]
-        # Y_out_u     = Y[out_idx, u_idx]
-        # indirect    = Y_out_u @ A
-
-        # transfer_coeffs = -Y_out_k - indirect
-        # transfer_coeffs[out_idx] = 0.0  # By convention: self-coupling is zero
-
-        # self.transfer_coeffs = transfer_coeffs
-
+    
     def calibrate_electrodes(self, ref_electrodes: List[int], ref_current: float = 1e-9,
                              alpha: float = 1.0, use_mean: bool = False):
         """
@@ -782,3 +770,28 @@ class NanoparticleTunneling(electrostatic.NanoparticleElectrostatic):
         if not hasattr(self, 'delta_V'):
             raise RuntimeError("Electrode voltages not calibrated. Call calibrate_electrodes first.")
         return self.delta_V
+    
+    def get_slowest_linear_time_constant(self, lam_th: float = 1e-9) -> float:
+        """
+        Get the slowest time constant in the linear regime based on matrix eigenvalues
+
+        Returns
+        -------
+        float
+            Slowest linear time constant [s].
+        """
+        # Conductance and Capacitance Matrix
+        self.build_conductance_matrix()
+        g_m     = self.get_conductance_matrix()
+        cap_m   = self.get_capacitance_matrix()*1e-18
+
+        # Smallest Eigenvalue
+        eig_v, _    = eig(g_m[:-self.N_electrodes,:-self.N_electrodes], cap_m)
+        eig_real    = np.real(eig_v)
+        eig_valid   = eig_real[eig_real > lam_th]
+        lambda_min  = np.min(eig_valid)
+
+        # Slowest Time Constant
+        tau_0 = 1.0 / lambda_min
+
+        return tau_0

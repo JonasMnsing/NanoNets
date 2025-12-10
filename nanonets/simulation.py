@@ -258,25 +258,33 @@ class Simulation(tunneling.NanoparticleTunneling):
         # --- Default Simulation Parameter ---
         if sim_dic is None:
             sim_dic =   {
+                "duration"        : False,
                 "error_th"        : 0.05,
                 "max_jumps"       : 10000000,
-                "eq_steps"        : 100000,
-                "jumps_per_batch" : 2000,
+                "n_eq"            : 100000,
+                "n_per_batch"     : 2000,
                 "kmc_counting"    : False,
                 "min_batches"     : 5
             }
 
         # --- Get Simulation Parameter ---
+        if 'duration' in sim_dic:
+            duration = sim_dic['duration']
+        else:
+            duration = False
         error_th        = sim_dic['error_th']
         max_jumps       = sim_dic['max_jumps']
-        eq_steps        = sim_dic['eq_steps']
-        jumps_per_batch = sim_dic['jumps_per_batch']
+        n_eq            = sim_dic['n_eq']
+        n_per_batch     = sim_dic['n_per_batch']
         kmc_counting    = sim_dic['kmc_counting']
         min_batches     = sim_dic['min_batches']
 
         # Identify floating electrodes and detect if target electrode is floating
         floating_electrodes = np.where(self.electrode_type == 'floating')[0]
         output_potential    = (self.electrode_type[target_electrode] == 'floating')
+
+        # Slowest Time Constant
+        tau_0 = self.get_slowest_linear_time_constant()
         
         # Init storage lists
         self.clear_simulation_outputs()
@@ -300,12 +308,12 @@ class Simulation(tunneling.NanoparticleTunneling):
 
             # --- Instantiate (Numba-optimized) model ---
             self.model = monte_carlo.MonteCarlo(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
-                                temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles, floating_electrodes)
+                                temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles, floating_electrodes, tau_0)
 
             # --- Run KMC simulation (with or without dynamic resistances) ---
             if self.dynamic_resistances:
                 eq_jumps = self.model.run_equilibration_steps_var_resistance(
-                    eq_steps, 
+                    n_eq, 
                     self.dynamic_resistances_info['slope'], 
                     self.dynamic_resistances_info['shift'],
                     self.dynamic_resistances_info['tau_0'],
@@ -315,7 +323,7 @@ class Simulation(tunneling.NanoparticleTunneling):
                 
                 # Production Run until Current at target electrode is less than error_th or max_jumps was passed
                 self.model.kmc_simulation_var_resistance(
-                    target_electrode, error_th, max_jumps, jumps_per_batch, 
+                    target_electrode, error_th, max_jumps, n_per_batch, 
                     self.dynamic_resistances_info['slope'],
                     self.dynamic_resistances_info['shift'],
                     self.dynamic_resistances_info['tau_0'],
@@ -324,11 +332,18 @@ class Simulation(tunneling.NanoparticleTunneling):
                     kmc_counting, verbose
                 )
             else:
-                eq_jumps = self.model.run_equilibration_steps(eq_steps)
-                self.model.kmc_simulation(
-                    target_electrode, error_th, max_jumps, jumps_per_batch,
-                    output_potential, kmc_counting, min_batches, verbose
-                )
+                if duration:
+                    eq_jumps = self.model.run_equilibration_duration(n_eq)
+                    self.model.kmc_simulation_duration(
+                        target_electrode, error_th, max_jumps, n_per_batch,
+                        output_potential, kmc_counting, min_batches
+                    )
+                else:
+                    eq_jumps = self.model.run_equilibration_steps(n_eq)
+                    self.model.kmc_simulation(
+                        target_electrode, error_th, max_jumps, n_per_batch,
+                        output_potential, kmc_counting, min_batches, verbose
+                    )
             
             # --- Collect simulation results ---
             self.observable_storage.append(self.model.get_observable())

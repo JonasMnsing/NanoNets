@@ -39,6 +39,39 @@ def paired_pulse(V_write, t_write, t_wait, dt, N_electrodes=8, input_pos=0):
 
     return t_series, voltages
 
+def paired_pulse_symmetric(V_write, t_write, t_wait, dt, N_electrodes=8, input_pos=0):
+    
+    # 1. Convert times to integer number of steps (force symmetry)
+    # Using round() ensures we grab the nearest valid step count
+    n_write = int(np.round(t_write / dt))
+    n_wait  = int(np.round(t_wait / dt))
+    
+    # 2. Total simulation length
+    # Note: We enforce the second pulse is exactly n_write long
+    n_total = n_write + n_wait + n_write 
+    
+    # 3. Create Time Series
+    t_series = np.arange(0, n_total) * dt
+    
+    # 4. Create Voltage Vector (default 0)
+    V_signal = np.zeros(n_total)
+    
+    # 5. Assign Pulse 1 (Indices 0 to n_write)
+    V_signal[0 : n_write] = V_write
+    
+    # 6. Assign Pulse 2 (Indices start after wait)
+    # Start: n_write + n_wait
+    # End:   n_write + n_wait + n_write
+    start_2 = n_write + n_wait
+    end_2   = start_2 + n_write
+    V_signal[start_2 : end_2] = V_write
+
+    # 7. Map to Electrodes
+    voltages = np.zeros((n_total, N_electrodes+1))
+    voltages[:, input_pos] = V_signal
+
+    return t_series, voltages
+
 def main():
     logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")
     tasks = []

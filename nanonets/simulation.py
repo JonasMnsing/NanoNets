@@ -437,10 +437,13 @@ class Simulation(tunneling.NanoparticleTunneling):
         adv_index_rows, adv_index_cols  = self.get_advanced_indices()
         temperatures                    = self.get_const_temperatures(T=T_val)
         resistances                     = self.get_tunneling_rate_prefactor()
+
+        # Slowest Time Constant
+        tau_0 = self.get_slowest_linear_time_constant()
         
         # --- Instantiate (Numba-optimized) model ---
         self.model = monte_carlo.MonteCarlo(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
-                                temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles, floating_electrodes)
+                                temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles, floating_electrodes, tau_0=tau_0)
 
         # --- Equilibration (unless using pre-initialized states) ---
         if init_charges is None:
@@ -485,7 +488,7 @@ class Simulation(tunneling.NanoparticleTunneling):
         # --- Main simulation loop: ensemble average ---
         for s in range(stat_size):
             self.model.charge_vector = self.q_eq[s,:].copy()
-            for i, voltage_values in enumerate(voltages[:-1]):
+            for i, voltage_values in enumerate(voltages):
                 # Apply charging state from electrode voltage
                 offset                      =  self.get_charge_vector_offset(voltage_values=voltage_values)
                 self.model.charge_vector    += offset
@@ -527,19 +530,13 @@ class Simulation(tunneling.NanoparticleTunneling):
         # --- Statistics and final result arrays ---
         self.observable_storage         = np.mean(observable, axis=0)
         self.observable_error_storage   = 1.96*np.std(observable, axis=0, ddof=1) / np.sqrt(stat_size)
-        self.state_storage              = np.delete(self.state_storage, -1, axis=0)
-        self.potential_storage          = np.delete(self.potential_storage, -1, axis=0)
-        self.network_current_storage    = np.delete(self.network_current_storage, -1, axis=0)
-        self.jump_storage               = np.delete(self.jump_storage, -1)
-        self.observable_storage         = np.delete(self.observable_storage, -1)
-        self.observable_error_storage   = np.delete(self.observable_error_storage, -1)
         self.eq_jump_storage            = np.repeat(eq_jumps, len(self.observable_storage))
 
         # Prepare output voltage arrays for saving
         V_safe_vals                         = np.zeros(shape=(self.potential_storage.shape[0],self.N_electrodes+1))
         V_safe_vals[:,floating_electrodes]  = self.potential_storage[:,floating_electrodes]
-        V_safe_vals[:,const_electrodes]     = voltages[:-1, const_electrodes]
-        V_safe_vals[:,-1]                   = voltages[:-1, -1]
+        V_safe_vals[:,const_electrodes]     = voltages[:, const_electrodes]
+        V_safe_vals[:,-1]                   = voltages[:, -1]
 
         if save:
             self.data_to_path(V_safe_vals, self.path1)

@@ -268,17 +268,14 @@ class Simulation(tunneling.NanoparticleTunneling):
                 "min_batches"     : 5
             }
 
-        # --- Get Simulation Parameter ---
-        if 'duration' in sim_dic:
-            duration = sim_dic['duration']
-        else:
-            duration = False
+        # --- Get Simulation Parameter ---            
         error_th        = sim_dic['error_th']
         max_jumps       = sim_dic['max_jumps']
         n_eq            = sim_dic['n_eq']
         n_per_batch     = sim_dic['n_per_batch']
         kmc_counting    = sim_dic['kmc_counting']
         min_batches     = sim_dic['min_batches']
+        duration        = sim_dic['duration']
         ac_time         = sim_dic['ac_time']
 
         # Identify floating electrodes and detect if target electrode is floating

@@ -1631,7 +1631,7 @@ def create_weighted_undirected_graph(data):
     return G
 
 def display_net_flow_graph(net_graph: nx.DiGraph, ax=None, pos=None, node_color='#348ABD',
-                           node_size=40, font_size=None, cmap=plt.cm.Reds, vmin=None, vmax=None, log_sacle=False):
+                           node_size=40, font_size=None, cmap=plt.cm.Reds, vmin=None, vmax=None, log_scale=False):
     
     # --- 1. Setup Figure and Axes ---
     if ax is None:
@@ -1644,7 +1644,7 @@ def display_net_flow_graph(net_graph: nx.DiGraph, ax=None, pos=None, node_color=
     # --- 3. Get Edge Weights for Coloring ---
     weights = [net_graph[u][v]['weight'] for u, v in net_graph.edges()]
     # Use log scale for better color distribution with wide-ranging data
-    if log_sacle:
+    if log_scale:
         new_weights = np.log1p(np.array(weights))
         norm_min    = np.log1p(vmin) if vmin is not None else min(new_weights)
         norm_max    = np.log1p(vmax) if vmax is not None else max(new_weights)

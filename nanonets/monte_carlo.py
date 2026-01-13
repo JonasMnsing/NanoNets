@@ -799,7 +799,7 @@ class MonteCarlo():
         self.calc_potentials()
         self.update_floating_electrode(idx_np_target)
 
-        while (below_rel < min_batches) and (self.total_jumps < max_jumps):
+        while (count < 20) or ((below_rel < min_batches) and (self.total_jumps < max_jumps)):
 
             # Initialize batch counters
             if kmc_counting:

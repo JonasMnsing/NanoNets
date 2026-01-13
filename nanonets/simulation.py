@@ -259,6 +259,7 @@ class Simulation(tunneling.NanoparticleTunneling):
         if sim_dic is None:
             sim_dic =   {
                 "duration"        : False,
+                "ac_time"         : 40e-9,
                 "error_th"        : 0.05,
                 "max_jumps"       : 10000000,
                 "n_eq"            : 100000,
@@ -271,21 +272,18 @@ class Simulation(tunneling.NanoparticleTunneling):
         if 'duration' in sim_dic:
             duration = sim_dic['duration']
         else:
-            duration = True
-            print(self.get_slowest_linear_time_constant())
+            duration = False
         error_th        = sim_dic['error_th']
         max_jumps       = sim_dic['max_jumps']
         n_eq            = sim_dic['n_eq']
         n_per_batch     = sim_dic['n_per_batch']
         kmc_counting    = sim_dic['kmc_counting']
         min_batches     = sim_dic['min_batches']
+        ac_time         = sim_dic['ac_time']
 
         # Identify floating electrodes and detect if target electrode is floating
         floating_electrodes = np.where(self.electrode_type == 'floating')[0]
         output_potential    = (self.electrode_type[target_electrode] == 'floating')
-
-        # Slowest Time Constant
-        tau_0 = 40e-9 #self.get_slowest_linear_time_constant()
         
         # Init storage lists
         self.clear_simulation_outputs()
@@ -308,8 +306,10 @@ class Simulation(tunneling.NanoparticleTunneling):
             resistances                     = self.get_tunneling_rate_prefactor()
 
             # --- Instantiate (Numba-optimized) model ---
-            self.model = monte_carlo.MonteCarlo(charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
-                                temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles, floating_electrodes, tau_0)
+            self.model = monte_carlo.MonteCarlo(
+                charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
+                temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles,
+                floating_electrodes, ac_time)
 
             # --- Run KMC simulation (with or without dynamic resistances) ---
             if self.dynamic_resistances:

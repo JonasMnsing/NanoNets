@@ -271,7 +271,8 @@ class Simulation(tunneling.NanoparticleTunneling):
         if 'duration' in sim_dic:
             duration = sim_dic['duration']
         else:
-            duration = False
+            duration = True
+            print(self.get_slowest_linear_time_constant())
         error_th        = sim_dic['error_th']
         max_jumps       = sim_dic['max_jumps']
         n_eq            = sim_dic['n_eq']
@@ -284,7 +285,7 @@ class Simulation(tunneling.NanoparticleTunneling):
         output_potential    = (self.electrode_type[target_electrode] == 'floating')
 
         # Slowest Time Constant
-        tau_0 = self.get_slowest_linear_time_constant()
+        tau_0 = 40e-9 #self.get_slowest_linear_time_constant()
         
         # Init storage lists
         self.clear_simulation_outputs()

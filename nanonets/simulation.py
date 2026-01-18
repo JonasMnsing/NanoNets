@@ -331,6 +331,7 @@ class Simulation(tunneling.NanoparticleTunneling):
                 )
             else:
                 if duration:
+                    # Check if total rate constant is less than 1e-10[1/s]: pass
                     eq_jumps = self.model.run_equilibration_duration(n_eq)
                     self.model.kmc_simulation_duration(
                         target_electrode, error_th, max_jumps, n_per_batch,

@@ -430,14 +430,14 @@ class MonteCarlo():
                         
         return n_jumps
         
-    def run_equilibration_duration(self, n: int = 1000) -> int:
+    def run_equilibration_duration(self, n: int = 50) -> int:
         """
         Execute KMC for n times the slowest linear relaxation time constant.
 
         Parameters
         ----------
         n : int, optional
-            Multiple of the relaxation time constant, by default 1000
+            Multiple of the relaxation time constant, by default 50
 
         Returns
         -------
@@ -608,7 +608,7 @@ class MonteCarlo():
         self.calc_potentials()
         self.update_floating_electrode(idx_np_target)
 
-        while (below_rel < min_batches) and (self.total_jumps < max_jumps):
+        while (self.total_jumps < max_jumps) and ((count < 20) or (below_rel < min_batches)):
 
             # Initialize batch counters
             if kmc_counting:
@@ -799,7 +799,7 @@ class MonteCarlo():
         self.calc_potentials()
         self.update_floating_electrode(idx_np_target)
 
-        while (count < 20) or ((below_rel < min_batches) and (self.total_jumps < max_jumps)):
+        while (self.total_jumps < max_jumps) and ((count < 20) or (below_rel < min_batches)):
 
             # Initialize batch counters
             if kmc_counting:

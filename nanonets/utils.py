@@ -515,6 +515,48 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
 
     return prepared_data
 
+
+def vary_currents_by_error(data: Union[pd.DataFrame, Dict[any, pd.DataFrame]], M: int, current_col: str = 'Observable', error_col: str = 'Error'
+) -> Union[pd.DataFrame, Dict[any, pd.DataFrame]]:
+    """
+    M times vary currents by error to get M separate datasets.
+    Handles both single DataFrames and Dictionaries of DataFrames.
+    """
+    
+    # 1. Handle Dictionary Input recursively
+    if isinstance(data, dict):
+        return {
+            key: vary_currents_by_error(df, M, current_col, error_col) 
+            for key, df in data.items()
+        }
+
+    # 2. Optimized Resampling Logic for a single DataFrame
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError("Input must be a pandas DataFrame or a Dictionary of DataFrames.")
+
+    # We use a list to collect dataframes; this is much faster than concat in a loop
+    frames = []
+    
+    # Extract values as numpy arrays once for speed
+    currents = data[current_col].values
+    # Ensure error is positive and handle NaNs if any
+    errors = np.nan_to_num(np.abs(data[error_col].values))
+    
+    # Drop the error column from the template since it's not needed in the output
+    template_df = data.drop(columns=[error_col]).reset_index(drop=True)
+
+    for _ in range(M):
+        # Vectorized normal distribution generation
+        perturbed_currents = np.random.normal(loc=currents, scale=errors/1.96)
+        
+        # Create a copy of the template and update the current column
+        new_df = template_df.copy()
+        new_df[current_col] = perturbed_currents
+        frames.append(new_df)
+
+    # Combine everything at once
+    return pd.concat(frames, ignore_index=True)
+
 def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame, df11 : pd.DataFrame, gate : str) -> pd.DataFrame:
     """
     Calculate the on and off states and the residual sums of squares (RSS) for the specified logic gate.
@@ -668,58 +710,113 @@ def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame
 
     return df
 
-def fitness(df: pd.DataFrame, input_cols: List[str], delta: float = 0.0, off_state: float = 0.0, on_state: float = None,
-    gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']) -> pd.DataFrame:
+# def fitness(df: pd.DataFrame, input_cols: List[str], delta: float = 0.0, off_state: float = 0.0, on_state: float = None,
+#     gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']) -> pd.DataFrame:
+#     """
+#     Calculate the fitness of a set of logic gates based on their residual sum of squares (RSS).
+
+#     Parameters
+#     ----------
+#     df : pd.DataFrame
+#         DataFrame containing electric currents.
+#     N_controls : int
+#         Number of control signals.
+#     input_cols : List[str]
+#         List containing the names of the columns representing the two inputs.
+#     delta : float, optional
+#         A small value to regularize the division in the fitness calculation (default is 0.01).
+#     off_state : float, optional
+#         The current value considered as the 'off' state (default is 0.0).
+#     on_state : float, optional
+#         The current value considered as the 'on' state (default is 0.01).
+#     gates : List[str], optional
+#         List of gate types to calculate the fitness for (default is ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']).
+
+#     Returns
+#     -------
+#     pd.DataFrame
+#         DataFrame containing the fitness values for each gate.
+#     """
+#     if gates is None:
+#         gates = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'P', 'notP', 'Q', 'notQ', 'PnotQ', 'notPQ', 'notPandQ', 'PandnotQ']
+#     if on_state is None:
+#         on_state = df.loc[:,input_cols[0]].max()
+#     df00    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
+#     df01    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
+#     df10    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
+#     df11    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
+
+#     fitness = pd.DataFrame(0, index=np.arange(len(df00)), columns=list(df00.columns) + [g + ' Fitness' for g in gates])
+#     fitness = fitness.drop(columns=['Observable','Error'])
+
+#     for col in list(df00.columns):
+#         if col != 'Observable' and col != 'Error':
+#             fitness[col]    = (df00[col].values + df01[col].values + df10[col].values + df11[col].values)/4
+
+#     for gate in gates:
+#         gate_states                 = get_on_off_rss(df00=df00, df01=df01, df10=df10, df11=df11, gate=gate)
+#         gate_states['m']            = gate_states['on'] - gate_states['off']
+#         gate_states['denom']        = gate_states['res'] + delta*(gate_states['off'].abs())
+#         fitness[gate + ' Fitness']  = gate_states['m']/gate_states['denom']
+
+#     fitness = fitness.reset_index(drop=True)
+
+#     return fitness
+
+
+def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 0.0, 
+            off_state: float = 0.0, on_state: float = None,
+            gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']) -> pd.DataFrame:
     """
-    Calculate the fitness of a set of logic gates based on their residual sum of squares (RSS).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing electric currents.
-    N_controls : int
-        Number of control signals.
-    input_cols : List[str]
-        List containing the names of the columns representing the two inputs.
-    delta : float, optional
-        A small value to regularize the division in the fitness calculation (default is 0.01).
-    off_state : float, optional
-        The current value considered as the 'off' state (default is 0.0).
-    on_state : float, optional
-        The current value considered as the 'on' state (default is 0.01).
-    gates : List[str], optional
-        List of gate types to calculate the fitness for (default is ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']).
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the fitness values for each gate.
+    Calculate fitness and expand the dataset by M resamples per row.
     """
     if gates is None:
         gates = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'P', 'notP', 'Q', 'notQ', 'PnotQ', 'notPQ', 'notPandQ', 'PandnotQ']
+    
     if on_state is None:
-        on_state = df.loc[:,input_cols[0]].max()
-    df00    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
-    df01    = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
-    df10    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
-    df11    = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
+        on_state = df.loc[:, input_cols[0]].max()
 
-    fitness = pd.DataFrame(0, index=np.arange(len(df00)), columns=list(df00.columns) + [g + ' Fitness' for g in gates])
-    fitness = fitness.drop(columns=['Observable','Error'])
+    # 1. Split into logic states
+    df00 = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
+    df01 = df[(df[input_cols[0]] == off_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
+    df10 = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == off_state)].reset_index(drop=True)
+    df11 = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
 
-    for col in list(df00.columns):
-        if col != 'Observable' and col != 'Error':
-            fitness[col]    = (df00[col].values + df01[col].values + df10[col].values + df11[col].values)/4
+    # 2. Resampling Logic (Expansion)
+    if M >= 2:
+        def expand_and_resample(target_df, m_samples):
+            # Repeat each row index M times (0,0,0, 1,1,1, ...)
+            repeated_indices = np.repeat(target_df.index.values, m_samples)
+            expanded_df = target_df.iloc[repeated_indices].copy().reset_index(drop=True)
+            
+            # Apply noise to the 'Observable' column based on the 'Error' column
+            noise = np.random.normal(loc=0.0, scale=expanded_df['Error'].values)
+            expanded_df['Observable'] += noise
+            
+            return expanded_df
 
+        df00 = expand_and_resample(df00, M)
+        df01 = expand_and_resample(df01, M)
+        df10 = expand_and_resample(df10, M)
+        df11 = expand_and_resample(df11, M)
+
+    # 3. Initialize Output DataFrame
+    # We take metadata columns from df00 (voltages, Resample_idx, etc.)
+    exclude_from_output = ['Observable', 'Error']
+    fitness_results = df00.drop(columns=[c for c in exclude_from_output if c in df00.columns])
+
+    # 4. Calculate Fitness for each gate
+    # Your get_on_off_rss function will receive the expanded dfs (length N*M)
     for gate in gates:
-        gate_states                 = get_on_off_rss(df00=df00, df01=df01, df10=df10, df11=df11, gate=gate)
-        gate_states['m']            = gate_states['on'] - gate_states['off']
-        gate_states['denom']        = gate_states['res'] + delta*(gate_states['off'].abs())
-        fitness[gate + ' Fitness']  = gate_states['m']/gate_states['denom']
+        gate_states = get_on_off_rss(df00=df00, df01=df01, df10=df10, df11=df11, gate=gate)
+        
+        # Vectorized calculation across all N*M rows
+        m = gate_states['on'] - gate_states['off']
+        denom = gate_states['res'] + delta * (gate_states['off'].abs())
+        
+        fitness_results[gate + ' Fitness'] = m / denom
 
-    fitness = fitness.reset_index(drop=True)
-
-    return fitness
+    return fitness_results.reset_index(drop=True)
 
 def abundance(df: pd.DataFrame, gates: List[str] = ['AND Fitness', 'OR Fitness', 'XOR Fitness', 'NAND Fitness', 'NOR Fitness', 'XNOR Fitness'],
               bins: Union[int, np.ndarray] = 0) -> pd.DataFrame:
@@ -1705,7 +1802,8 @@ def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XN
     with plt.style.context(style_sheet):
         fig, ax = plt.subplots(dpi=dpi)
         for i, gate in enumerate(gates):
-            ax.plot(df[f'{gate} Fitness'], df[f'{gate} Fitness Abundance'], marker=marker[i % len(marker)], markevery=0.1, label=f'{gate}')
+            ax.plot(df[f'{gate} Fitness'], df[f'{gate} Fitness Abundance'], label=f'{gate}')
+            # ax.plot(df[f'{gate} Fitness'], df[f'{gate} Fitness Abundance'], marker=marker[i % len(marker)], markevery=0.1, label=f'{gate}')
 
         ax.set_xlim(x_limits[0], x_limits[1])
         ax.set_ylim(y_limits[0], y_limits[1])
@@ -1915,40 +2013,6 @@ def store_average_time_currents(folder, Nx, Ny, Nz, Ne, N_stat, N_threads):
     means   = pd.DataFrame(np.mean(values, axis=0),columns=values[0].columns).round(3)
     
     means.to_csv(folder+f"/net_currents_Nx={Nx}_Ny={Ny}_Nz={Nz}_Ne={Ne}.csv", index=0)
-
-def vary_currents_by_error(df : pd.DataFrame, M : int, current_col='Current', error_col='Error') -> pd.DataFrame:
-    """
-    M times vary currents by error to get M sepearate datasets\\
-    Append each of these datasets to final dataframe
-    """
-
-    dic_tmp = {}
-
-    # Produce M df with variable currents
-    for i in range(M):
-    
-        data        = df.copy()
-        data        = data.reset_index(drop=True)
-        currents    = data[current_col].values
-        errors      = np.abs(data[error_col].values)
-        
-        currents_norm           = np.random.normal(loc=currents, scale=errors)
-        data[current_col]       = currents_norm
-        data                    = data.drop(columns=error_col)
-
-        dic_tmp[i] = data
-
-    # Concat dic to df and return
-    df_norm = pd.DataFrame(columns=dic_tmp[0].columns)
-
-    for i in range(M):
-
-        df_norm = pd.concat([df_norm, dic_tmp[i]])
-
-    df_norm = df_norm.reset_index(drop=True)
-
-    return df_norm
-
 
 
 # def display_network(np_network_sim : simulation.Simulation, fig=None, ax=None, blue_color='#348ABD', red_color='#A60628', save_to_path=False, 

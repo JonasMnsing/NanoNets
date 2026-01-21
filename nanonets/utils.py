@@ -1124,7 +1124,7 @@ def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_colu
     on_state : float, optional
         The value representing the 'on' state, by default 0.01.
     n_bootstrap : int, optional
-        Resample n_bootstrap times each nonlinear parameter and collect those in a list, by default 0. 
+        Add error n_bootstrap times on top of the current and collect nonlinear parameter those in a list, by default 0. 
 
     Returns
     -------
@@ -1136,54 +1136,50 @@ def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_colu
         - 'X': Nonlinear cross-term.
     """
 
-    values_input    = pd.DataFrame()
-    errors_input    = pd.DataFrame()
+    if on_state is None:
+        on_state = df[input1_column].max()
 
-    # Extract current values for all input combinations
-    df_tmp              = df[(df[input1_column] == off_state) & (df[input2_column] == off_state)].reset_index(drop=True)
-    values_input['I00'] = df_tmp['Observable']
-    errors_input['E00'] = df_tmp['Error']
-    df_tmp              = df[(df[input1_column] == off_state) & (df[input2_column] == on_state)].reset_index(drop=True)
-    values_input['I01'] = df_tmp['Observable']
-    errors_input['E01'] = df_tmp['Error']
-    df_tmp              = df[(df[input1_column] == on_state) & (df[input2_column] == off_state)].reset_index(drop=True)
-    values_input['I10'] = df_tmp['Observable']
-    errors_input['E10'] = df_tmp['Error']
-    df_tmp              = df[(df[input1_column] == on_state) & (df[input2_column] == on_state)].reset_index(drop=True)
-    values_input['I11'] = df_tmp['Observable']
-    errors_input['E11'] = df_tmp['Error']
+    # Collect values and errors
+    values_input = pd.DataFrame()
+    errors_input = pd.DataFrame()
 
+    combos = {
+        "I00": (off_state, off_state),
+        "I01": (off_state, on_state),
+        "I10": (on_state, off_state),
+        "I11": (on_state, on_state),
+    }
+
+    for key, (v1, v2) in combos.items():
+        df_tmp = df[
+            (df[input1_column] == v1) &
+            (df[input2_column] == v2)
+        ].reset_index(drop=True)
+
+        values_input[key] = df_tmp["Observable"]
+        errors_input[key] = df_tmp["Error"]
+
+    def compute_params(data: pd.DataFrame) -> pd.DataFrame:
+        out         = pd.DataFrame()
+        out["Iv"]   = (data["I11"] + data["I10"] + data["I01"] + data["I00"]) / 4
+        out["Ml"]   = (data["I11"] + data["I10"] - data["I01"] - data["I00"]) / 4
+        out["Mr"]   = (data["I11"] - data["I10"] + data["I01"] - data["I00"]) / 4
+        out["X"]    = (data["I11"] - data["I10"] - data["I01"] + data["I00"]) / 4
+        return out
+
+    # No bootstrap
     if n_bootstrap == 0:
-        # Initialize a DataFrame for the calculated nonlinear parameters
-        df_new          = pd.DataFrame()
-        df_new['Iv']    = (values_input["I11"] + values_input["I10"] + values_input["I01"] + values_input["I00"])/4
-        df_new['Ml']    = (values_input["I11"] + values_input["I10"] - values_input["I01"] - values_input["I00"])/4
-        df_new['Mr']    = (values_input["I11"] - values_input["I10"] + values_input["I01"] - values_input["I00"])/4
-        df_new['X']     = (values_input["I11"] - values_input["I10"] - values_input["I01"] + values_input["I00"])/4
+        return compute_params(values_input)
 
-        return df_new
+    # Bootstrap
+    bootstrap_dfs = []
+    sigma = errors_input / 1.96  # assumes 95% CI
 
-    else:
-        bootstrap_dfs   = []
-        for _ in range(n_bootstrap):
-            # Resample data with replacement
-            resampled_indices   = np.random.choice(len(values_input), size=len(values_input), replace=True)
-            resampled_data      = values_input.values[resampled_indices]
-            resampled_errors    = errors_input.values[resampled_indices]
+    for _ in range(n_bootstrap):
+        perturbed = values_input + np.random.normal(0, sigma)
+        bootstrap_dfs.append(compute_params(perturbed))
 
-            # Perturb data using their errors
-            perturbed_data      = resampled_data + np.random.normal(0, resampled_errors/1.96)
-
-            # Initialize a DataFrame for the calculated nonlinear parameters
-            df_new          = pd.DataFrame()
-            df_new['Iv']    = (perturbed_data[:,3] + perturbed_data[:,2] + perturbed_data[:,1] + perturbed_data[:,0])/4
-            df_new['Ml']    = (perturbed_data[:,3] + perturbed_data[:,2] - perturbed_data[:,1] - perturbed_data[:,0])/4
-            df_new['Mr']    = (perturbed_data[:,3] - perturbed_data[:,2] + perturbed_data[:,1] - perturbed_data[:,0])/4
-            df_new['X']     = (perturbed_data[:,3] - perturbed_data[:,2] - perturbed_data[:,1] + perturbed_data[:,0])/4
-
-            bootstrap_dfs.append(df_new)
-        
-        return bootstrap_dfs
+    return bootstrap_dfs
 
 def stat_moment(arr: np.ndarray, order: int = 1, bins: int = 100)->float:
     """

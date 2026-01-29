@@ -189,89 +189,18 @@ class NanoparticleTopology:
                 self.pos[electrode_node] = (pos[0],pos[1]+1)
 
     def random_network(self, N_particles: int) -> None:
-        """
-        Set up a random 2D planar nanoparticle network using Delaunay triangulation
-        and Poisson disk sampling for physical plausibility.
-
-        The domain size is automatically chosen so that all N_particles fit with the required
-        minimum separation (based on smallest allowed radius).
+        """Just predefines attributes for future processing in electrostatic.py
 
         Parameters
         ----------
         N_particles : int
-            Number of nanoparticles (nodes) in the network.
-
-        Raises
-        ------
-        ValueError
-            If N_particles < 3 (Delaunay triangulation requires at least 3 points).
-        RuntimeError
-            If Poisson disk sampling cannot generate the requested points.
+            _description_
         """
-        if N_particles < 3:
-            raise ValueError("At least 3 particles are required for Delaunay triangulation.")
-
         self.lattice        = False
         self.N_particles    = N_particles
 
-        # Use the minimum possible NP radius for separation BEFORE radii are initialized
-        min_dist = 2 * 10.0 + 1.0  # [nm]
-
-        # Compute required domain radius for random close packing
-        packing_density     = 0.45  # empirical value for random disk packings
-        needed_area         = N_particles * (min_dist / 2) ** 2 / packing_density
-        domain_radius       = np.sqrt(needed_area)
-        self.domain_radius  = domain_radius
-
-        def poisson_disk_sampling(n_points, min_dist, domain_radius=1.0, max_attempts=10000, rng=None):
-            rng = rng or np.random.default_rng()
-            points = []
-            attempts = 0
-            while len(points) < n_points and attempts < max_attempts:
-                r = domain_radius * np.sqrt(rng.uniform())
-                theta = rng.uniform(0, 2 * np.pi)
-                x, y = r * np.cos(theta), r * np.sin(theta)
-                if all(np.hypot(x - px, y - py) >= min_dist for px, py in points):
-                    points.append((x, y))
-                attempts += 1
-            if len(points) < n_points:
-                raise RuntimeError(
-                    f"Could not place {n_points} points with min_dist={min_dist} "
-                    f"in {max_attempts} attempts. Try reducing n_points or min_dist."
-                )
-            return points
-
-        # Generate random positions with conservative minimum separation
-        pos = poisson_disk_sampling(self.N_particles, min_dist, domain_radius=domain_radius, rng=self.rng)
-
-        # Build undirected graph via Delaunay triangulation
-        temp_G = nx.Graph()
-        for i, p in enumerate(pos):
-            temp_G.add_node(i, pos=p)
-
-        tri = Delaunay(pos)
-        edges = set()
-        for simplex in tri.simplices:
-            for i in range(3):
-                edge = tuple(sorted([simplex[i], simplex[(i + 1) % 3]]))
-                edges.add(edge)
-        temp_G.add_edges_from(edges)
-
-        # Store as a directed graph (all edges are bidirectional)
-        self.G = nx.DiGraph(temp_G)
-        self.pos = {i: p for i, p in enumerate(pos)}
-        self.N_junctions = np.max([val for (node, val) in temp_G.degree()]) + 1
-
-        self._graph_to_net_topology()
-        
     def add_electrodes_to_random_net(self, electrode_positions: List[List[float]]) -> None:
-        """
-        Attach electrodes to a random nanoparticle network.
-
-        This method is intended to be used **only after** calling `random_network()`.
-        For each provided electrode position, the nearest unassigned nanoparticle is located,
-        and a bidirectional connection is made. Each electrode is represented as a new negative-index node,
-        and its spatial position is recorded.
+        """Just predefines attributes for future processing in electrostatic.py
 
         Parameters
         ----------
@@ -281,55 +210,160 @@ class NanoparticleTopology:
         Raises
         ------
         RuntimeError
-            If called before a random network has been created (i.e., if not self.lattice and pos is not set).
+            If called before a random network has been created.
         ValueError
             If there are more electrodes than nanoparticles, or invalid position types.
         """
         if getattr(self, "lattice", True):
             raise RuntimeError("add_electrodes_to_random_net() can only be called after random_network().")
-        if not hasattr(self, "pos") or not self.pos or not isinstance(self.pos, dict):
-            raise RuntimeError("No nanoparticle positions found. Call random_network() first.")
         if len(electrode_positions) > self.N_particles:
             raise ValueError("Cannot attach more electrodes than there are nanoparticles.")
-        if not hasattr(self, "domain_radius"):
-            raise RuntimeError("Domain radius not found. Make sure random_network has been called.")
         
-        # Scale electrode positions from [-1, 1] to device disk
-        scaled_electrode_positions = [[x * self.domain_radius, y * self.domain_radius] for x, y in electrode_positions]
-        
-        self.N_electrodes = len(scaled_electrode_positions)
-        used_nodes = set()  # Track which nanoparticles are already connected to an electrode
+        self.electrode_positions = electrode_positions
+        self.N_electrodes = len(electrode_positions)
+            
+    # def random_network(self, N_particles: int) -> None:
+    #     """
+    #     Set up a random 2D planar nanoparticle network using Delaunay triangulation
+    #     and Poisson disk sampling for physical plausibility.
 
-        # Convert positions to DataFrame for easy computation
-        node_positions = pd.DataFrame(self.pos).T.sort_index()
+    #     The domain size is automatically chosen so that all N_particles fit with the required
+    #     minimum separation (based on smallest allowed radius).
 
-        for n, e_pos in enumerate(scaled_electrode_positions):
-            if not (isinstance(e_pos, (list, tuple)) and len(e_pos) == 2):
-                raise ValueError(f"Electrode position {e_pos} is invalid. Must be [x, y].")
-            
-            # Compute Euclidean distance to each nanoparticle
-            node_positions['d'] = np.sqrt((e_pos[0] - node_positions[0]) ** 2 +
-                                        (e_pos[1] - node_positions[1]) ** 2)
-            
-            # Find closest unused nanoparticle
-            found = False
-            for i in node_positions.sort_values(by='d').index:
-                if i not in used_nodes:
-                    used_nodes.add(i)
-                    closest_nanoparticle = i
-                    found = True
-                    break
-            if not found:
-                raise RuntimeError("Ran out of unassigned nanoparticles before placing all electrodes.")
-            
-            electrode_node = -n - 1
-            # Create bidirectional edges
-            self.G.add_edge(electrode_node, closest_nanoparticle)
-            self.G.add_edge(closest_nanoparticle, electrode_node)
-            # Store the electrode's spatial position for plotting
-            self.pos[electrode_node] = tuple(e_pos)
+    #     Parameters
+    #     ----------
+    #     N_particles : int
+    #         Number of nanoparticles (nodes) in the network.
+
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If N_particles < 3 (Delaunay triangulation requires at least 3 points).
+    #     RuntimeError
+    #         If Poisson disk sampling cannot generate the requested points.
+    #     """
+    #     if N_particles < 3:
+    #         raise ValueError("At least 3 particles are required for Delaunay triangulation.")
+
+    #     self.lattice        = False
+    #     self.N_particles    = N_particles
+
+    #     # Use the minimum possible NP radius for separation BEFORE radii are initialized
+    #     min_dist = 2 * 10.0 + 1.0  # [nm]
+
+    #     # Compute required domain radius for random close packing
+    #     packing_density     = 0.45  # empirical value for random disk packings
+    #     needed_area         = N_particles * (min_dist / 2) ** 2 / packing_density
+    #     domain_radius       = np.sqrt(needed_area)
+    #     self.domain_radius  = domain_radius
+
+    #     def poisson_disk_sampling(n_points, min_dist, domain_radius=1.0, max_attempts=10000, rng=None):
+    #         rng = rng or np.random.default_rng()
+    #         points = []
+    #         attempts = 0
+    #         while len(points) < n_points and attempts < max_attempts:
+    #             r = domain_radius * np.sqrt(rng.uniform())
+    #             theta = rng.uniform(0, 2 * np.pi)
+    #             x, y = r * np.cos(theta), r * np.sin(theta)
+    #             if all(np.hypot(x - px, y - py) >= min_dist for px, py in points):
+    #                 points.append((x, y))
+    #             attempts += 1
+    #         if len(points) < n_points:
+    #             raise RuntimeError(
+    #                 f"Could not place {n_points} points with min_dist={min_dist} "
+    #                 f"in {max_attempts} attempts. Try reducing n_points or min_dist."
+    #             )
+    #         return points
+
+    #     # Generate random positions with conservative minimum separation
+    #     pos = poisson_disk_sampling(self.N_particles, min_dist, domain_radius=domain_radius, rng=self.rng)
+
+    #     # Build undirected graph via Delaunay triangulation
+    #     temp_G = nx.Graph()
+    #     for i, p in enumerate(pos):
+    #         temp_G.add_node(i, pos=p)
+
+    #     tri = Delaunay(pos)
+    #     edges = set()
+    #     for simplex in tri.simplices:
+    #         for i in range(3):
+    #             edge = tuple(sorted([simplex[i], simplex[(i + 1) % 3]]))
+    #             edges.add(edge)
+    #     temp_G.add_edges_from(edges)
+
+    #     # Store as a directed graph (all edges are bidirectional)
+    #     self.G = nx.DiGraph(temp_G)
+    #     self.pos = {i: p for i, p in enumerate(pos)}
+    #     self.N_junctions = np.max([val for (node, val) in temp_G.degree()]) + 1
+
+    #     self._graph_to_net_topology()
         
-        self._graph_to_net_topology()
+    # def add_electrodes_to_random_net(self, electrode_positions: List[List[float]]) -> None:
+    #     """
+    #     Attach electrodes to a random nanoparticle network.
+
+    #     This method is intended to be used **only after** calling `random_network()`.
+    #     For each provided electrode position, the nearest unassigned nanoparticle is located,
+    #     and a bidirectional connection is made. Each electrode is represented as a new negative-index node,
+    #     and its spatial position is recorded.
+
+    #     Parameters
+    #     ----------
+    #     electrode_positions : List[List[float]]
+    #         List of electrode positions [[x1, y1], [x2, y2], ...]. Coordinates should be within the box [-1, 1].
+
+    #     Raises
+    #     ------
+    #     RuntimeError
+    #         If called before a random network has been created (i.e., if not self.lattice and pos is not set).
+    #     ValueError
+    #         If there are more electrodes than nanoparticles, or invalid position types.
+    #     """
+    #     if getattr(self, "lattice", True):
+    #         raise RuntimeError("add_electrodes_to_random_net() can only be called after random_network().")
+    #     if not hasattr(self, "pos") or not self.pos or not isinstance(self.pos, dict):
+    #         raise RuntimeError("No nanoparticle positions found. Call random_network() first.")
+    #     if len(electrode_positions) > self.N_particles:
+    #         raise ValueError("Cannot attach more electrodes than there are nanoparticles.")
+    #     if not hasattr(self, "domain_radius"):
+    #         raise RuntimeError("Domain radius not found. Make sure random_network has been called.")
+        
+    #     # Scale electrode positions from [-1, 1] to device disk
+    #     scaled_electrode_positions = [[x * self.domain_radius, y * self.domain_radius] for x, y in electrode_positions]
+        
+    #     self.N_electrodes = len(scaled_electrode_positions)
+    #     used_nodes = set()  # Track which nanoparticles are already connected to an electrode
+
+    #     # Convert positions to DataFrame for easy computation
+    #     node_positions = pd.DataFrame(self.pos).T.sort_index()
+
+    #     for n, e_pos in enumerate(scaled_electrode_positions):
+    #         if not (isinstance(e_pos, (list, tuple)) and len(e_pos) == 2):
+    #             raise ValueError(f"Electrode position {e_pos} is invalid. Must be [x, y].")
+            
+    #         # Compute Euclidean distance to each nanoparticle
+    #         node_positions['d'] = np.sqrt((e_pos[0] - node_positions[0]) ** 2 +
+    #                                     (e_pos[1] - node_positions[1]) ** 2)
+            
+    #         # Find closest unused nanoparticle
+    #         found = False
+    #         for i in node_positions.sort_values(by='d').index:
+    #             if i not in used_nodes:
+    #                 used_nodes.add(i)
+    #                 closest_nanoparticle = i
+    #                 found = True
+    #                 break
+    #         if not found:
+    #             raise RuntimeError("Ran out of unassigned nanoparticles before placing all electrodes.")
+            
+    #         electrode_node = -n - 1
+    #         # Create bidirectional edges
+    #         self.G.add_edge(electrode_node, closest_nanoparticle)
+    #         self.G.add_edge(closest_nanoparticle, electrode_node)
+    #         # Store the electrode's spatial position for plotting
+    #         self.pos[electrode_node] = tuple(e_pos)
+        
+    #     self._graph_to_net_topology()
                 
     def add_np_to_output(self):
         """
@@ -615,157 +649,6 @@ class NanoparticleTopology:
     
     def __str__(self):
         return f"Topology Class with {self.N_particles} particles, {self.N_junctions} junctions.\nNetwork Topology:\n{self.net_topology}"
-
-        # # Remove old electrode connection
-        # self.G.remove_edge(adj_np,-output_electrode_idx-1)
-        # self.G.remove_edge(-output_electrode_idx-1,adj_np)
-
-        # # Add new nanoparticles
-        # self.G.add_node(prev_particle_count)
-
-        # # Add new edges
-        # self.G.add_edge(prev_particle_count,adj_np)
-        # self.G.add_edge(adj_np,prev_particle_count)
-        # self.G.add_edge(prev_particle_count,-output_electrode_idx-1)
-        # self.G.add_edge(-output_electrode_idx-1,prev_particle_count)
-
-        # # Update node positions
-        # x, y                            = self.pos[-output_electrode_idx-1]
-        # self.pos[prev_particle_count]   = (x,y)
-        # if self.lattice:
-        #     if x == self.N_x:
-        #         self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0]+1,self.pos[-output_electrode_idx-1][1])
-        #     elif x == -1:
-        #         self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0]-1,self.pos[-output_electrode_idx-1][1])
-        #     elif y == self.N_y:
-        #         self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]+1)
-        #     elif y == -1:
-        #         self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]-1)
-        # else:
-        #     if x == 1:
-        #         self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0]+1,self.pos[-output_electrode_idx-1][1])
-        #     elif x == -1:
-        #         self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0]-1,self.pos[-output_electrode_idx-1][1])
-        #     elif y == 1:
-        #         self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]+1)
-        #     elif y == -1:
-        #         self.pos[-output_electrode_idx-1]   = (self.pos[-output_electrode_idx-1][0],self.pos[-output_electrode_idx-1][1]-1)
-
-    # def add_two_in_parallel_np_to_output(self):
-    #     """Attach two nanoparticles in parallel to the output electrode (last electrode index).
-
-    #     This method:
-    #     1. Disconnects the existing nanoparticle from the output electrode
-    #     2. Creates two new nanoparticles
-    #     3. Connects both new nanoparticles between the previously connected nanoparticle and the output electrode,
-    #        forming a parallel configuration
-    #     """
-        
-    #     # Index of output electrode
-    #     output_electrode_idx    = self.N_electrodes-1
-            
-    #     # Increase the number of nanoparticles by two
-    #     prev_particle_count =   self.N_particles
-    #     self.N_particles    +=  2
-
-    #     # Find the nanoparticle that is connected to the floating electrode
-    #     adj_np  = np.where(self.net_topology[:,0]==(output_electrode_idx+1))[0][0]
-
-    #     # Create a new row for the first nanoparticle and set update connection
-    #     new_nn_1    = np.full(self.net_topology.shape[1], self.NO_CONNECTION)   # Initialize with placeholders
-    #     new_nn_1[1] = adj_np                                                    # Connect to the adjacent nanoparticle
-    #     new_nn_1[2] = self.N_particles-1                                        # Connect to second "new" nanoparticle
-
-    #     # Create a new row for the first nanoparticle and set the connections
-    #     new_nn_2    = np.full(self.net_topology.shape[1], self.NO_CONNECTION)   # Initialize with placeholders
-    #     new_nn_2[0] = output_electrode_idx+1                                    # Connect to the electrode   
-    #     new_nn_2[1] = adj_np                                                    # Connect to the adjacent nanoparticle
-    #     new_nn_2[2] = self.N_particles-2                                        # Connect to first "new" nanoparticle
-
-    #     # Add the new nanoparticles and their connections to the network topology
-    #     self.net_topology   = np.vstack((self.net_topology,new_nn_1))
-    #     self.net_topology   = np.vstack((self.net_topology,new_nn_2))
-
-    #     # Update the adjacent nanoparticle's connection
-    #     first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
-    #     self.net_topology[adj_np,first_free_spot]   = self.net_topology.shape[0]-2
-    #     first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
-    #     self.net_topology[adj_np,first_free_spot]   = self.net_topology.shape[0]-1
-    #     self.net_topology[adj_np,0]                 = self.NO_CONNECTION
-
-    #     # Remove old electrode connection
-    #     self.G.remove_edge(adj_np,-output_electrode_idx-1)
-    #     self.G.remove_edge(-output_electrode_idx-1,adj_np)
-
-    #     # Add new nanoparticles
-    #     self.G.add_node(prev_particle_count)
-    #     self.G.add_node(prev_particle_count+1)
-
-    #     # Add new edges
-    #     self.G.add_edge(prev_particle_count,adj_np)
-    #     self.G.add_edge(adj_np,prev_particle_count)
-    #     self.G.add_edge(prev_particle_count+1,adj_np)
-    #     self.G.add_edge(adj_np,prev_particle_count+1)
-    #     self.G.add_edge(prev_particle_count,prev_particle_count+1)
-    #     self.G.add_edge(prev_particle_count+1,prev_particle_count)
-    #     self.G.add_edge(prev_particle_count+1,-output_electrode_idx-1)
-    #     self.G.add_edge(-output_electrode_idx-1,prev_particle_count+1)
-
-    # def add_two_in_series_np_to_output(self):
-    #     """Attach two nanoparticles in series to the output electrode.
-
-    #     This method:
-    #     1. Disconnects the existing nanoparticle from the output electrode
-    #     2. Creates two new nanoparticles
-    #     3. Connects the new nanoparticles in series between the previously connected nanoparticle 
-    #        and the output electrode
-    #     """
-
-    #     # Index of output electrode
-    #     output_electrode_idx    = self.N_electrodes-1
-            
-    #     # Increase the number of nanoparticles by two
-    #     prev_particle_count =   self.N_particles
-    #     self.N_particles    +=  2
-
-    #     # Find the nanoparticle that is connected to the floating electrode
-    #     adj_np  = np.where(self.net_topology[:,0]==(output_electrode_idx+1))[0][0]
-
-    #     # Create a new row for the first nanoparticle and set update connection
-    #     new_nn_1    = np.full(self.net_topology.shape[1], self.NO_CONNECTION)   # Initialize with placeholders
-    #     new_nn_1[1] = adj_np                                                    # Connect to the adjacent nanoparticle
-    #     new_nn_1[2] = self.N_particles-1                                        # Connect to second "new" nanoparticle
-
-    #     # Create a new row for the first nanoparticle and set the connections
-    #     new_nn_2    = np.full(self.net_topology.shape[1], self.NO_CONNECTION)   # Initialize with placeholders
-    #     new_nn_2[0] = output_electrode_idx+1                                    # Connect to the electrode   
-    #     new_nn_2[1] = self.N_particles-2                                        # Connect to first "new" nanoparticle
-
-    #     # Add the new nanoparticles and their connections to the network topology
-    #     self.net_topology   = np.vstack((self.net_topology,new_nn_1))
-    #     self.net_topology   = np.vstack((self.net_topology,new_nn_2))
-
-    #     # Update the adjacent nanoparticle's connection
-    #     first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
-    #     self.net_topology[adj_np,first_free_spot]   = self.net_topology.shape[0]-2
-    #     first_free_spot                             = np.min(np.where(self.net_topology[adj_np,:]==self.NO_CONNECTION))
-    #     self.net_topology[adj_np,0]                 = self.NO_CONNECTION
-
-    #     # Remove old electrode connection
-    #     self.G.remove_edge(adj_np,-output_electrode_idx-1)
-    #     self.G.remove_edge(-output_electrode_idx-1,adj_np)
-
-    #     # Add new nanoparticles
-    #     self.G.add_node(prev_particle_count)
-    #     self.G.add_node(prev_particle_count+1)
-
-    #     # Add new edges
-    #     self.G.add_edge(prev_particle_count,adj_np)
-    #     self.G.add_edge(adj_np,prev_particle_count)
-    #     self.G.add_edge(prev_particle_count,prev_particle_count+1)
-    #     self.G.add_edge(prev_particle_count+1,prev_particle_count)
-    #     self.G.add_edge(prev_particle_count+1,-output_electrode_idx-1)
-    #     self.G.add_edge(-output_electrode_idx-1,prev_particle_count+1)
     
 ###########################################################################################################################
 ###########################################################################################################################

@@ -317,211 +317,312 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
                 n_bad = np.sum(new_radii < self.MIN_NP_RADIUS)
                 new_radii[new_radii < self.MIN_NP_RADIUS] = self.rng.normal(loc=mean_radius, scale=std_radius, size=n_bad)
             self.radius_vals[nanoparticles] = new_radii
-               
-    def pack_planar_circles(self, max_iter: int = 50, alpha: float = 0.05, tol: float = 1e-3, shrink_tol: float = 1e-6) -> None:
-        """
-        Adjusts `self.pos` so that:
-        1. All nanoparticle circles (of varying radii) are non-overlapping.
-        2. All graph edges remain straight and non-crossing (planar).
-        3. The final packing is as dense as possible (global shrink-to-fit).
-        4. Electrodes are placed outside without overlap.
 
-        Uses force-directed relaxation, then binary shrink-to-fit, then assigns electrodes.
+    def update_nanoparticle_radius_at_random(self, N: int, mean_radius: float = 10.0, std_radius: float = 0.0) -> None:
+        """
+        Randomly select N unique nanoparticles and update their radii.
 
         Parameters
         ----------
-        max_iter : int
-            Maximum number of repulsion/attraction iterations.
-        alpha : float
-            Strength of edge-based attraction (0 < alpha < 1).
-        tol : float
-            Overlap tolerance for circles.
-        shrink_tol : float
-            Precision for the final shrink step.
+        N : int
+            Number of distinct nanoparticles to modify.
+        mean_radius : float, optional
+            Mean radius value [nm] (default: 10.0).
+        std_radius : float, optional
+            Standard deviation for radius values [nm] (default: 0.0).
 
         Raises
         ------
+        ValueError
+            If N is greater than the total number of nanoparticles or if parameters are invalid.
         RuntimeError
-            If required attributes are not initialized.
+            If radius_vals has not been initialized.
         """
-        # Check necessary attributes
-        if not hasattr(self, "pos") or not self.pos:
-            raise RuntimeError("Particle positions not initialized.")
-        if not hasattr(self, "radius_vals"):
-            raise RuntimeError("Particle radii not initialized.")
-        if not hasattr(self, "G"):
-            raise RuntimeError("Graph object not initialized.")
-                
-        # Extract the subgraph of nanoparticles only, with their initial positions
-        G_np = self.G.copy()
-        for e in range(1, self.N_electrodes + 1):
-            G_np.remove_node(-e)
-        pos_np = {n: np.array(self.pos[n], dtype=float) for n in self.pos if n >= 0}
+        if not hasattr(self, 'radius_vals'):
+            raise RuntimeError("Nanoparticle radii not initialized. Call init_nanoparticle_radius first.")
 
-        # Scale to avoid initial overlaps
-        min_scale = 1.0
-        for u, v in G_np.edges():
-            p_u, p_v    = pos_np[u], pos_np[v]
-            dist        = np.linalg.norm(p_u - p_v)
-            required    = self.radius_vals[u] + self.radius_vals[v] + self.MIN_NP_NP_DISTANCE
-            if dist > 0:
-                min_scale = max(min_scale, required / dist)
-        if min_scale > 1.0:
-            for n in pos_np:
-                pos_np[n] *= min_scale
-
-        # Local relaxation (repel overlaps, attract edges, fix crossings)
-        for _ in range(max_iter):
-            max_overlap = 0.0
-
-            # A) Repel overlapping circles
-            for u, v in combinations(G_np.nodes(), 2):
-                p_u, p_v    = pos_np[u], pos_np[v]
-                req         = self.radius_vals[u] + self.radius_vals[v] + self.MIN_NP_NP_DISTANCE
-                delta       = p_u - p_v
-                d           = np.hypot(*delta)
-                overlap     = req - d
-                if overlap > tol:
-                    max_overlap = max(max_overlap, overlap)
-                    if d < 1e-6:
-                        direction = np.random.randn(2)
-                        direction /= np.linalg.norm(direction)
-                    else:
-                        direction = delta / d
-                    shift       = 0.5 * overlap * direction
-                    pos_np[u]   +=  shift
-                    pos_np[v]   -=  shift
-
-            # B) Attract Neighbors
-            for u, v in G_np.edges():
-                delta   = pos_np[v] - pos_np[u]
-                d       = np.hypot(*delta)
-                desired = self.radius_vals[u] + self.radius_vals[v] + self.MIN_NP_NP_DISTANCE
-                if d > desired + tol:
-                    shift_amount    = alpha * (d - desired)
-                    direction       = delta / d
-                    pos_np[u]       += shift_amount * direction
-                    pos_np[v]       -= shift_amount * direction
-
-            # C) Untangle any crossing edges (should be rare)
-            for (u1, v1), (u2, v2) in combinations(G_np.edges(), 2):
-                if len({u1, v1, u2, v2}) < 4:
-                    continue
-                seg1 = LineString([pos_np[u1], pos_np[v1]])
-                seg2 = LineString([pos_np[u2], pos_np[v2]])
-                if seg1.crosses(seg2):
-                    avg = (pos_np[u1] + pos_np[v1] + pos_np[u2] + pos_np[v2]) * 0.25
-                    for n in (u1, v1, u2, v2):
-                        delta   = pos_np[n] - avg
-                        norm    = np.linalg.norm(delta)
-                        if norm > 1e-6:
-                            pos_np[n] += 1e-2 * (delta / norm)
-                        else:
-                            rnd = np.random.randn(2)
-                            rnd /= np.linalg.norm(rnd)
-                            pos_np[n] += 1e-2 * rnd
-            # Keep centroid at (0, 0)
-            centroid = np.mean(list(pos_np.values()), axis=0)
-            for n in pos_np:
-                pos_np[n] -= centroid
-            if max_overlap < tol:
-                break
-
-        # Binary search shrink-to-fit
-        def _has_overlap(positions):
-            """Return True if any pair of circles overlaps under margin."""
-            keys = list(positions)
-            for i, j in combinations(keys, 2):
-                xi, yi  = positions[i]
-                xj, yj  = positions[j]
-                req     = self.radius_vals[i] + self.radius_vals[j] + self.MIN_NP_NP_DISTANCE
-                if np.hypot(xi - xj, yi - yj) < req - shrink_tol:
-                    return True
-            return False
-
-        centroid    = np.mean(list(pos_np.values()), axis=0)
-        low, high   = 0.0, 1.0
-        final_pos   = pos_np.copy()
-
-        while high - low > shrink_tol:
-            mid = 0.5 * (low + high)
-            # mid=1.0 means no shrink; mid→0 means full collapse
-            trial = {n: centroid + mid * (final_pos[n] - centroid)
-                    for n in final_pos}
-            if _has_overlap(trial):
-                high = mid
-            else:
-                final_pos = trial
-                low = mid
-
-        # Write back nanoparticle positions
-        for n, coord in final_pos.items():
-            self.pos[n] = coord
-
-        # Place electrodes outside forbidden region
-        coords_np = np.vstack([final_pos[n] for n in sorted(final_pos)])
-        radii_np  = self.radius_vals.copy()
-        centroid  = np.mean(coords_np, axis=0)
-
-        # build forbidden region of all existing disks (with padding)
-        def _build_forbidden(coords, radii, pad):
-            return unary_union([
-                Point(x, y).buffer(r + pad, resolution=32)
-                for (x, y), r in zip(coords, radii)
-            ])
-
-        e_np_pairs  = [(i, -val) for i, val in enumerate(self.net_topology[:,0]) if val >= 0]
-        coords_list = coords_np.copy()
-        radii_list  = radii_np.copy()
-
-        for i, e_i in e_np_pairs:
-            forbidden   = _build_forbidden(coords_list, radii_list, self.ELECTRODE_RADIUS + self.MIN_NP_NP_DISTANCE)
-            xj, yj      = self.pos[i]
-            p_j         = Point(xj, yj)
-
-            # outward‐ray candidate (+ tiny ε to clear buffer artifacts)
-            v = np.array([xj, yj]) - centroid
-            if np.linalg.norm(v) > 1e-8:
-                dir_vec = v / np.linalg.norm(v)
-                d       = (radii_list[i] + self.ELECTRODE_RADIUS + self.MIN_NP_NP_DISTANCE + 1e-6)
-                cand    = Point(xj + dir_vec[0]*d, yj + dir_vec[1]*d)
-                if forbidden.contains(cand):
-                    # fallback to convex hull of forbidden region
-                    hull = forbidden.convex_hull
-                    _, cand = nearest_points(p_j, hull.boundary)
-            else:
-                hull = forbidden.convex_hull
-                _, cand = nearest_points(p_j, hull.boundary)
-
-            # record electrode position and expand the forbidden set
-            self.pos[e_i]   = np.array([cand.x, cand.y])
-            coords_list     = np.vstack((coords_list, [cand.x, cand.y]))
-            radii_list      = np.hstack((radii_list, self.ELECTRODE_RADIUS))
-
-        # Update distance matrices
-        # nanoparticle–nanoparticle distances
-        diff = coords_np[:, None, :] - coords_np[None, :, :]
-        self.dist_matrix = np.linalg.norm(diff, axis=2)
-
-        # electrode–particle distances
-        el_dist = np.zeros((self.N_electrodes, self.N_particles))
-        for idx in range(1, self.N_electrodes + 1):
-            epos = np.array(self.pos[-idx])
-            d = coords_np - epos
-            el_dist[idx - 1] = np.linalg.norm(d, axis=1)
-        self.electrode_dist_matrix = el_dist
-
-    def pack_for_cubic(self):
+        if N > self.N_particles:
+            raise ValueError(f"Requested {N} nanoparticles, but only {self.N_particles} available.")
         
-        r_val  = self.radius_vals[0]
-        r_val2 = self.radius_vals[-1]
+        if mean_radius <= 0:
+            raise ValueError(f"Mean radius must be positive, got {mean_radius}.")
+        if std_radius < 0:
+            raise ValueError(f"Standard deviation must be non-negative, got {std_radius}.")
+
+        # 1. Randomly choose N distinct indices
+        # Using self.rng (Generator) as seen in your other methods
+        chosen_indices = self.rng.choice(a=self.N_particles, size=N, replace=False)
+
+        # 2. Generate new radius values
+        if std_radius == 0:
+            new_radii = np.full(N, mean_radius)
+        else:
+            new_radii = self.rng.normal(loc=mean_radius, scale=std_radius, size=N)
+            # Rejection sampling for truncated normal
+            while np.any(new_radii < self.MIN_NP_RADIUS):
+                bad = new_radii < self.MIN_NP_RADIUS
+                n_bad = np.sum(bad)
+                new_radii[bad] = self.rng.normal(loc=mean_radius, scale=std_radius, size=n_bad)
+
+        # 3. Apply updates to the state
+        self.radius_vals[chosen_indices] = new_radii
+               
+    def pack_circles(self, iterations: int = 20000, dt: float = 0.005, k_repel: float = 25.0, k_attract: float = 0.5,
+                     initial_temp:float = 2.0, start_cutoff: float = 40.0, end_cutoff: float = 2.2, safety_passes: int = 5000):
+        """
+        Packs polydisperse circles into a dense, cohesive cluster using a physics-based 
+        simulated annealing ("glass transition") algorithm.
+
+        The algorithm transitions from a high-temperature "liquid" phase (global gathering, 
+        high thermal noise) to a low-temperature "glassy" phase (local lattice locking, 
+        zero noise) to find an optimal local minimum.
+
+        Parameters
+        ----------
+        iterations : int, optional
+            The total number of physics simulation steps. High values (e.g. 20000) 
+            are recommended for high-precision packing. Default is 20000.
+        dt : float, optional
+            The time step for the physics integration. Lower values (e.g. 0.005) 
+            increase stability and precision but slow down effective movement. 
+            Default is 0.005.
+        k_repel : float, optional
+            Stiffness of the particles. Controls how strongly overlapping particles 
+            push apart. Higher values resolve overlaps faster but can cause instability 
+            if `dt` is too large. Default is 25.0.
+        k_attract : float, optional
+            Cohesion strength. Controls how strongly particles pull together to fill 
+            voids. Default is 0.5.
+        initial_temp : float, optional
+            The starting magnitude of the thermal noise (Brownian motion). This noise 
+            randomly shakes particles to prevent them from getting trapped in loose 
+            arches or jams. Decays to zero over the course of the simulation. 
+            Default is 2.0.
+        start_cutoff : float, optional
+            The initial interaction range (as a multiple of target distance). 
+            A large value (e.g. 40.0) ensures that initially distant particles 
+            can "see" and attract each other to form a single cluster. 
+            Default is 40.0.
+        end_cutoff : float, optional
+            The final interaction range. A small value (e.g. 2.2) ensures that 
+            particles eventually only bond with their immediate neighbors, forming 
+            a dense local lattice without global crushing. Default is 2.2.
+        safety_passes : int, optional
+            The number of purely geometric (non-physics) iterations run after the 
+            simulation to strictly resolve any remaining floating-point overlaps. 
+            Default is 5000.
+
+        Returns
+        -------
+        dict
+            A dictionary where keys are the indices (0 to N-1) corresponding to the 
+            input `radii`, and values are lists `[x, y]` of center coordinates.
+
+        Notes
+        -----
+        The simulation minimizes a potential energy landscape where the ideal distance 
+        between two particles $i$ and $j$ is $r_i + r_j + d_{min}$. 
+        """
+
+        # Copy NP Radii and Number
+        radii = self.radius_vals.copy()
+        N = self.N_particles
+        
+        # --- 1. Smart Initialization ---
+        # Shuffle indices to prevent input-order bias (size segregation)
+        indices = np.arange(N)
+        self.rng.shuffle(indices)
+        
+        # Estimate total area to determine a safe initial spread
+        # We start loose to allow the "liquid" phase to reorganize easily
+        total_area = np.sum(np.pi * (radii + self.MIN_NP_NP_DISTANCE)**2)
+        start_radius = np.sqrt(total_area) * 2.5
+        
+        # Random placement in a circular cloud
+        theta = self.rng.uniform(0, 2*np.pi, N)
+        r_pos = np.sqrt(self.rng.uniform(0, 1, N)) * start_radius
+        x = r_pos * np.cos(theta)
+        y = r_pos * np.sin(theta)
+        
+        # Store as (N, 2) array for vectorized operations
+        positions = np.column_stack((x, y))
+
+        # --- 2. Main Physics Annealing Loop ---       
+        for step in range(iterations):
+            progress = step / iterations
+            
+            # --- A. Annealing Schedule ---
+            
+            # 1. Interaction Range (Vision): Global -> Local
+            # Keep global (start_cutoff) for first 30% to gather isolated clusters
+            if progress < 0.3:
+                current_cutoff = start_cutoff
+            else:
+                # Exponential decay to end_cutoff
+                # This gently tightens the "vision" to nearest neighbors only
+                p_decay = (progress - 0.3) / 0.7
+                current_cutoff = start_cutoff * (end_cutoff / start_cutoff)**p_decay
+
+            # 2. Temperature (Thermal Noise): Hot -> Frozen
+            # Linearly decay noise to zero at 85% completion to allow final settling
+            if progress < 0.85:
+                current_temp = initial_temp * (1.0 - progress / 0.85)
+            else:
+                current_temp = 0.0
+
+            # --- B. Vectorized Distance Calculations ---
+            # Calculate N x N distance matrix using broadcasting
+            # delta[i, j] is the vector pointing from j to i
+            delta = positions[:, np.newaxis, :] - positions[np.newaxis, :, :] 
+            dist_sq = np.sum(delta**2, axis=2)
+            dist = np.sqrt(dist_sq)
+            
+            # Prevent division by zero for self-interaction or exact overlap
+            safe_dist = dist.copy()
+            safe_dist[safe_dist < 1e-7] = 1e-7
+            norm_delta = delta / safe_dist[..., np.newaxis]
+            
+            # Determine Target Distances
+            radii_sum = radii[:, np.newaxis] + radii[np.newaxis, :]
+            target_dist = radii_sum + self.MIN_NP_NP_DISTANCE
+            
+            # Diff: Negative = Overlap, Positive = Gap
+            diff = dist - target_dist
+            np.fill_diagonal(diff, np.inf) # Ignore self-interaction
+            
+            # --- C. Force Calculation ---
+            
+            # 1. Repulsion (Overlap)
+            # Active if diff < 0. Force is proportional to overlap depth.
+            mask_repel = diff < 0
+            repel_mag = diff * k_repel
+            # Force clamping avoids numeric explosion from deep initial overlaps
+            repel_mag = np.clip(repel_mag, -5.0, 5.0) 
+            
+            f_repel = np.sum(mask_repel[..., np.newaxis] * norm_delta * repel_mag[..., np.newaxis], axis=1)
+            
+            # 2. Attraction (Cohesion)
+            # Active if gap exists (diff > 0) AND within current interaction range.
+            vision_limit = target_dist * current_cutoff
+            mask_attract = (diff > 0) & (dist < vision_limit)
+            
+            attract_mag = diff * k_attract
+            attract_mag = np.clip(attract_mag, -5.0, 5.0)
+            
+            f_attract = np.sum(mask_attract[..., np.newaxis] * norm_delta * attract_mag[..., np.newaxis], axis=1)
+            
+            # Combine Forces
+            # Note: repel_mag is negative (diff<0). norm_delta points j->i.
+            # We want to push i away from j.
+            # The math: Total Force = - (Repel + Attract)
+            total_force = -(f_repel + f_attract)
+            
+            # 3. Thermal Noise (Brownian Motion)
+            # Random kicks to break "jammed" arches and explore configurations
+            if current_temp > 0:
+                noise = self.rng.normal(0, 1, size=(N, 2)) * current_temp
+                total_force += noise
+                
+            # 4. Global Damping (Viscosity)
+            # Simulates a thick fluid, preventing perpetual oscillation
+            total_force *= 0.5 
+            
+            # 5. Drift Correction
+            # Gently recenter the cloud to (0,0) so it doesn't float away
+            positions -= np.mean(positions, axis=0) * 0.05
+            
+            # Integration (Euler)
+            positions += total_force * dt
+            
+        # --- 3. Final Safety Polish ---
+        # Strictly resolves any remaining microscopic overlaps           
+        for i in range(safety_passes):
+            delta = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
+            dist = np.sqrt(np.sum(delta**2, axis=2))
+            dist[dist < 1e-7] = 1e-7
+            
+            req = radii[:, np.newaxis] + radii[np.newaxis, :] + self.MIN_NP_NP_DISTANCE
+            overlap = req - dist
+            np.fill_diagonal(overlap, -1)
+            
+            if not np.any(overlap > 0):
+                break
+                
+            mask = overlap > 0
+            norm_delta = delta / dist[..., np.newaxis]
+            # Very gentle correction to fix overlaps without breaking the lattice
+            correction = np.sum(mask[..., np.newaxis] * norm_delta * overlap[..., np.newaxis], axis=1) * 0.2
+            positions += correction
+            positions -= np.mean(positions, axis=0)
+
+        # Format output
+        self.pos = {i: positions[i].tolist() for i in range(N)}
+
+    def create_packing_graph(self, delta: float = 0.5):
+        """
+        Creates a directed graph from circle packing positions.
+        Nodes are connected if their physical distance is within a tolerance range.
+        
+        Parameters
+        ----------
+        delta : float, optional
+            Connection tolerance. Two particles connect if dist < (r_i + r_j + d_min + delta).
+        """
+        
+        is_connected = False
+        n_packs = 0
+        while ((not is_connected) and (n_packs < 10)):
+            self.G = nx.DiGraph()
+            
+            # 1. Add all nodes explicitly (in case some have no connections)
+            # We can store attributes like position and radius in the node for later use
+            for i in range(self.N_particles):
+                self.G.add_node(i)
+            
+            # 2. Check all pairs for connections
+            # We loop j > i to avoid duplicate checks, then add edges in both directions
+            for i in range(self.N_particles):
+                pos_i = np.array(self.pos[i])
+                r_i = self.radius_vals[i]
+                
+                for j in range(i + 1, self.N_particles):
+                    pos_j = np.array(self.pos[j])
+                    r_j = self.radius_vals[j]
+                    
+                    # Calculate Euclidean distance
+                    dist = np.linalg.norm(pos_i - pos_j)
+                    
+                    # The Connection Condition
+                    # "Touching" logic: Sum of radii + Buffer + Tolerance
+                    contact_threshold = r_i + r_j + self.MIN_NP_NP_DISTANCE + delta
+                    
+                    if dist <= contact_threshold:
+                        # Add directed edges both ways (symmetric connection)
+                        self.G.add_edge(i, j)
+                        self.G.add_edge(j, i)
+        
+            # Check connectivity
+            is_connected = nx.is_strongly_connected(self.G)
+            if not is_connected:
+                self.pack_circles()
+                n_packs += 1
+        
+        self.N_junctions = max([val for (node, val) in self.G.out_degree()]) + 1
+
+    def pack_lattice(self):
+        """
+        Scales the initial position of each NP in a lattice so that they don't overlap and are spaced by a minimum distance.
+        The algorithm considers the fixed radius of each NP. Does not work for disorderd topologies and disordered NP sizes.
+        """
+        
+        r_val = self.radius_vals[0]
         
         for n in range(self.N_particles-1):
             self.pos[n] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[n][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[n][1])
-        self.pos[self.N_particles-1] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[self.N_particles-1][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*(self.pos[self.N_particles-1][1]-1) + r_val2+r_val + self.MIN_NP_NP_DISTANCE)
+        self.pos[self.N_particles-1] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[self.N_particles-1][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*(self.pos[self.N_particles-1][1]-1) + 2*r_val + self.MIN_NP_NP_DISTANCE)
         for e in range(1,self.N_electrodes):
             self.pos[-e] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[-e][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[-e][1])
-        self.pos[-self.N_electrodes] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[-self.N_electrodes][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*(self.pos[-self.N_electrodes][1]-1) + 2*r_val2 + self.MIN_NP_NP_DISTANCE)
+        self.pos[-self.N_electrodes] = ((2*r_val + self.MIN_NP_NP_DISTANCE)*self.pos[-self.N_electrodes][0],(2*r_val + self.MIN_NP_NP_DISTANCE)*(self.pos[-self.N_electrodes][1]-1) + 2*r_val + self.MIN_NP_NP_DISTANCE)
 
         dist_matrix = np.zeros(shape=(self.N_particles,self.N_particles))
         for i in range(self.N_particles):

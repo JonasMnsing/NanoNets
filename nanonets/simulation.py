@@ -195,7 +195,7 @@ class Simulation(tunneling.NanoparticleTunneling):
                 if pack_optimizer:
                     self.pack_planar_circles()
                 else:
-                    self.pack_for_cubic()
+                    self.pack_lattice()
             else:
                 self.net_topology           = kwargs["net_topology"]
                 self.dist_matrix            = kwargs["dist_matrix"]

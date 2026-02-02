@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import os
 
-PATH    = "/home/jonasmensing/bagheera/data/1_funding_period/phase_space_sample/"
+PATH    = "/home/j/j_mens07/phd/data/1_funding_period/phase_space_sample/"
 PATH2   = "/mnt/c/Users/jonas/Desktop/phd/nanonets/scripts/1_funding_period/surrogate_model/"
 
 # --- 1. Load Your Data ---

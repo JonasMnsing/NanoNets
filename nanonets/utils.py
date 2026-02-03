@@ -16,6 +16,7 @@ from typing import Any, Callable, Union, Set, Tuple, List, Dict, Optional
 from scipy.stats import entropy
 from pathlib import Path
 from scipy import signal
+from scipy.spatial import KDTree
 
 # Constants
 BLUE_COLOR          = '#4477AA'
@@ -761,6 +762,61 @@ def get_on_off_rss(df00 : pd.DataFrame, df01 : pd.DataFrame, df10 : pd.DataFrame
 
 #     return fitness
 
+def get_displacement_currents(pots:np.ndarray, C_U: np.ndarray, dt: float, output_idx=-1):
+    """
+    Calculates the total displacement current flowing into the output electrode.
+    
+    This function computes I_disp(t) = C_out_vec · d(phi_vec)/dt.
+    It accounts for the contribution of every nanoparticle in the network, 
+    weighted by its mutual capacitance to the output.
+
+    Parameters:
+    -----------
+    pots : np.ndarray
+        Array of shape (steps, N_p) containing the time series of potentials 
+        for all N_p nanoparticles.
+    C_U : np.ndarray
+        The electrode capacitance matrix of shape (N_p, N_e).
+    dt : float
+        The simulation time step size (in seconds, or consistent units).
+    output_idx : int, optional
+        The column index in C_U corresponding to the output electrode. 
+        Default is -1 (the last column).
+
+    Returns:
+    --------
+    I_disp : np.ndarray
+        Array of shape (steps - 1,). The displacement current time series.
+        Note: The length is one less than 'pots' because differentiation 
+        consumes one data point.
+    """
+
+    # 1. Extract the coupling vector for the output electrode
+    # Shape: (N_p,) - This is the vector \vec{C}_{out}
+    C_out_vec = C_U[:, output_idx]
+
+    # 2. Calculate the time derivative of the potential vector
+    # We use numerical differentiation: d_phi/dt approx (phi(t+1) - phi(t)) / dt
+    # Shape: (steps - 1, N_p)
+    d_phi_dt = np.gradient(pots, dt, axis=0)
+
+    # 3. Compute the displacement current
+    # We perform a dot product sum over the N_p dimension for each time step.
+    # Mathematical operation: I(t) = \sum_{i} C_{i,out} * \dot{\phi}_i(t)
+    # Using matrix multiplication (@) handles this sum efficiently.
+    # (steps-1, N_p) @ (N_p,) -> (steps-1,)
+    I_disp = d_phi_dt @ C_out_vec
+
+    return I_disp
+
+def get_SET_TAU_F0():
+    topo        = {"Nx" : 1, "Ny" : 1, "electrode_type" : ['constant','constant']}
+    sim_c       = simulation.Simulation(topo)
+    C_total     = sim_c.get_capacitance_matrix()[0][0]*1e-18
+    R_junction  = 25*1e6
+    TAU_SET     = R_junction * C_total
+    F0_SET      = (1e-6)/(2*np.pi*TAU_SET)
+    return TAU_SET, F0_SET
 
 def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 0.0, 
             off_state: float = 0.0, on_state: float = None,
@@ -883,6 +939,38 @@ def abundance(df: pd.DataFrame, gates: List[str] = ['AND Fitness', 'OR Fitness',
             df_abundance[gate+' Abundance']   = abundance
 
     return df_abundance
+
+def get_frequency_spectrum(signal, dt):
+    """
+    Computes the calibrated one-sided amplitude spectrum.
+    
+    Parameters:
+    - signal: 1D numpy array (time domain)
+    - dt: Time step in seconds
+    
+    Returns:
+    - freqs: Array of frequencies [Hz]
+    - amplitudes: Array of physical amplitudes [A] (or whatever unit signal is in)
+    """
+    N_samples = len(signal)
+    
+    # 1. Apply Window (Consistent with your previous analysis)
+    window = np.blackman(N_samples)
+    y_val = signal - np.mean(signal)
+    y_windowed = y_val * window
+    
+    # Window Coherent Gain Correction
+    w_gain = np.sum(window) / N_samples
+    
+    # 2. Compute FFT
+    fft_vals = np.fft.rfft(y_windowed)
+    freqs = np.fft.rfftfreq(N_samples, dt)
+    
+    # 3. Normalize Magnitude
+    # Scale for one-sided (*2), normalize by N, correct for window loss
+    amplitudes = (np.abs(fft_vals) * 2 / N_samples) / w_gain
+    
+    return freqs, amplitudes
 
 def extract_harmonic_features(y_val, n_vals, N_periods=20, search_range=3, mode='complex', pad_len=None, interpolate=True):
     """
@@ -1066,6 +1154,133 @@ def extract_harmonic_features(y_val, n_vals, N_periods=20, search_range=3, mode=
                 features.append(0.0)
                 
     return np.array(features)
+
+
+def compute_spectral_centroid(amplitudes, harmonic_orders, exclude_fundamental=True):
+    """
+    Calculates the Spectral Centroid (Center of Mass of the Harmonic Spectrum).
+    
+    Formula: C = Sum(n * A_n^2) / Sum(A_n^2)
+    (Weighted by Power, consistent with energy distribution)
+    
+    Parameters:
+    - amplitudes: Array of magnitudes [A_1, A_3, A_5...]
+    - harmonic_orders: Array of harmonic indices [1, 3, 5...]
+    - exclude_fundamental: If True, calculates the centroid of the DISTORTION only (n > 1).
+                           If False, includes the fundamental frequency.
+    
+    Returns:
+    - centroid: The weighted average harmonic order (e.g., 3.5 means energy is between n=3 and n=5).
+    """
+    # Ensure inputs are numpy arrays
+    amps = np.asarray(amplitudes)
+    ords = np.asarray(harmonic_orders)
+    
+    # 1. Filter: Decide whether to include n=1
+    if exclude_fundamental:
+        # Only keep harmonics where n > 1
+        mask = ords > 1
+        valid_amps = amps[mask]
+        valid_ords = ords[mask]
+    else:
+        valid_amps = amps
+        valid_ords = ords
+        
+    # 2. Calculate Power (Square of Amplitude)
+    power = valid_amps**2
+    total_power = np.sum(power)
+    
+    # 3. Safety Check for Zero Distortion
+    if total_power < 1e-20:
+        return np.nan # No harmonic energy exists
+        
+    # 4. Calculate Centroid
+    # Sum(n * Power) / Sum(Power)
+    centroid = np.sum(valid_ords * power) / total_power
+    
+    return centroid
+
+def compute_thd(amplitudes):
+    """
+    Calculates Total Harmonic Distortion (THD).
+    Input: Array of amplitudes [A_fund, A_harm1, A_harm2, ...]
+    """
+    if len(amplitudes) < 2 or amplitudes[0] == 0:
+        return 0.0
+        
+    power_fund = amplitudes[0]**2
+    power_harm = np.sum(amplitudes[1:]**2)
+    
+    return np.sqrt(power_harm) / np.sqrt(power_fund)
+
+def MC_effective_volume(points, M_samples, fixed_radius, global_bounds):
+    """
+    Calculates the 'Effective Volume' of a high-dimensional point cloud using 
+    Monte Carlo integration with a fixed probe radius.
+
+    This function estimates the volume of the union of hyperspheres centered at each 
+    data point. It is useful for quantifying the "reachable state space" or 
+    "expressivity" of a reservoir computer in harmonic space.
+
+    Parameters:
+    -----------
+    points : np.ndarray
+        Array of shape (N_points, D_dimensions) containing the coordinates of the 
+        reachable states (e.g., normalized harmonic phasors).
+    M_samples : int
+        Number of Monte Carlo samples to generate. Higher values reduce variance 
+        but increase computation time. Suggest > 100,000 for D > 3.
+    fixed_radius : float
+        The radius of the hypersphere surrounding each point. This defines the 
+        "resolution" of the volume.
+        - Small radius: Measures point density (Volume ~ N * V_sphere).
+        - Large radius: Approaches the Convex Hull volume (ignoring holes).
+    global_bounds : tuple of (np.ndarray, np.ndarray)
+        A tuple (min_bounds, max_bounds) defining the hyper-rectangle to sample within.
+        Ensure these bounds fully enclose the 'points' + 'fixed_radius' to avoid clipping.
+
+    Returns:
+    --------
+    float
+        The estimated effective volume occupied by the point cloud.
+    """
+    
+    # 1. Setup Bounding Box Dimensions
+    min_bounds, max_bounds = global_bounds
+    
+    # Calculate the side lengths of the sampling box
+    # (Vector of length D, allowing for non-cubic bounds)
+    side_lengths = max_bounds - min_bounds
+    
+    # Calculate total volume of the sampling box (V_0)
+    # This serves as the reference volume for the Monte Carlo integration
+    v0_volume = np.prod(side_lengths)
+
+    # 2. Generate Random Samples (Monte Carlo)
+    # Create random points uniformly distributed within the [0, 1] hypercube
+    raw_samples = np.random.rand(M_samples, points.shape[1])
+    
+    # Scale and shift samples to fit inside the 'global_bounds' box
+    samples = raw_samples * side_lengths + min_bounds
+
+    # 3. Neighbor Search (The "Hit" Test)
+    # Build a KDTree for efficient nearest-neighbor lookup
+    tree = KDTree(points)
+    
+    # Query the tree: Find the distance to the single nearest neighbor for each sample
+    # k=1 returns only the nearest neighbor distance
+    d_to_nn, _ = tree.query(samples, k=1)
+    
+    # 4. Count Hits
+    # A sample is a "hit" if it falls within 'fixed_radius' of ANY point in the set
+    hits = np.sum(d_to_nn <= fixed_radius)
+
+    # 5. Calculate Effective Volume
+    # V_eff = (Fraction of Hits) * (Total Box Volume)
+    p_hit_rate = hits / M_samples
+    v_mc_eff = p_hit_rate * v0_volume
+
+    return v_mc_eff
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # MISC

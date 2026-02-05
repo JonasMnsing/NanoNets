@@ -866,7 +866,7 @@ def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 
         
         # Vectorized calculation across all N*M rows
         m = gate_states['on'] - gate_states['off']
-        denom = gate_states['res'] + delta * (gate_states['off'].abs())
+        denom = gate_states['res'] + delta * (gate_states['off'].abs()) + 1
         
         fitness_results[gate + ' Fitness'] = m / denom
 

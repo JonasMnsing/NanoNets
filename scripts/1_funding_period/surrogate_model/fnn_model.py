@@ -14,15 +14,17 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 
 # --- Configuration ---
-FOLDER = "/home/j/j_mens07/phd/data/1_funding_period/phase_space_sample/"
-FILENAME = "Nx=9_Ny=9_Ne=8.csv"
-USE_JITTER = True
-BATCH_SIZE = 64
-EPOCHS = 300
-LEARNING_RATE = 1e-3
-MAX_ERROR = 0.1 #np.inf
-X_RANGE = 50*1e-3
-Y_RANGE = 500e6
+FOLDER          = "/home/j/j_mens07/phd/data/1_funding_period/phase_space_sample/"
+FILENAME        = "Nx=9_Ny=9_Ne=8.csv"
+USE_JITTER      = True
+BATCH_SIZE      = 64
+EPOCHS          = 300
+LEARNING_RATE   = 1e-3
+MAX_ERROR       = np.inf
+X_RANGE         = 50*1e-3
+Y_RANGE         = 500e6
+AC_TIME         = 40e-9
+BATCH_TIME      = 20*AC_TIME
 
 
 # NETWORK ARCHITECTURE: [Nodes, L2_Reg, Dropout_Rate]
@@ -36,11 +38,16 @@ LAYER_INFO = [
 ]
 
 def load_and_process_data(filepath, max_error=np.inf):
-    df = pd.read_csv(filepath)
-    df = df[(df['Error']/df['Observable']).abs() < max_error].reset_index(drop=True)
-    X = df.iloc[:, :7].values
-    y = df['Observable'].values.reshape(-1, 1)
+    ele = 0.160217662
+    I_M = ele / (20*BATCH_TIME)
+    df  = pd.read_csv(filepath)
+    l_t = np.abs(df['Observable'].values) < I_M
+    df  = df[(df['Error']/df['Observable']).abs() < max_error].reset_index(drop=True)
+    X   = df.iloc[:, :7].values
+    y   = df['Observable'].values.reshape(-1, 1)
     y_e = df['Error'].values.reshape(-1, 1)/1.96
+    y[l_t]   = 0.0
+    y_e[l_t] = 0.0
     return X, y, y_e
 
 def get_model(input_dim, layer_info):

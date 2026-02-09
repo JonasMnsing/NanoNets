@@ -397,7 +397,7 @@ def load_simulation_results(folder : str, N : Union[int, List[int]], N_e : Union
 
     return data
 
-def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List[str], drop_zero=True, off_state=0.0, on_state=0.01)->pd.DataFrame:
+def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List[str], drop_zero=False, off_state=0.0, on_state=0.01)->pd.DataFrame:
     """Prepares a pandas DataFrame for the calculation of logic gate fitness, ensuring that all input state combinations are present for each set of rows.
 
     Parameters
@@ -425,7 +425,7 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
     data = df.copy()
 
     # Initial filtering based on 'Error' and 'Observable'
-    data = data[data['Error'] != 0.0]
+    # data = data[data['Error'] != 0.0]
     if drop_zero:
         data = data[data['Observable'].abs() > 0.0]
 
@@ -824,6 +824,11 @@ def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 
     """
     Calculate fitness and expand the dataset by M resamples per row.
     """
+
+    ele     = 0.160217662
+    actime  = 40e-9
+    batch_t = 20*actime
+    
     if gates is None:
         gates = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'P', 'notP', 'Q', 'notQ', 'PnotQ', 'notPQ', 'notPandQ', 'PandnotQ']
     
@@ -866,7 +871,7 @@ def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 
         
         # Vectorized calculation across all N*M rows
         m = gate_states['on'] - gate_states['off']
-        denom = gate_states['res'] + delta * (gate_states['off'].abs()) + 1
+        denom = gate_states['res'] + delta * (gate_states['off'].abs()) + ele / (20*batch_t)
         
         fitness_results[gate + ' Fitness'] = m / denom
 
@@ -1412,12 +1417,8 @@ def stat_moment(arr: np.ndarray, order: int = 1, bins: int = 100)->float:
     float
         Expected value of the input array raised to the specified order.
     """
-    count, bins = np.histogram(a=arr, bins=bins)
-    probs       = count / np.sum(count)
-    mids        = 0.5*(bins[1:]+ bins[:-1])
-    exp_val     = np.sum(probs * mids**order)
-
-    return exp_val
+    
+    return np.mean(arr**order)
 
 def return_ndr(arr: np.ndarray)->np.ndarray:
     """

@@ -14,11 +14,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 
 # --- Configuration ---
-FOLDER          = "/home/j/j_mens07/phd/data/1_funding_period/phase_space_sample/"
+# FOLDER          = "/home/j/j_mens07/phd/data/1_funding_period/phase_space_sample/"
+FOLDER          = "/home/jonasmensing/bagheera/data/1_funding_period/phase_space_sample"
 FILENAME        = "Nx=9_Ny=9_Ne=8.csv"
 USE_JITTER      = True
 BATCH_SIZE      = 64
-EPOCHS          = 300
+EPOCHS          = 1000
 LEARNING_RATE   = 1e-3
 MAX_ERROR       = np.inf
 X_RANGE         = 50*1e-3

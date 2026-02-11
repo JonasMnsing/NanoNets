@@ -680,19 +680,19 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
             # Mutual NP-NP capacitances (off-diagonal)
             for j in range(self.N_particles):
                 if i!=j:
-                    if j in neighbors: # Check if j is neighbor
+                    # if j in neighbors: # Check if j is neighbor
                         # If overlap occurs, mutual_capacitance will enforce minimum distance inside itself
-                        val     =   self.mutual_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[j], self.dist_matrix[i,j])
-                        C_sum   +=  val
-                        self.capacitance_matrix[i,j] = -val
+                    val     =   self.mutual_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.radius_vals[j], self.dist_matrix[i,j])
+                    C_sum   +=  val
+                    self.capacitance_matrix[i,j] = -val
 
             # NP-electrode capacitance (only for constant electrodes)
             for j in range(self.N_electrodes):
                 if hasattr(self, 'floating_indices') and j in self.floating_indices:
                     continue  # skip floating electrodes
-                if j+1 == electrode: # Check if electrode is adjacent
-                    val     =   self.mutual_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS, self.electrode_dist_matrix[j,i])
-                    C_sum   +=  val
+                # if j+1 == electrode: # Check if electrode is adjacent
+                val     =   self.mutual_capacitance_adjacent_spheres(eps_r, self.radius_vals[i], self.ELECTRODE_RADIUS, self.electrode_dist_matrix[j,i])
+                C_sum   +=  val
                     
             # Self Capacitance
             C_sum += self.self_capacitance_sphere(eps_s, self.radius_vals[i])
@@ -738,9 +738,9 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
         C_lead = np.zeros((self.N_electrodes, self.N_particles))
         for j in np.nonzero(constant_mask)[0]:
             for i in range(self.N_particles):
-                if j+1 == self.net_topology[i,0]: # Check if electrode is adjacent
-                    C_lead[j, i] = self.mutual_capacitance_adjacent_spheres(self.eps_r,self.radius_vals[i],
-                                                                            self.ELECTRODE_RADIUS,self.electrode_dist_matrix[j, i])
+                # if j+1 == self.net_topology[i,0]: # Check if electrode is adjacent
+                C_lead[j, i] = self.mutual_capacitance_adjacent_spheres(self.eps_r,self.radius_vals[i],
+                                                                        self.ELECTRODE_RADIUS,self.electrode_dist_matrix[j, i])
 
         # Self-capacitances (for reference)
         C_self = np.array([self.self_capacitance_sphere(self.eps_s, r) for r in self.radius_vals])

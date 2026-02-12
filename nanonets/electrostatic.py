@@ -703,7 +703,7 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
             self.inv_capacitance_matrix = np.linalg.inv(self.capacitance_matrix)
         except np.linalg.LinAlgError as e:
             raise RuntimeError("Failed to invert capacitance matrix. Matrix may be singular.") from e
-        
+    
     def calc_electrode_capacitance_matrix(self):
         """
         Calculate the capacitance matrix between electrodes and nanoparticles.
@@ -746,6 +746,43 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
         C_self = np.array([self.self_capacitance_sphere(self.eps_s, r) for r in self.radius_vals])
         self.self_capacitance               = C_self        # shape (N_particles,)
         self.electrode_capacitance_matrix   = C_lead        # shape (N_electrodes, N_particles)
+
+    def load_capacitance_matrix(self, path: str)->None:
+        """
+        Load the capacitance matrix (NxN) for the nanoparticle network from path.
+
+        Parameters
+        ----------
+        path : str
+            File Path
+        """
+
+        # Load capacitance matrix
+        self.capacitance_matrix = np.loadtxt(path)
+
+        # Invert capacitance matrix
+        try:
+            self.inv_capacitance_matrix = np.linalg.inv(self.capacitance_matrix)
+        except np.linalg.LinAlgError as e:
+            raise RuntimeError("Failed to invert capacitance matrix. Matrix may be singular.") from e
+        
+    def load_electrode_capacitance_matrix(self, path: str)->None:
+        """
+        Load the capacitance matrix between electrodes and nanoparticles from path.
+
+        Parameters
+        ----------
+        path : str
+            File Path
+        """
+
+        # Load capacitance matrix
+        self.electrode_capacitance_matrix = np.loadtxt(path)
+
+        # Self-capacitances (for reference)
+        diagonal_ele = np.diag(self.capacitance_matrix)
+        off_diagonal = np.sum(self.capacitance_matrix,axis=1) - diagonal_ele
+        self.self_capacitance = diagonal_ele + off_diagonal - np.sum(self.electrode_capacitance_matrix,axis=0)
         
     def init_charge_vector(self, voltage_values: np.ndarray) -> None:
         """

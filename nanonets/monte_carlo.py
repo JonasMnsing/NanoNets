@@ -741,7 +741,7 @@ class MonteCarlo():
             self.network_currents   = self.ele_charge * self.network_currents / time_total
 
     def kmc_simulation_duration(self, target_electrode: int, error_th: float = 0.05,
-                                max_jumps: int = 10000000, n_per_batch: int = 100, 
+                                max_jumps: int = 10000000, n_per_batch: int = 20, 
                                 output_potential: bool = False, kmc_counting: bool = False,
                                 min_batches: int = 10):
         """

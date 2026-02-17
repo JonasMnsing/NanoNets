@@ -195,8 +195,39 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
         cap     = factor * np.sinh(U_val) * s
 
         return cap
+    
+    # def self_capacitance_sphere(self, eps_s: float, np_radius: float) -> float:
+    #     """
+    #     Compute the self-capacitance of a single spherical nanoparticle in an infinite homogeneous dielectric.
 
-    def self_capacitance_sphere(self, eps_s: float, np_radius: float) -> float:
+    #     Parameters
+    #     ----------
+    #     eps_s : float
+    #         Relative permittivity of the surrounding medium [dimensionless]
+    #     np_radius : float
+    #         Radius of the nanoparticle [nm]
+        
+    #     Returns
+    #     -------
+    #     float
+    #         Capacitance [aF]
+
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If eps_s <= 0 or np_radius <= 0
+    #     """
+    #     if eps_s <= 0:
+    #         raise ValueError(f"Relative permittivity eps_s must be positive, got {eps_s}.")
+    #     if np_radius <= 0:
+    #         raise ValueError(f"Radius must be positive, got {np_radius}.")
+
+    #     factor  = 4 * self.PI * self.EPSILON_0 * eps_s
+    #     cap     = factor * np_radius
+
+    #     return cap
+    
+    def self_capacitance_sphere(self, eps_s: float, np_radius: float, h_oxide: float = np.inf, N_sum: int = 50) -> float:
         """
         Compute the self-capacitance of a single spherical nanoparticle in an infinite homogeneous dielectric.
 
@@ -206,6 +237,10 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
             Relative permittivity of the surrounding medium [dimensionless]
         np_radius : float
             Radius of the nanoparticle [nm]
+        h_oxide : float
+            Oxide height [nm]
+        N_sum : int, optional
+            Number of terms in the series expansion (default: 50)
         
         Returns
         -------
@@ -221,9 +256,16 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
             raise ValueError(f"Relative permittivity eps_s must be positive, got {eps_s}.")
         if np_radius <= 0:
             raise ValueError(f"Radius must be positive, got {np_radius}.")
-
+        if h_oxide <= 0:
+            raise ValueError(f"Oxide thickness (h_oxide) must be strictly positive to avoid short-circuiting to the substrate, got {h_oxide}.")
+        
         factor  = 4 * self.PI * self.EPSILON_0 * eps_s
-        cap     = factor * np_radius
+        if h_oxide == np.inf:
+            cap     = factor * np_radius
+        else:
+            h_oxide = np_radius + h_oxide
+            alpha   = np.arccosh(h_oxide/np_radius)
+            cap     = factor * np_radius * np.sinh(alpha)*np.sum([1/np.sinh(n*alpha) for n  in range(1, N_sum + 1)])
 
         return cap
         

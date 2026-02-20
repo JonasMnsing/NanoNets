@@ -11,7 +11,8 @@ import multiprocessing
 import logging
 import ast
 
-from . import simulation
+from . import simulation, tunneling, electrostatic
+
 from typing import Any, Callable, Union, Set, Tuple, List, Dict, Optional
 from scipy.stats import entropy
 from pathlib import Path
@@ -261,20 +262,6 @@ def distribute_array_across_processes(process : int, data : np.ndarray, N_proces
 
     return data[process_rows,:]
 
-def logic_gate_time_series(U_e : List[float], input_pos : List[int], U_i : float=0.01,
-                           U_g : float=0.0, step_size : float = 1e-9, N_samples : int = 10000)->Tuple[np.array,np.array]:
-
-    voltages    = np.tile(U_e+[U_g],(N_samples,1))
-    time_steps  = step_size*np.arange(N_samples)
-    U_i1        = [0.0,U_i,0.0,U_i]
-    U_i2        = [0.0,0.0,U_i,U_i]
-
-    for i in range(4):
-        voltages[i*N_samples//4:((i+1)*N_samples)//4, input_pos[0]] = U_i1[i]
-        voltages[i*N_samples//4:((i+1)*N_samples)//4, input_pos[1]] = U_i2[i]
-    
-    return time_steps, voltages
-
 def generate_band_limited_noise(duration_s: float, max_amplitude: float = 20e-3, bandwidth_hz: float = 4.35e9, dt_s: float = 1e-11) -> Tuple[np.ndarray, np.ndarray]:
     """
     Generates time and white noise arrays with a specified sampling rate (dt) and bandwidth.
@@ -324,6 +311,102 @@ def generate_band_limited_noise(duration_s: float, max_amplitude: float = 20e-3,
     
     return time_series, final_noise
 
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+# NETWORK PROPERTIES
+#---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def get_self_capacitance(np_radius: float = 10.0, h_oxide: float = np.inf, eps_s: float = 3.9, N_sum: int = 50):
+    
+    e_class = electrostatic.NanoparticleElectrostatic()
+    
+    return e_class.self_capacitance_sphere(eps_s, np_radius, h_oxide, N_sum)
+
+def get_charging_energies(inv_cap: np.ndarray):
+
+    return (0.160217662**2) * inv_cap.diagonal() / 2
+    
+def get_all_matrices_lattice(L: int, e_pos: dict, short_range: bool = True):
+
+    N_e = len(e_pos)
+    sim = tunneling.NanoparticleTunneling()
+    sim.lattice_network(L, L)
+    sim.add_electrodes_to_lattice_net(e_pos)
+    sim.init_nanoparticle_radius()
+    sim.pack_lattice()
+    sim.calc_capacitance_matrix(short_range=short_range)
+    sim.calc_electrode_capacitance_matrix(short_range=short_range)
+    sim.init_adv_indices()
+    sim.init_junction_resistances()
+    sim.build_conductance_matrix()
+
+    # Conductance Matrix
+    G     = sim.get_conductance_matrix()
+    G_mat = G[:-N_e,:-N_e]
+    G_u   = G[:-N_e,-N_e:]
+
+    # Capacitance Matrix
+    C_mat = sim.get_capacitance_matrix()
+    C_u   = sim.get_electrode_capacitance_matrix()
+
+    return G_mat, G_u, C_mat, C_u
+
+def get_potential_phasor_lattice(omega: float, U: np.ndarray, L: int, e_pos: dict, short_range: bool = True):
+
+    G_mat, G_u, C_mat, C_u = get_all_matrices_lattice(L, e_pos, short_range)
+
+    Y       = G_mat + C_mat*omega*1j
+    I_ext   = -(G_u + C_u*omega*1j)@U
+
+    return np.linalg.solve(Y, I_ext)
+
+def get_current_phasor_lattice(omega: float, U: np.ndarray, L: int, e_pos: dict, short_range: bool = True):
+
+    G_mat, G_u, C_mat, C_u = get_all_matrices_lattice(L, e_pos, short_range)
+
+    Y     = G_mat + C_mat*omega*1j
+    I_ext = -(G_u + C_u*omega*1j)@U
+    phi_phasor = np.linalg.solve(Y, I_ext)
+    
+    target_elec_idx     = -1
+    y_coupling_vector   = G_u[:, target_elec_idx] + 1j * omega * C_u[:, target_elec_idx]
+
+    I_out = -1.0 * np.dot(y_coupling_vector, phi_phasor.flatten())
+
+    return I_out
+
+def get_tau_f0_SET():
+
+    topo        = {"Nx" : 1, "Ny" : 1, "electrode_type" : ['constant','constant']}
+    sim_c       = simulation.Simulation(topo)
+    C_total     = sim_c.get_capacitance_matrix()[0][0]*1e-18
+    R_junction  = 25*1e6
+    TAU_SET     = R_junction * C_total
+    F0_SET      = (1e-6)/(2*np.pi*TAU_SET)
+
+    return TAU_SET, F0_SET
+
+def get_transfer_coeff_of_n(n):
+    topo = {"Nx": n, "Ny": n,
+            "e_pos" : [[(n-1)//2,0], [0,0], [n-1,0], [0,(n-1)//2],
+                       [n-1,(n-1)//2], [0,n-1], [n-1,n-1], [(n-1)//2,(n-1)]],
+            "electrode_type" : ['constant']*8}
+    sim_class = simulation.Simulation(topology_parameter=topo, pack_optimizer=False)
+    sim_class.build_conductance_matrix()
+    sim_class.init_transfer_coeffs()
+    return sim_class.get_transfer_coeffs()
+
+def get_scaling_factor(n, ref_n=9, e_pos=0, out_pos=-1, internal_scaling=False):
+    
+    transf_coeff        = get_transfer_coeff_of_n(n)
+    transf_coeff_ref    = get_transfer_coeff_of_n(ref_n)
+    if internal_scaling:
+        factor          = np.round(np.divide(transf_coeff_ref[e_pos], transf_coeff, where=transf_coeff!=0),5)
+        factor[out_pos] = 1.0
+    else:
+        factor          = np.repeat(transf_coeff_ref[e_pos]/transf_coeff[e_pos], len(transf_coeff))
+        factor[out_pos] = 1.0
+    return factor
+    
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
 # LOAD SIMULATION RESULTS
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -809,14 +892,7 @@ def get_displacement_currents(pots:np.ndarray, C_U: np.ndarray, dt: float, outpu
 
     return I_disp
 
-def get_SET_TAU_F0():
-    topo        = {"Nx" : 1, "Ny" : 1, "electrode_type" : ['constant','constant']}
-    sim_c       = simulation.Simulation(topo)
-    C_total     = sim_c.get_capacitance_matrix()[0][0]*1e-18
-    R_junction  = 25*1e6
-    TAU_SET     = R_junction * C_total
-    F0_SET      = (1e-6)/(2*np.pi*TAU_SET)
-    return TAU_SET, F0_SET
+
 
 def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 0.0, 
             off_state: float = 0.0, on_state: float = None,
@@ -1954,7 +2030,6 @@ def run_static_simulation(voltages: np.ndarray, topology: Dict[str, Any], out_fo
     net_kwargs = net_kwargs or {}
     sim_kwargs = sim_kwargs or {}
     try:
-        # target = len(topology["e_pos"]) - 1
         target = voltages.shape[1] - 2
         sim = simulation.Simulation(
             topology_parameter=topology,

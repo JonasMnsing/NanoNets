@@ -11,7 +11,7 @@ LOG_LEVEL       = logging.INFO
 PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/iv_curves/ctrl_sweep/")
 SIM_DIC         = {
     "duration"        : True,
-    "ac_time"         : 40e-9,
+    "ac_time"         : 200e-9,
     "error_th"        : 0.05,
     "max_jumps"       : 10000000,
     "n_eq"            : 50,
@@ -29,8 +29,8 @@ TOPOLOGY    = {"Nx": L,"Ny": L, "e_pos": [
     "electrode_type": ['constant']*N_E}
 
 # Voltage
-V_INPUT_MAX     = 0.2
-V_CTRL_VALS     = [0.0,0.025,0.05,0.075,0.1]
+V_INPUT_MAX     = 0.03
+V_CTRL_VALS     = [0.0,0.005,0.01,0.015,0.02,0.025,0.03]
 V_CTRL_POS      = [1,3,5]
 N_INPUTS        = 250
 VOLTAGE         = np.zeros(shape=(N_INPUTS,N_E+1))

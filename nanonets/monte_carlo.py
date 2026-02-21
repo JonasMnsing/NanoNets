@@ -792,14 +792,18 @@ class MonteCarlo():
 
         # Tracking
         count       = 0     # Number of completed batches
+        min_count   = 20    # Minimum number of batches
         below_rel   = 0     # Number of consecutive batches below error threshold
         time_total  = 0.0   # Total simulation time
+
+        # Minimum time simulated
+        min_time_constant = min_count * n_per_batch * self.tau_0
 
         # Initial potential landscape
         self.calc_potentials()
         self.update_floating_electrode(idx_np_target)
 
-        while (self.total_jumps < max_jumps) and ((count < 20) or (below_rel < min_batches)):
+        while (self.total_jumps < max_jumps) and ((count < min_count) or (below_rel < min_batches)):
 
             # Initialize batch counters
             if kmc_counting:
@@ -889,6 +893,12 @@ class MonteCarlo():
                 # Update running means and network currents 
                 self.target_observable_mean, self.target_observable_mean2, count = self.return_next_means(
                     target_observable, self.target_observable_mean, self.target_observable_mean2, count)
+                
+                if (not output_potential) and (count >= min_count):
+                    if abs(self.target_observable_mean) < 1.0/min_time_constant:
+                         self.target_observable_mean = 0.0
+                         self.target_observable_error = 0.0
+                         break
 
                 # Calculate relative error
                 if (self.target_observable_mean != 0):

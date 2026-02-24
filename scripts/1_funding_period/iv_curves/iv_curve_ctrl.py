@@ -20,17 +20,12 @@ SIM_DIC         = {
     "min_batches"     : 5}
 
 # Network
-L           = 9
-N_E         = 8
-TOPOLOGY    = {"Nx": L,"Ny": L, "e_pos": [
-    [(L-1)//2, 0],[0, 0],[L-1, 0],
-    [0, (L-1)//2],[L-1, (L-1)//2],
-    [0, L-1],[L-1, L-1],[(L-1)//2, L-1]],
-    "electrode_type": ['constant']*N_E}
+N_E     = 2
+L_VALS  = [3,5,7,9,11,13,15]
 
 # Voltage
-V_INPUT_MAX     = 0.03
-V_CTRL_VALS     = [0.0,0.005,0.01,0.015,0.02,0.025,0.03]
+V_INPUT_MAX     = 0.04
+V_CTRL_VALS     = [0.0]#,0.005,0.01,0.015,0.02,0.025,0.03]
 V_CTRL_POS      = [1,3,5]
 N_INPUTS        = 250
 VOLTAGE         = np.zeros(shape=(N_INPUTS,N_E+1))
@@ -40,18 +35,27 @@ def main():
     logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")
     PATH.mkdir(parents=True, exist_ok=True)
     tasks = []
-    for pos in V_CTRL_POS:
-        for i, V_ctrl in enumerate(V_CTRL_VALS):
-            volt        = VOLTAGE.copy()
-            volt[:,pos] = V_ctrl
-            args        = (volt,TOPOLOGY,PATH)
-            kwargs      = {'net_kwargs': {"pack_optimizer":False, "add_to_path":f"_{pos}_{i}"},
-                           "sim_kwargs":{"sim_dic":SIM_DIC,"save_th":10}}
-            if i != 0:
-                tasks.append((args,kwargs))
-            else:
-                if pos == 1:
+    for L in L_VALS:
+        # TOPOLOGY = {"Nx": L,"Ny": L, "e_pos": [
+        #     [(L-1)//2, 0],[0, 0],[L-1, 0],
+        #     [0, (L-1)//2],[L-1, (L-1)//2],
+        #     [0, L-1],[L-1, L-1],[(L-1)//2, L-1]],
+        #     "electrode_type": ['constant']*N_E}
+        TOPOLOGY = {"Nx": L,"Ny": L, "e_pos": [
+            [(L-1)//2, 0],[(L-1)//2, L-1]],
+            "electrode_type": ['constant']*N_E}
+        for pos in V_CTRL_POS:
+            for i, V_ctrl in enumerate(V_CTRL_VALS):
+                volt        = VOLTAGE.copy()
+                # volt[:,pos] = V_ctrl
+                args        = (volt,TOPOLOGY,PATH)
+                kwargs      = {'net_kwargs': {"pack_optimizer":False, "add_to_path":f"_{pos}_{i}"},
+                                "sim_kwargs":{"sim_dic":SIM_DIC,"save_th":10}}
+                if i != 0:
                     tasks.append((args,kwargs))
+                else:
+                    if pos == 1:
+                        tasks.append((args,kwargs))
 
     batch_launch(run_static_simulation, tasks, N_PROCS)
 

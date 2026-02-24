@@ -8,7 +8,8 @@ from nanonets.utils import batch_launch, run_static_simulation
 # ─── Configuration ───
 N_PROCS         = 10
 LOG_LEVEL       = logging.INFO
-PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/iv_curves/ctrl_sweep/")
+# PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/iv_curves/ctrl_sweep/")
+PATH            = Path("/home/j/j_mens07/phd/data/1_funding_period/iv_curves/ctrl_sqeep/")
 SIM_DIC         = {
     "duration"        : True,
     "ac_time"         : 200e-9,

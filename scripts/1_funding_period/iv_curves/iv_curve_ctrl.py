@@ -8,7 +8,8 @@ from nanonets.utils import batch_launch, run_static_simulation
 # ─── Configuration ───
 N_PROCS         = 10
 LOG_LEVEL       = logging.INFO
-PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/iv_curves/ctrl_sweep/")
+# PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/iv_curves/ctrl_sweep/")
+PATH            = Path("/home/j/j_mens07/phd/data/1_funding_period/iv_curves/ctrl_sqeep/")
 SIM_DIC         = {
     "duration"        : True,
     "ac_time"         : 200e-9,
@@ -20,7 +21,7 @@ SIM_DIC         = {
     "min_batches"     : 5}
 
 # Network
-L           = 9
+L           = 15
 N_E         = 8
 TOPOLOGY    = {"Nx": L,"Ny": L, "e_pos": [
     [(L-1)//2, 0],[0, 0],[L-1, 0],
@@ -29,7 +30,7 @@ TOPOLOGY    = {"Nx": L,"Ny": L, "e_pos": [
     "electrode_type": ['constant']*N_E}
 
 # Voltage
-V_INPUT_MAX     = 0.03
+V_INPUT_MAX     = 0.05
 V_CTRL_VALS     = [0.0,0.005,0.01,0.015,0.02,0.025,0.03]
 V_CTRL_POS      = [1,3,5]
 N_INPUTS        = 250

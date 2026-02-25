@@ -221,156 +221,265 @@ class Simulation(tunneling.NanoparticleTunneling):
         self.path2  = folder + 'mean_state_'    + path_var
         self.path3  = folder + 'net_currents_'  + path_var
 
-    def run_static_voltages(self, voltages : np.ndarray, target_electrode : int, T_val: float = 0.1, sim_dic: dict = None, save_th: int = None, verbose: bool = False):
+    def run_static_voltages(self, voltages: np.ndarray, target_electrode: int, T_val: float = 0.1, sim_dic: dict = None,
+                            save_th: int = None, verbose: bool = False):
         """
-        Run a kinetic Monte Carlo simulation at fixed electrode voltages, estimating either the steady-state
-        current or, for floating electrodes, the equilibrium potential at a selected electrode.
-
-        Parameters
-        ----------
-        voltages : np.ndarray
-            2D array of electrode voltages. Each row is a distinct set of electrode voltages [V].
-        target_electrode : int
-            Index of the electrode for which to record current (constant) or potential (floating).
-        T_val : float, optional
-            Network temperature [K]. Default: 1.0.
-        sim_dic : dict, optional
-            Dictionary of simulation parameters:
-                error_th        : Target relative error of the main observable.
-                max_jumps       : Maximum KMC steps per voltage point.
-                eq_steps        : Number of equilibration KMC steps before measurement.
-                jumps_per_batch : KMC steps per batch.
-                kmc_counting    : If True, use event-counting for current.
-                min_batches     : Minimum measurement batches.
-        save_th : int, optional
-            Frequency (in voltage steps) with which simulation data is saved to file.
-        verbose : bool, optional
-            If True, records and stores extra simulation data (longer runtime, larger outputs).
-
-        Returns
-        -------
-        None
-            Results are saved to file and/or stored in class attributes.
+        Run an ensemble of Kinetic Monte Carlo trajectories at fixed electrode voltages 
+        to extract the steady-state macroscopic current.
         """
         # Round voltages to 0.01 mV
-        voltages = np.round(voltages,5)
+        # voltages = np.round(voltages, 5)
         
-        # --- Default Simulation Parameter ---
+        # --- Default Ensemble Simulation Parameters ---
         if sim_dic is None:
-            sim_dic =   {
-                "duration"        : False,
-                "ac_time"         : 40e-9,
-                "error_th"        : 0.05,
-                "max_jumps"       : 10000000,
-                "n_eq"            : 100000,
-                "n_per_batch"     : 2000,
-                "kmc_counting"    : False,
-                "min_batches"     : 5
+            sim_dic = {
+                "n_trajectories" : 400,         # Number of independent KMC runs per voltage
+                "sim_time"       : 20e-9,       # Production duration per trajectory [s]
+                "eq_time"        : 10e-9,       # Equilibration duration per trajectory [s]
+                "ac_time"        : 40e-9,       # Base parameter for Numba initialization
+                "max_jumps"      : 10000000     # Safety break
             }
 
-        # --- Get Simulation Parameter ---            
-        error_th        = sim_dic['error_th']
-        max_jumps       = sim_dic['max_jumps']
-        n_eq            = sim_dic['n_eq']
-        n_per_batch     = sim_dic['n_per_batch']
-        kmc_counting    = sim_dic['kmc_counting']
-        min_batches     = sim_dic['min_batches']
-        duration        = sim_dic['duration']
-        ac_time         = sim_dic['ac_time']
+        n_trajectories  = sim_dic.get('n_trajectories', 100)
+        sim_time        = sim_dic.get('sim_time', 20e-9)
+        eq_time         = sim_dic.get('eq_time', 10e-9)
+        ac_time         = sim_dic.get('ac_time', 40e-9)
+        max_jumps       = sim_dic.get('max_jumps', 10000000)
 
-        # Identify floating electrodes and detect if target electrode is floating
         floating_electrodes = np.where(self.electrode_type == 'floating')[0]
-        output_potential    = (self.electrode_type[target_electrode] == 'floating')
         
-        # Init storage lists
+        # Init global storage lists
         self.clear_simulation_outputs()
         
         j = 0
         for i, voltage_values in enumerate(voltages):
             
-            # --- Update network electrostatics ---
-            self.init_charge_vector(voltage_values=voltage_values)
-            self.init_potential_vector(voltage_values=voltage_values)
-
-            # --- Get all KMC model input arrays ---
+            # --- Get all CONSTANT KMC model input arrays ---
             inv_capacitance_matrix          = self.get_inv_capacitance_matrix()
-            charge_vector                   = self.get_charge_vector()
-            potential_vector                = self.get_potential_vector()
             const_capacitance_values        = self.get_const_capacitance_values()
             N_particles, N_electrodes       = self.get_particle_electrode_count()
             adv_index_rows, adv_index_cols  = self.get_advanced_indices()
             temperatures                    = self.get_const_temperatures(T=T_val)
             resistances                     = self.get_tunneling_rate_prefactor()
 
-            # --- Instantiate (Numba-optimized) model ---
-            self.model = monte_carlo.MonteCarlo(
-                charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
-                temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles,
-                floating_electrodes, ac_time)
-
-            # --- Run KMC simulation (with or without dynamic resistances) ---
-            if self.dynamic_resistances:
-                eq_jumps = self.model.run_equilibration_steps_var_resistance(
-                    n_eq, 
-                    self.dynamic_resistances_info['slope'], 
-                    self.dynamic_resistances_info['shift'],
-                    self.dynamic_resistances_info['tau_0'],
-                    self.dynamic_resistances_info['R_max'],
-                    self.dynamic_resistances_info['R_min']
-                )
-                
-                # Production Run until Current at target electrode is less than error_th or max_jumps was passed
-                self.model.kmc_simulation_var_resistance(
-                    target_electrode, error_th, max_jumps, n_per_batch, 
-                    self.dynamic_resistances_info['slope'],
-                    self.dynamic_resistances_info['shift'],
-                    self.dynamic_resistances_info['tau_0'],
-                    self.dynamic_resistances_info['R_max'],
-                    self.dynamic_resistances_info['R_min'],
-                    kmc_counting, verbose
-                )
-            else:
-                if duration:
-                    # Check if total rate constant is less than 1e-10[1/s]: pass
-                    eq_jumps = self.model.run_equilibration_duration(n_eq)
-                    self.model.kmc_simulation_duration(
-                        target_electrode, error_th, max_jumps, n_per_batch,
-                        output_potential, kmc_counting, min_batches
-                    )
-                else:
-                    eq_jumps = self.model.run_equilibration_steps(n_eq)
-                    self.model.kmc_simulation(
-                        target_electrode, error_th, max_jumps, n_per_batch,
-                        output_potential, kmc_counting, min_batches, verbose
-                    )
-            
-            # --- Collect simulation results ---
-            self.observable_storage.append(self.model.get_observable())
-            self.observable_error_storage.append(self.model.get_observable_error())
-            self.state_storage.append(self.model.get_state())
-            self.potential_storage.append(self.model.get_potential())
-            self.network_current_storage.append(self.model.get_network_current())
-            self.eq_jump_storage.append(eq_jumps)
-            self.jump_storage.append(self.model.get_jump())
-            self.time_storage.append(self.model.get_time())
-
-            # --- Store extra data if verbose ---
+            # --- Preallocate arrays for this voltage's ensemble ---
+            ens_observables = np.zeros(n_trajectories)
+            ens_potentials  = np.zeros((n_trajectories, N_particles + N_electrodes))
+            ens_jumps       = np.zeros(n_trajectories)
             if verbose:
-                self.observable_per_batch.append(self.model.get_target_observable_per_it())
-                self.time_per_batch.append(self.model.get_time_per_it())
-                self.potential_per_batch.append(self.model.get_potential_per_it())
-                # self.jump_per_batch.append(model.get_jump_per_batch())
-                if self.dynamic_resistances:
-                    self.resistance_per_batch.append(self.model.get_resistances_per_it())
+                ens_charges     = np.zeros((n_trajectories, N_particles))
+                ens_currents    = np.zeros((n_trajectories, len(adv_index_rows)))
+
+            # =======================================================
+            # ENSEMBLE TRAJECTORY LOOP
+            # =======================================================
+            for traj in range(n_trajectories):
                 
+                # Update electrostatics strictly for this fresh trajectory
+                self.init_charge_vector(voltage_values=voltage_values)
+                self.init_potential_vector(voltage_values=voltage_values)
+                charge_vector    = self.get_charge_vector()
+                potential_vector = self.get_potential_vector()
+
+                # Instantiate (Numba-optimized) model
+                self.model = monte_carlo.MonteCarlo(
+                    charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
+                    temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles,
+                    floating_electrodes, ac_time
+                )
+
+                # 1. Equilibrate
+                eq_jumps = self.model.run_equilibration_duration(eq_time)
+                
+                # 2. Production Run
+                self.model.kmc_simulation_trajectory(target_electrode, sim_time, max_jumps)
+
+                # 3. Store this specific trajectory's results
+                ens_observables[traj]   = self.model.target_observable_mean
+                ens_potentials[traj, :] = self.model.potential_mean
+                ens_jumps[traj]         = self.model.total_jumps
+
+                if verbose:
+                    ens_charges[traj, :]    = self.model.charge_mean
+                    ens_currents[traj, :]   = self.model.network_currents
+
+            # =======================================================
+            # ENSEMBLE AVERAGING
+            # =======================================================
+            self.observable_storage.append(np.mean(ens_observables))
+            # Standard Error of the Mean = std / sqrt(N)
+            self.observable_error_storage.append(np.std(ens_observables, ddof=1) / np.sqrt(n_trajectories))
+            
+            self.potential_storage.append(np.mean(ens_potentials, axis=0))
+            self.eq_jump_storage.append(eq_jumps) 
+            self.jump_storage.append(np.mean(ens_jumps))
+            self.time_storage.append(sim_time)
+
+            if verbose:
+                self.state_storage.append(np.mean(ens_charges, axis=0))
+                self.network_current_storage.append(np.mean(ens_currents, axis=0))
+
+
             # --- Periodically save to disk ---
             if (save_th is not None and ((i + 1) % save_th == 0)):
                 self.data_to_path(voltages[j:(i + 1),:], self.path1)
                 self.potential_to_path(self.path2)
-                self.network_current_to_path(self.path3)
+                if verbose:
+                    self.network_current_to_path(self.path3)
                 self.clear_simulation_outputs()
+                j = i + 1
+    
+    
+    # def run_static_voltages(self, voltages : np.ndarray, target_electrode : int, T_val: float = 0.1, sim_dic: dict = None, save_th: int = None, verbose: bool = False):
+    #     """
+    #     Run a kinetic Monte Carlo simulation at fixed electrode voltages, estimating either the steady-state
+    #     current or, for floating electrodes, the equilibrium potential at a selected electrode.
 
-                j = i+1
+    #     Parameters
+    #     ----------
+    #     voltages : np.ndarray
+    #         2D array of electrode voltages. Each row is a distinct set of electrode voltages [V].
+    #     target_electrode : int
+    #         Index of the electrode for which to record current (constant) or potential (floating).
+    #     T_val : float, optional
+    #         Network temperature [K]. Default: 1.0.
+    #     sim_dic : dict, optional
+    #         Dictionary of simulation parameters:
+    #             error_th        : Target relative error of the main observable.
+    #             max_jumps       : Maximum KMC steps per voltage point.
+    #             eq_steps        : Number of equilibration KMC steps before measurement.
+    #             jumps_per_batch : KMC steps per batch.
+    #             kmc_counting    : If True, use event-counting for current.
+    #             min_batches     : Minimum measurement batches.
+    #     save_th : int, optional
+    #         Frequency (in voltage steps) with which simulation data is saved to file.
+    #     verbose : bool, optional
+    #         If True, records and stores extra simulation data (longer runtime, larger outputs).
+
+    #     Returns
+    #     -------
+    #     None
+    #         Results are saved to file and/or stored in class attributes.
+    #     """
+    #     # Round voltages to 0.01 mV
+    #     voltages = np.round(voltages,5)
+        
+    #     # --- Default Simulation Parameter ---
+    #     if sim_dic is None:
+    #         sim_dic =   {
+    #             "duration"        : False,
+    #             "ac_time"         : 40e-9,
+    #             "error_th"        : 0.05,
+    #             "max_jumps"       : 10000000,
+    #             "n_eq"            : 100000,
+    #             "n_per_batch"     : 2000,
+    #             "kmc_counting"    : False,
+    #             "min_batches"     : 5
+    #         }
+
+    #     # --- Get Simulation Parameter ---            
+    #     error_th        = sim_dic['error_th']
+    #     max_jumps       = sim_dic['max_jumps']
+    #     n_eq            = sim_dic['n_eq']
+    #     n_per_batch     = sim_dic['n_per_batch']
+    #     kmc_counting    = sim_dic['kmc_counting']
+    #     min_batches     = sim_dic['min_batches']
+    #     duration        = sim_dic['duration']
+    #     ac_time         = sim_dic['ac_time']
+
+    #     # Identify floating electrodes and detect if target electrode is floating
+    #     floating_electrodes = np.where(self.electrode_type == 'floating')[0]
+    #     output_potential    = (self.electrode_type[target_electrode] == 'floating')
+        
+    #     # Init storage lists
+    #     self.clear_simulation_outputs()
+        
+    #     j = 0
+    #     for i, voltage_values in enumerate(voltages):
+            
+    #         # --- Update network electrostatics ---
+    #         self.init_charge_vector(voltage_values=voltage_values)
+    #         self.init_potential_vector(voltage_values=voltage_values)
+
+    #         # --- Get all KMC model input arrays ---
+    #         inv_capacitance_matrix          = self.get_inv_capacitance_matrix()
+    #         charge_vector                   = self.get_charge_vector()
+    #         potential_vector                = self.get_potential_vector()
+    #         const_capacitance_values        = self.get_const_capacitance_values()
+    #         N_particles, N_electrodes       = self.get_particle_electrode_count()
+    #         adv_index_rows, adv_index_cols  = self.get_advanced_indices()
+    #         temperatures                    = self.get_const_temperatures(T=T_val)
+    #         resistances                     = self.get_tunneling_rate_prefactor()
+
+    #         # --- Instantiate (Numba-optimized) model ---
+    #         self.model = monte_carlo.MonteCarlo(
+    #             charge_vector, potential_vector, inv_capacitance_matrix, const_capacitance_values,
+    #             temperatures, resistances, adv_index_rows, adv_index_cols, N_electrodes, N_particles,
+    #             floating_electrodes, ac_time)
+
+    #         # --- Run KMC simulation (with or without dynamic resistances) ---
+    #         if self.dynamic_resistances:
+    #             eq_jumps = self.model.run_equilibration_steps_var_resistance(
+    #                 n_eq, 
+    #                 self.dynamic_resistances_info['slope'], 
+    #                 self.dynamic_resistances_info['shift'],
+    #                 self.dynamic_resistances_info['tau_0'],
+    #                 self.dynamic_resistances_info['R_max'],
+    #                 self.dynamic_resistances_info['R_min']
+    #             )
+                
+    #             # Production Run until Current at target electrode is less than error_th or max_jumps was passed
+    #             self.model.kmc_simulation_var_resistance(
+    #                 target_electrode, error_th, max_jumps, n_per_batch, 
+    #                 self.dynamic_resistances_info['slope'],
+    #                 self.dynamic_resistances_info['shift'],
+    #                 self.dynamic_resistances_info['tau_0'],
+    #                 self.dynamic_resistances_info['R_max'],
+    #                 self.dynamic_resistances_info['R_min'],
+    #                 kmc_counting, verbose
+    #             )
+    #         else:
+    #             if duration:
+    #                 # Check if total rate constant is less than 1e-10[1/s]: pass
+    #                 eq_jumps = self.model.run_equilibration_duration(n_eq)
+    #                 self.model.kmc_simulation_duration(
+    #                     target_electrode, error_th, max_jumps, n_per_batch,
+    #                     output_potential, kmc_counting, min_batches
+    #                 )
+    #             else:
+    #                 eq_jumps = self.model.run_equilibration_steps(n_eq)
+    #                 self.model.kmc_simulation(
+    #                     target_electrode, error_th, max_jumps, n_per_batch,
+    #                     output_potential, kmc_counting, min_batches, verbose
+    #                 )
+            
+    #         # --- Collect simulation results ---
+    #         self.observable_storage.append(self.model.get_observable())
+    #         self.observable_error_storage.append(self.model.get_observable_error())
+    #         self.state_storage.append(self.model.get_state())
+    #         self.potential_storage.append(self.model.get_potential())
+    #         self.network_current_storage.append(self.model.get_network_current())
+    #         self.eq_jump_storage.append(eq_jumps)
+    #         self.jump_storage.append(self.model.get_jump())
+    #         self.time_storage.append(self.model.get_time())
+
+    #         # --- Store extra data if verbose ---
+    #         if verbose:
+    #             self.observable_per_batch.append(self.model.get_target_observable_per_it())
+    #             self.time_per_batch.append(self.model.get_time_per_it())
+    #             self.potential_per_batch.append(self.model.get_potential_per_it())
+    #             # self.jump_per_batch.append(model.get_jump_per_batch())
+    #             if self.dynamic_resistances:
+    #                 self.resistance_per_batch.append(self.model.get_resistances_per_it())
+                
+    #         # --- Periodically save to disk ---
+    #         if (save_th is not None and ((i + 1) % save_th == 0)):
+    #             self.data_to_path(voltages[j:(i + 1),:], self.path1)
+    #             self.potential_to_path(self.path2)
+    #             self.network_current_to_path(self.path3)
+    #             self.clear_simulation_outputs()
+
+    #             j = i+1
 
     def run_dynamic_voltages(self, voltages: np.ndarray, time_steps: np.ndarray, target_electrode: int, T_val: float = 0.1, eq_steps: int = 0, save: bool = False,
                          stat_size: int = 10, init_charges: bool = None, verbose: bool = False):

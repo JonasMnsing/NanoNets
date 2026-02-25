@@ -429,50 +429,80 @@ class MonteCarlo():
             self.update_floating_electrode(idx_np_target)
                         
         return n_jumps
-        
-    def run_equilibration_duration(self, n: int = 50) -> int:
-        """
-        Execute KMC for n times the slowest linear relaxation time constant.
 
-        Parameters
-        ----------
-        n : int, optional
-            Multiple of the relaxation time constant, by default 50
-
-        Returns
-        -------
-        int
-            Number of executed KMC steps
+    def run_equilibration_duration(self, eq_time: float) -> int:
         """
-        # Get indices of nanoparticles adjacent to floating electrodes
+        Execute KMC to equilibrate the system for a fixed physical duration.
+        """
         idx_np_target = self.adv_index_cols[self.floating_electrodes]
 
-        # Initial potentials
         self.calc_potentials()
         self.update_floating_electrode(idx_np_target)
 
         steps = 0
-        while self.time < n*self.tau_0:
-            # Check if previous step was not valid
-            if (self.jump == -1):
+        target_time = self.time + eq_time
+        
+        while self.time < target_time:
+            if self.jump == -1:
                 return steps
             
-            # Generate random numbers for KMC step
-            random_number1  = np.random.rand()
-            random_number2  = np.random.rand()
+            random_number1 = np.random.rand()
+            random_number2 = np.random.rand()
 
-            # Update tunneling rates
             if not self.zero_T:
                 self.calc_tunnel_rates()
             else:
                 self.calc_tunnel_rates_zero_T()
             
-            # KMC event selection and state update
             self.select_event(random_number1, random_number2)
             self.update_floating_electrode(idx_np_target)
             steps += 1
                         
         return steps
+
+    # def run_equilibration_duration(self, n: int = 50) -> int:
+    #     """
+    #     Execute KMC for n times the slowest linear relaxation time constant.
+
+    #     Parameters
+    #     ----------
+    #     n : int, optional
+    #         Multiple of the relaxation time constant, by default 50
+
+    #     Returns
+    #     -------
+    #     int
+    #         Number of executed KMC steps
+    #     """
+    #     # Get indices of nanoparticles adjacent to floating electrodes
+    #     idx_np_target = self.adv_index_cols[self.floating_electrodes]
+
+    #     # Initial potentials
+    #     self.calc_potentials()
+    #     self.update_floating_electrode(idx_np_target)
+
+    #     steps = 0
+    #     while self.time < n*self.tau_0:
+    #         # Check if previous step was not valid
+    #         if (self.jump == -1):
+    #             return steps
+            
+    #         # Generate random numbers for KMC step
+    #         random_number1  = np.random.rand()
+    #         random_number2  = np.random.rand()
+
+    #         # Update tunneling rates
+    #         if not self.zero_T:
+    #             self.calc_tunnel_rates()
+    #         else:
+    #             self.calc_tunnel_rates_zero_T()
+            
+    #         # KMC event selection and state update
+    #         self.select_event(random_number1, random_number2)
+    #         self.update_floating_electrode(idx_np_target)
+    #         steps += 1
+                        
+    #     return steps
     
     def run_equilibration_steps_var_resistance(self, n_jumps: int = 10000, slope: float = 0.8, 
                                               shift: float = 7.5, tau_0: float = 1e-8, R_max: float = 25, R_min: float = 10) -> int:
@@ -933,6 +963,65 @@ class MonteCarlo():
             self.potential_mean     = self.potential_mean / time_total
             self.network_currents   = self.ele_charge * self.network_currents / time_total
 
+    def kmc_simulation_trajectory(self, target_electrode: int, sim_time: float, max_jumps: int = 10000000):
+        """
+        Run a single kinetic Monte Carlo trajectory for a fixed physical duration.
+        """
+        self.total_jumps = 0
+        
+        charge_values = np.zeros(self.N_particles)
+        potential_values = np.zeros(self.N_particles + self.N_electrodes)
+        current_values = np.zeros(len(self.adv_index_rows), dtype=np.float64)
+        target_value = 0.0
+
+        rate_index1 = np.where(self.adv_index_cols == target_electrode)[0][0]
+        rate_index2 = np.where(self.adv_index_rows == target_electrode)[0][0]
+
+        idx_np_target = self.adv_index_cols[self.floating_electrodes]
+        
+        target_time = self.time + sim_time
+        sim_start_time = self.time  # Remember when we started the production run
+
+        while (self.time < target_time) and (self.total_jumps < max_jumps):
+            t1 = self.time
+            
+            random_number1 = np.random.rand()
+            random_number2 = np.random.rand()
+
+            if not self.zero_T:
+                self.calc_tunnel_rates()
+            else:
+                self.calc_tunnel_rates_zero_T()
+
+            rate1 = self.tunnel_rates[rate_index1]
+            rate2 = self.tunnel_rates[rate_index2]
+
+            self.select_event(random_number1, random_number2)
+            self.update_floating_electrode(idx_np_target)
+
+            if self.jump == -1:
+                break
+
+            t2 = self.time
+            dt = t2 - t1
+
+            charge_values += self.charge_vector * dt
+            potential_values += self.potential_vector * dt
+            current_values += self.tunnel_rates * dt
+            target_value += (rate1 - rate2) * dt
+
+            self.total_jumps += 1
+
+        # Averages are divided purely by the production duration
+        actual_sim_time = self.time - sim_start_time
+        if actual_sim_time > 0:
+            self.charge_mean = charge_values / actual_sim_time
+            self.potential_mean = potential_values / actual_sim_time
+            self.network_currents = (self.ele_charge * current_values) / actual_sim_time
+            self.target_observable_mean = (target_value / actual_sim_time) * self.ele_charge
+        else:
+            self.target_observable_mean = 0.0
+    
     def kmc_time_simulation(self, target_electrode : int, time_target : float, output_potential : bool = True):
         """
         Run kinetic Monte Carlo simulation up to a target simulation time.

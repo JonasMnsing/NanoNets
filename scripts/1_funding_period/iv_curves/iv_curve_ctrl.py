@@ -12,8 +12,8 @@ PATH            = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/iv_
 # PATH            = Path("/home/j/j_mens07/phd/data/1_funding_period/iv_curves/ctrl_sqeep/")
 SIM_DIC = {
     "n_trajectories" : 400,         # Number of independent KMC runs per voltage
-    "sim_time"       : 200e-9,      # Production duration per trajectory [s]
-    "eq_time"        : 100e-9,      # Equilibration duration per trajectory [s]
+    "sim_time"       : 3e-6,      # Production duration per trajectory [s]
+    "eq_time"        : 1.5e-6,      # Equilibration duration per trajectory [s]
     "ac_time"        : 40e-9,       # Base parameter for Numba initialization
     "max_jumps"      : 10000000     # Safety break
 }
@@ -23,10 +23,10 @@ N_E     = 8
 L_VALS  = [3,5,7,9,11,13,15]
 
 # Voltage
-V_INPUT_MAX     = 0.08
+V_INPUT_MAX     = 0.05
 V_CTRL_VALS     = [0.0]#,0.005,0.01,0.015,0.02,0.025,0.03]
 V_CTRL_POS      = [1,3,5]
-N_INPUTS        = 500
+N_INPUTS        = 250
 VOLTAGE         = np.zeros(shape=(N_INPUTS,N_E+1))
 VOLTAGE[:,0]    = np.round(np.linspace(0, V_INPUT_MAX, N_INPUTS),4)
 
@@ -48,7 +48,7 @@ def main():
                 volt        = VOLTAGE.copy()
                 volt[:,pos] = V_ctrl
                 args        = (volt,TOPOLOGY,PATH)
-                kwargs      = {'net_kwargs': {"pack_optimizer":False, "add_to_path":f"_{pos}_{i}"},
+                kwargs      = {'net_kwargs': {"pack_optimizer":False, "add_to_path":f"_{pos}_{i}_equal"},
                                 "sim_kwargs":{"sim_dic":SIM_DIC,"save_th":10}}
                 if i != 0:
                     tasks.append((args,kwargs))

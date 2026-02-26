@@ -237,7 +237,8 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
             cap     = factor * np_radius * np.sinh(alpha)*np.sum([1/np.sinh(n*alpha) for n  in range(1, N_sum + 1)])
 
         # return cap
-        return 1.0
+        # return 1.0
+        return 2.5
         
     def init_nanoparticle_radius(self, mean_radius: float = 10.0, std_radius: float = 0.0) -> None:
         """

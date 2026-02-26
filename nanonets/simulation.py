@@ -234,16 +234,16 @@ class Simulation(tunneling.NanoparticleTunneling):
         if sim_dic is None:
             sim_dic = {
                 "n_trajectories" : 400,         # Number of independent KMC runs per voltage
-                "sim_time"       : 20e-9,       # Production duration per trajectory [s]
-                "eq_time"        : 10e-9,       # Equilibration duration per trajectory [s]
-                "ac_time"        : 40e-9,       # Base parameter for Numba initialization
+                "sim_time"       : 3.0e-6,      # Production duration per trajectory [s]
+                "eq_time"        : 1.5e-6,       # Equilibration duration per trajectory [s]
+                "ac_time"        : 150e-9,       # Base parameter for Numba initialization
                 "max_jumps"      : 10000000     # Safety break
             }
 
-        n_trajectories  = sim_dic.get('n_trajectories', 100)
-        sim_time        = sim_dic.get('sim_time', 20e-9)
-        eq_time         = sim_dic.get('eq_time', 10e-9)
-        ac_time         = sim_dic.get('ac_time', 40e-9)
+        n_trajectories  = sim_dic.get('n_trajectories', 400)
+        sim_time        = sim_dic.get('sim_time', 3.0e-6)
+        eq_time         = sim_dic.get('eq_time', 1.5e-6)
+        ac_time         = sim_dic.get('ac_time', 150e-9)
         max_jumps       = sim_dic.get('max_jumps', 10000000)
 
         floating_electrodes = np.where(self.electrode_type == 'floating')[0]

@@ -40,9 +40,6 @@ def main():
             [0, (L-1)//2],[L-1, (L-1)//2],
             [0, L-1],[L-1, L-1],[(L-1)//2, L-1]],
             "electrode_type": ['constant']*N_E}
-        # TOPOLOGY = {"Nx": L,"Ny": L, "e_pos": [
-        #     [(L-1)//2, 0],[(L-1)//2, L-1]],
-        #     "electrode_type": ['constant']*N_E}
         for pos in V_CTRL_POS:
             for i, V_ctrl in enumerate(V_CTRL_VALS):
                 volt        = VOLTAGE.copy()

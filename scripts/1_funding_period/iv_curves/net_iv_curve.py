@@ -8,13 +8,14 @@ from nanonets.utils import batch_launch, run_static_simulation, distribute_array
 # ─── Configuration ───
 N_PROCS     = 10
 LOG_LEVEL   = logging.INFO
-PATH        = Path("/home/j/j_mens07/phd/data/1_funding_period/iv_curves/network/")
+PATH        = Path("/mnt/c/Users/jonas/Desktop/phd/data/1_funding_period/iv_curves/network/")
 SIM_DIC     = {
-    "n_trajectories" : 400,
+    "n_trajectories" : 100,
     "sim_time"       : 1e-6,
     "eq_time"        : 2e-6,
     "ac_time"        : 40e-9,
-    "max_jumps"      : 200000
+    "max_jumps"      : 4000,
+    "max_eq_jumps"   : 6000
 }
 
 # Network
@@ -41,7 +42,7 @@ def main():
             volt        = VOLTAGE.copy()
             volt_p      = distribute_array_across_processes(p, volt.copy(), N_PROCS)
             args        = (volt_p,TOPOLOGY,PATH)
-            kwargs      = {'net_kwargs': {"pack_optimizer":False},
+            kwargs      = {'net_kwargs': {"pack_optimizer":False,"add_to_path":"_zero"},
                             "sim_kwargs":{"sim_dic":SIM_DIC,"save_th":10}}
             tasks.append((args,kwargs))
 

@@ -227,8 +227,6 @@ class Simulation(tunneling.NanoparticleTunneling):
         Run an ensemble of Kinetic Monte Carlo trajectories at fixed electrode voltages 
         to extract the steady-state macroscopic current.
         """
-        # Round voltages to 0.01 mV
-        # voltages = np.round(voltages, 5)
         
         # --- Default Ensemble Simulation Parameters ---
         if sim_dic is None:
@@ -237,14 +235,16 @@ class Simulation(tunneling.NanoparticleTunneling):
                 "sim_time"       : 3.0e-6,      # Production duration per trajectory [s]
                 "eq_time"        : 1.5e-6,      # Equilibration duration per trajectory [s]
                 "ac_time"        : 150e-9,      # Base parameter for Numba initialization
-                "max_jumps"      : 200000       # Safety break
+                "max_jumps"      : 20000,       # Safety break
+                "max_eq_jumps"   : 100000
             }
 
         n_trajectories  = sim_dic.get('n_trajectories', 400)
         sim_time        = sim_dic.get('sim_time', 3.0e-6)
         eq_time         = sim_dic.get('eq_time', 1.5e-6)
         ac_time         = sim_dic.get('ac_time', 150e-9)
-        max_jumps       = sim_dic.get('max_jumps', 200000)
+        max_jumps       = sim_dic.get('max_jumps', 20000)
+        max_eq_jumps    = sim_dic.get('max_eq_jumps', 100000)
 
         floating_electrodes = np.where(self.electrode_type == 'floating')[0]
         
@@ -289,7 +289,7 @@ class Simulation(tunneling.NanoparticleTunneling):
                 )
 
                 # 1. Equilibrate
-                eq_jumps = self.model.run_equilibration_duration(eq_time)
+                eq_jumps = self.model.run_equilibration_duration(eq_time, max_eq_jumps)
                 
                 # 2. Production Run
                 self.model.kmc_simulation_trajectory(target_electrode, sim_time, max_jumps)

@@ -442,7 +442,8 @@ class MonteCarlo():
         steps = 0
         target_time = self.time + eq_time
         
-        while (self.time < target_time) and (steps < max_eq_jumps):
+        # while (self.time < target_time) and (steps < max_eq_jumps):
+        while (steps < max_eq_jumps):
             if self.jump == -1:
                 return steps
             
@@ -919,7 +920,7 @@ class MonteCarlo():
             self.potential_mean     = self.potential_mean / time_total
             self.network_currents   = self.ele_charge * self.network_currents / time_total
 
-    def kmc_simulation_trajectory(self, target_electrode: int, sim_time: float, max_jumps: int = 200000):
+    def kmc_simulation_trajectory(self, target_electrode: int, sim_time: float, max_jumps: int = 200_000):
         """
         Run a single kinetic Monte Carlo trajectory for a fixed physical duration.
         """
@@ -938,7 +939,8 @@ class MonteCarlo():
         target_time = self.time + sim_time
         sim_start_time = self.time  # Remember when we started the production run
 
-        while (self.time < target_time) and (self.total_jumps < max_jumps):
+        # while (self.time < target_time) and (self.total_jumps < max_jumps):
+        while (self.total_jumps < max_jumps):
             t1 = self.time
             
             random_number1 = np.random.rand()

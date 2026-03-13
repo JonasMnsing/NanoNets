@@ -26,7 +26,7 @@ L_VALS  = [3,5,7,9,11,13,15]
 V_INPUT_MAX     = 0.1
 N_INPUTS        = 300
 VOLTAGE         = np.zeros(shape=(N_INPUTS,N_E+1))
-VOLTAGE[:,0]    = np.round(np.linspace(-V_INPUT_MAX, V_INPUT_MAX, N_INPUTS),4)
+VOLTAGE[:,0]    = np.linspace(-V_INPUT_MAX, V_INPUT_MAX, N_INPUTS)
 
 def main():
     logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")

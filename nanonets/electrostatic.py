@@ -238,7 +238,7 @@ class NanoparticleElectrostatic(topology.NanoparticleTopology):
 
         # return cap
         return 0.28
-        # return 0.28
+        # return 0.0
         
     def init_nanoparticle_radius(self, mean_radius: float = 10.0, std_radius: float = 0.0) -> None:
         """

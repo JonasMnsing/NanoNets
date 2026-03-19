@@ -5,7 +5,7 @@ import pickle
 import os
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LeakyReLU, Dropout, Input
+from tensorflow.keras.layers import Dense, LeakyReLU, Dropout, Input, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import CosineDecay
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -15,41 +15,42 @@ from sklearn.preprocessing import MinMaxScaler
 
 # --- Configuration ---
 # FOLDER          = "/home/j/j_mens07/phd/data/1_funding_period/phase_space_sample/"
-FOLDER          = "/home/jonasmensing/bagheera/data/1_funding_period/phase_space_sample"
+FOLDER          = "/home/jonasmensing/bagheera/data/1_funding_period/phase_space_sample/"
 FILENAME        = "Nx=9_Ny=9_Ne=8.csv"
 USE_JITTER      = True
-BATCH_SIZE      = 64
-EPOCHS          = 1000
-LEARNING_RATE   = 1e-3
-MAX_ERROR       = np.inf
-X_RANGE         = 50*1e-3
-Y_RANGE         = 500e6
-AC_TIME         = 40e-9
-BATCH_TIME      = 20*AC_TIME
-
-
-# NETWORK ARCHITECTURE: [Nodes, L2_Reg, Dropout_Rate]
-LAYER_INFO = [
-    [128, 0.0001, 0.0],
-    [128, 0.0001, 0.0],
-    [128, 0.0001, 0.0],
-    [128, 0.0001, 0.0],
-    [128, 0.0001, 0.0],
-    [128, 0.0001, 0.0]
+BATCH_SIZE      = 32
+EPOCHS          = 1500
+LEARNING_RATE   = 5e-5
+LAYER_INFO      = [
+    [512, 0.0001, 0.0],
+    [512, 0.0001, 0.0],
+    [256, 0.0001, 0.0],
+    [256, 0.0001, 0.0]
 ]
 
-def load_and_process_data(filepath, max_error=np.inf):
-    ele = 0.160217662
-    I_M = ele / (20*BATCH_TIME)
-    df  = pd.read_csv(filepath)
-    l_t = np.abs(df['Observable'].values) < I_M
-    df  = df[(df['Error']/df['Observable']).abs() < max_error].reset_index(drop=True)
-    X   = df.iloc[:, :7].values
-    y   = df['Observable'].values.reshape(-1, 1)
-    y_e = df['Error'].values.reshape(-1, 1)/1.96
-    y[l_t]   = 0.0
-    y_e[l_t] = 0.0
-    return X, y, y_e
+def load_and_process_data(filepath, epsilon=1):
+    
+    df = pd.read_csv(filepath)
+
+    # If current is below epsilon, we treat it as a "hard zero"
+    mask_blocked = df['Observable'].abs() < epsilon
+    df.loc[mask_blocked, ['Observable', 'Error']] = 0.0
+
+    # 2. Extract raw values
+    X = df.iloc[:, :7].values
+    y_raw = df['Observable'].values.reshape(-1, 1)
+    y_e_raw = df['Error'].values.reshape(-1, 1) / 1.96 # Convert 95% CI to 1-sigma
+    
+    # 3. Log-Transform the Target (Base 10 is more intuitive for decades)
+    # We use log10(abs(y) + epsilon) to handle the offset consistently
+    y_log = np.sign(y_raw) * np.log10(np.abs(y_raw) + epsilon)
+    
+    # 4. Transform the Error Bars (Delta Method)
+    # For blocked regions (y=0, y_e=0), this results in 0/epsilon -> 0.
+    # For conductive regions, this scales the error to the log-domain.
+    y_e_log = y_e_raw / ((np.abs(y_raw) + epsilon) * np.log(10))
+    
+    return X, y_log, y_e_log
 
 def get_model(input_dim, layer_info):
     model = Sequential()
@@ -57,7 +58,9 @@ def get_model(input_dim, layer_info):
 
     for nodes, reg, drop in layer_info:
         model.add(Dense(nodes, kernel_regularizer=l2(reg)))
-        model.add(LeakyReLU(alpha=0.01))
+        model.add(BatchNormalization())
+        model.add(Activation('swish'))
+        # model.add(LeakyReLU(alpha=0.01))
         if drop > 0:
             model.add(Dropout(drop))
 
@@ -97,6 +100,8 @@ class JitterDataGenerator(tf.keras.utils.Sequence):
         noise = np.random.normal(0, 1, size=y_mean_batch.shape) * y_err_batch
         y_jittered = y_mean_batch + noise
 
+        y_jittered = np.sign(y_mean_batch) * np.maximum(np.abs(y_jittered), 0.0)
+
         return X_batch, y_jittered
 
     def on_epoch_end(self):
@@ -107,7 +112,7 @@ def main():
     # 1. Load Data
     print("Loading data...")
     path = os.path.join(FOLDER, FILENAME)
-    X, y, y_e = load_and_process_data(path, MAX_ERROR)
+    X, y, y_e = load_and_process_data(path)
 
     # 2. Split Data
     X_train, X_temp, y_train, y_temp, y_e_train, y_e_temp = train_test_split(
@@ -121,11 +126,8 @@ def main():
     x_scaler = MinMaxScaler(feature_range=(-1, 1))
     y_scaler = MinMaxScaler(feature_range=(-1, 1))
 
-    # x_scaler.fit([[-X_RANGE]*7,[X_RANGE]*7])
-    y_scaler.fit([[-Y_RANGE],[Y_RANGE]])
-
     X_train_scaled = x_scaler.fit_transform(X_train)
-    y_train_scaled = y_scaler.transform(y_train)
+    y_train_scaled = y_scaler.fit_transform(y_train)
 
     X_val_scaled = x_scaler.transform(X_val)
     y_val_scaled = y_scaler.transform(y_val)
@@ -142,9 +144,9 @@ def main():
 
     # Define the schedule
     lr_schedule = CosineDecay(
-        initial_learning_rate=1e-3, 
+        initial_learning_rate=LEARNING_RATE, 
         decay_steps=total_steps, 
-        alpha=0.01  # Minimum LR will be 1% of initial_learning_rate
+        alpha=0.01
     )
 
     # 4. Define Model
@@ -153,7 +155,7 @@ def main():
 
     # 5. Define Callbacks
     callbacks = [
-        EarlyStopping(monitor='val_loss', patience=40, restore_best_weights=True),
+        EarlyStopping(monitor='val_loss', patience=100, restore_best_weights=True),
         # ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=15, min_lr=1e-7)
     ]
 

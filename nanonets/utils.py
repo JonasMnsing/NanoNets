@@ -508,7 +508,7 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
     data = df.copy()
 
     # Initial filtering based on 'Error' and 'Observable'
-    # data = data[data['Error'] != 0.0]
+    data.loc[data['Error'] == 0.0, 'Observable'] = 0.0
     if drop_zero:
         data = data[data['Observable'].abs() > 0.0]
 
@@ -544,7 +544,7 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
 
 def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[int, List[int]], input_cols: List[str],
                          disordered: bool = False, off_state: float = 0.0, on_state: float = None, max_error=np.inf,
-                         drop_zero=True) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
+                         drop_zero=False) -> Union[pd.DataFrame, Dict[int, pd.DataFrame]]:
     """Load and prepare simulation results.
 
     Parameters
@@ -574,11 +574,11 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
     
     data = load_simulation_results(folder, N, N_e, disordered)
 
-    if isinstance(data, dict):
-        for key, df in data.items():
-            data[key] = df[(df['Error']/df['Observable']).abs() < max_error].reset_index(drop=True)
-    else:
-        data = data[(data['Error']/data['Observable']).abs() < max_error].reset_index(drop=True)
+    # if isinstance(data, dict):
+    #     for key, df in data.items():
+    #         data[key] = df[(df['Error']/df['Observable']).abs() < max_error].reset_index(drop=True)
+    # else:
+    #     data = data[(data['Error']/data['Observable']).abs() < max_error].reset_index(drop=True)
 
     if isinstance(N, list) and isinstance(N_e, int):
         if isinstance(on_state, float):
@@ -896,14 +896,14 @@ def get_displacement_currents(pots:np.ndarray, C_U: np.ndarray, dt: float, outpu
 
 def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 0.0, 
             off_state: float = 0.0, on_state: float = None,
-            gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR']) -> pd.DataFrame:
+            gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR'], I_0=None) -> pd.DataFrame:
     """
     Calculate fitness and expand the dataset by M resamples per row.
     """
 
-    ele     = 0.160217662
-    actime  = 40e-9
-    batch_t = 20*actime
+    if I_0 is None:
+        ele = 0.160217662
+        I_0 = ele / (20*40e-9)
     
     if gates is None:
         gates = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'P', 'notP', 'Q', 'notQ', 'PnotQ', 'notPQ', 'notPandQ', 'PandnotQ']
@@ -925,7 +925,7 @@ def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 
             expanded_df = target_df.iloc[repeated_indices].copy().reset_index(drop=True)
             
             # Apply noise to the 'Observable' column based on the 'Error' column
-            noise = np.random.normal(loc=0.0, scale=expanded_df['Error'].values)
+            noise = np.random.normal(loc=0.0, scale=expanded_df['Error'].values / 1.96)
             expanded_df['Observable'] += noise
             
             return expanded_df
@@ -947,7 +947,7 @@ def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 
         
         # Vectorized calculation across all N*M rows
         m = gate_states['on'] - gate_states['off']
-        denom = gate_states['res'] + delta * (gate_states['off'].abs()) + ele / (20*batch_t)
+        denom = gate_states['res'] + delta * (gate_states['off'].abs()) + I_0
         
         fitness_results[gate + ' Fitness'] = m / denom
 

@@ -509,6 +509,8 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
 
     # Initial filtering based on 'Error' and 'Observable'
     data.loc[data['Error'] == 0.0, 'Observable'] = 0.0
+    data.loc[data['Observable'].abs() < 1e2, 'Observable'] = 0.0
+    data.loc[data['Observable'].abs() < 1e2, 'Error'] = 0.0
     if drop_zero:
         data = data[data['Observable'].abs() > 0.0]
 

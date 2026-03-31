@@ -509,10 +509,13 @@ def prepare_for_fitness_calculation(df: pd.DataFrame, N_e: int, input_cols: List
 
     # Initial filtering based on 'Error' and 'Observable'
     data.loc[data['Error'] == 0.0, 'Observable'] = 0.0
-    data.loc[data['Observable'].abs() < 1e2, 'Observable'] = 0.0
-    data.loc[data['Observable'].abs() < 1e2, 'Error'] = 0.0
-    if drop_zero:
-        data = data[data['Observable'].abs() > 0.0]
+    data.loc[data['Observable'].abs() < 0.16, 'Observable'] = 0.0
+    data.loc[data['Observable'].abs() < 0.16, 'Error'] = 0.0
+
+    # if drop_zero:
+    #     data.loc[data['Observable'].abs() < 1e2, 'Observable'] = 0.0
+    #     data.loc[data['Observable'].abs() < 1e2, 'Error'] = 0.0
+        # data = data[data['Observable'].abs() > 0.0]
 
     # 1. Define the columns that should be constant for a group
     # These are all electrode columns that are NOT inputs, plus the 'G' column.
@@ -575,12 +578,6 @@ def load_boolean_results(folder : str, N : Union[int, List[int]], N_e : Union[in
     """
     
     data = load_simulation_results(folder, N, N_e, disordered)
-
-    # if isinstance(data, dict):
-    #     for key, df in data.items():
-    #         data[key] = df[(df['Error']/df['Observable']).abs() < max_error].reset_index(drop=True)
-    # else:
-    #     data = data[(data['Error']/data['Observable']).abs() < max_error].reset_index(drop=True)
 
     if isinstance(N, list) and isinstance(N_e, int):
         if isinstance(on_state, float):
@@ -894,8 +891,6 @@ def get_displacement_currents(pots:np.ndarray, C_U: np.ndarray, dt: float, outpu
 
     return I_disp
 
-
-
 def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 0.0, 
             off_state: float = 0.0, on_state: float = None,
             gates: List[str] = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR'], I_0=None) -> pd.DataFrame:
@@ -920,14 +915,15 @@ def fitness(df: pd.DataFrame, input_cols: List[str], M: int = 0, delta: float = 
     df11 = df[(df[input_cols[0]] == on_state) & (df[input_cols[1]] == on_state)].reset_index(drop=True)
 
     # 2. Resampling Logic (Expansion)
-    if M >= 2:
+    if M >= 1:
         def expand_and_resample(target_df, m_samples):
             # Repeat each row index M times (0,0,0, 1,1,1, ...)
             repeated_indices = np.repeat(target_df.index.values, m_samples)
             expanded_df = target_df.iloc[repeated_indices].copy().reset_index(drop=True)
             
             # Apply noise to the 'Observable' column based on the 'Error' column
-            noise = np.random.normal(loc=0.0, scale=expanded_df['Error'].values / 1.96)
+            noise = np.random.normal(loc=0.0, scale=expanded_df['Error'].values)
+            # noise = np.random.normal(loc=0.0, scale=expanded_df['Error'].values / 1.96)
             expanded_df['Observable'] += noise
             
             return expanded_df
@@ -1469,7 +1465,8 @@ def nonlinear_parameter(df: pd.DataFrame, input1_column: str = 'E1', input2_colu
 
     # Bootstrap
     bootstrap_dfs = []
-    sigma = errors_input / 1.96  # assumes 95% CI
+    # sigma = errors_input / 1.96  # assumes 95% CI
+    sigma = errors_input  # assumes 95% CI
 
     for _ in range(n_bootstrap):
         perturbed = values_input + np.random.normal(0, sigma)

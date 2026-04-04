@@ -2282,7 +2282,7 @@ def abundance_plot(df: pd.DataFrame, gates: List[str] = ['AND', 'OR', 'XOR', 'XN
 
     return fig, ax
 
-def display_network(G, pos: dict, radius: np.ndarray, fig: plt.Figure, ax: plt.Axes):
+def display_network(G, pos: dict, radius: np.ndarray, fig: plt.Figure, ax: plt.Axes, e_facecolor=None):
     """
     Visualize a nanoparticle network, including particles and electrodes.
 
@@ -2303,7 +2303,7 @@ def display_network(G, pos: dict, radius: np.ndarray, fig: plt.Figure, ax: plt.A
         The matplotlib Figure and Axes with the plot.
     """
     ax.set_aspect('equal')
-
+    
     # Draw network edges
     for u,v in G.edges():
         x0,y0 = pos[u]; x1,y1 = pos[v]
@@ -2318,12 +2318,14 @@ def display_network(G, pos: dict, radius: np.ndarray, fig: plt.Figure, ax: plt.A
 
     # Draw electrodes
     N_e = len(G.nodes) - len(radius)
+    if e_facecolor is None:
+        e_facecolor = [RED_COLOR for _ in range(N_e)]
     for i in range(1,N_e+1):
         e_node = -int(i)
         x, y = pos[-i]
         # Draw electrode circle
         circ = plt.Circle((x, y), ELECTRODE_RADIUS, fill=True,
-                        edgecolor='black', lw=1, zorder=2, facecolor=RED_COLOR)
+                        edgecolor='black', lw=1, zorder=2, facecolor=e_facecolor[i-1])
         ax.add_patch(circ)
 
     # Autoscale and padding

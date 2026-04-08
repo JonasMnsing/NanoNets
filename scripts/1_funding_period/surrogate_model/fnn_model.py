@@ -212,6 +212,9 @@ def main():
         PeriodicCheckpoint(filepath_base='trained_model', save_every=50)
     ]
 
+    with open('scalers.pkl', 'wb') as f:
+        pickle.dump({'x_scaler': x_scaler, 'y_scaler': y_scaler}, f)
+
     # ---------------------------------------------------------
     # 4. Training (Always uses Target Jittering)
     # ---------------------------------------------------------
@@ -239,10 +242,7 @@ def main():
     # ---------------------------------------------------------
     print("Saving model and artifacts...")
     model.save('trained_model.keras') 
-    
-    with open('scalers.pkl', 'wb') as f:
-        pickle.dump({'x_scaler': x_scaler, 'y_scaler': y_scaler}, f)
-        
+            
     with open('history.pkl', 'wb') as f:
         pickle.dump(history.history, f)
 
